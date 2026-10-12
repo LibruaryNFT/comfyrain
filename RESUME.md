@@ -93,8 +93,22 @@ at launch. Later Lua edits need only `/reload`.
 ## Commands
 
 `/rain` toggle · `/rain light|normal|heavy|monsoon` · `/rain alpha 0.75` · `/rain speed 1.4` ·
-`/rain indoors on|off` · `/rain sound on|off` · `/rain thunder on|off` ·
+`/rain gloom 0.5` · `/rain indoors on|off` · `/rain sound on|off` · `/rain thunder on|off` ·
 `/rain channel Ambience|SFX|Master` · `/rain status`
+
+## What this can never match
+
+Blizzard's rain is **3D particles in world space**. They have depth, they parallax
+correctly as you move, buildings and terrain occlude them, and they splash. This is a flat
+sheet in front of the camera. Two of the gaps are now papered over — a MOD-blend quad fakes
+the lighting change, and yaw parallax sweeps the curtain when you turn — but occlusion and
+splashes are not reachable from an addon at all, and the depth is faked with two layers
+rather than real.
+
+World lighting is the hard limit: `SetFogColor`, `SetLight` and `SetFogNear`/`SetFogFar`
+exist in this client but are **Model-widget methods** (they sit beside `SetModel` and
+`GetModelFileID` in the API table), so they apply to a model frame, not the world. There is
+no world fog or ambient-light setter exposed to addons.
 
 ## Open / unverified
 
@@ -105,6 +119,11 @@ at launch. Later Lua edits need only `/reload`.
   some large awnings and false in some open-roofed buildings. Nothing better is exposed.
 - Dungeons and raids are not specially handled; they report indoors, so the rain stops there.
 - `## Interface: 16001` is inferred from `SET engineSurveyPatch "16001"` in Config.wtf.
+- **`weatherDensity` is still `"0"`.** the author has therefore never seen this client render real
+  Blizzard rain, so there is no side-by-side to judge the overlay against. `/console
+  weatherDensity 3` and a rainy zone (Stranglethorn, Hillsbrad, Dustwallow) would give one.
+- Yaw parallax uses `GetPlayerFacing()`, which is the player, not the camera. Free-look
+  (right-mouse held) moves the camera without moving facing, so the rain will not sweep then.
 - the author's beta client runs very low graphics (`RenderScale 0.65`, particles off). The overlay is
   4 fullscreen quads plus one `OnUpdate`, so cost is negligible, but in-client weather
   (`weatherDensity 3`, `particulatesEnabled 1`) is not free on a GTX 1660.
