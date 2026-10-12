@@ -32,11 +32,25 @@ local FALLBACK_THUNDER = MEDIA .. "thunder.ogg"
 local MIST_TEXTURE = 396498   -- Textures/WEATHER/WeatherMistGrainy01.blp
 
 local PRESETS = {
-	light   = { mist = 0.05, far = 0.40, near = 0.35, density = 1.35, speed = 0.80 },
-	normal  = { mist = 0.10, far = 0.70, near = 0.65, density = 1.00, speed = 1.00 },
-	heavy   = { mist = 0.17, far = 0.95, near = 0.90, density = 0.78, speed = 1.25 },
-	monsoon = { mist = 0.26, far = 1.00, near = 1.00, density = 0.58, speed = 1.60 },
+	light   = { mist = 0.05, far = 0.40, near = 0.35, density = 1.35, speed = 0.80, gloom = 0.10 },
+	normal  = { mist = 0.10, far = 0.70, near = 0.65, density = 1.00, speed = 1.00, gloom = 0.20 },
+	heavy   = { mist = 0.17, far = 0.95, near = 0.90, density = 0.78, speed = 1.25, gloom = 0.32 },
+	monsoon = { mist = 0.26, far = 1.00, near = 1.00, density = 0.58, speed = 1.60, gloom = 0.45 },
 }
+
+-- Real weather darkens and cools the whole scene, because the client swaps in the
+-- weather's own fog and light parameters. An addon cannot touch world lighting -
+-- SetFogColor and SetLight belong to the Model widget, not the world - so this
+-- multiplies the finished frame by a blue-grey instead. It is the cheat that makes
+-- the overlay read as weather rather than as drops stuck to the lens.
+local GLOOM_TINT = { 0.55, 0.62, 0.78 }
+
+-- Yaw parallax. Turning the camera should sweep the curtain sideways; without it
+-- the sheet slides at one fixed rate no matter what the camera does, which is the
+-- single biggest tell that this is a 2D overlay. Approximated from player facing
+-- (no camera-yaw API is exposed) over roughly the horizontal field of view.
+local FOV_H = math.pi * 0.52
+local PARALLAX = { mist = 0.25, far = 0.9, near = 1.0 }
 local PRESET_ORDER = { "light", "normal", "heavy", "monsoon" }
 
 local DEFAULTS = {
@@ -44,6 +58,7 @@ local DEFAULTS = {
 	intensity = "normal",
 	scale     = 1.0,       -- multiplies every layer's alpha
 	speed     = 1.0,       -- multiplies fall speed
+	gloom     = 1.0,       -- multiplies the darkening; 0 disables it
 	sound     = true,
 	thunder   = true,
 	indoors   = false,     -- rain indoors too
@@ -59,8 +74,9 @@ local LAYERS = {
 }
 
 local db
-local overlay, flash
+local overlay, flash, gloom
 local textures, offsets = {}, {}
+local lastFacing, turnDelta = nil, 0
 local soundHandles, rainTicker, bedFallback, loopedIntensity = {}, nil, false, nil
 local lightningTimer
 local cinematic, indoorsNow, indoorsSince = false, false, nil
@@ -84,6 +100,14 @@ local function ApplyAlphas()
 	textures.mist:SetAlpha(math.min(p.mist * s, 0.6))
 	textures.far:SetAlpha(math.min(p.far * s, 1))
 	textures.near:SetAlpha(math.min(p.near * s, 1))
+
+	-- MOD multiplies the frame by this colour, so strength lives in the colour
+	-- itself: 1 is untouched, and we lerp towards the tint from there.
+	local g = math.min(p.gloom * db.gloom, 0.75)
+	gloom:SetColorTexture(
+		1 - g * (1 - GLOOM_TINT[1]),
+		1 - g * (1 - GLOOM_TINT[2]),
+		1 - g * (1 - GLOOM_TINT[3]), 1)
 end
 
 -- Rain is wanted right now: on, not in a cinematic, and either outdoors or
@@ -124,18 +148,36 @@ local function OnUpdate(self, elapsed)
 	local w, h = self:GetWidth(), self:GetHeight()
 	if not w or w <= 0 or not h or h <= 0 then return end
 
+	-- How far the camera turned this frame, as a fraction of the screen width.
+	local facing = GetPlayerFacing()
+	local swing = 0
+	if facing then
+		if lastFacing then
+			local d = facing - lastFacing
+			if d > math.pi then d = d - 2 * math.pi
+			elseif d < -math.pi then d = d + 2 * math.pi end
+			-- Smoothed, or a stutter in facing shows up as a jolt in the rain.
+			turnDelta = turnDelta + (d - turnDelta) * math.min(1, elapsed * 12)
+			swing = turnDelta / FOV_H
+		end
+		lastFacing = facing
+	end
+
 	local aspect = w / h
 	local rate = Preset().speed * db.speed
 	local density = Preset().density
 
 	for _, l in ipairs(LAYERS) do
 		local tilesY = l.tilesY * (l.key == "mist" and 1 or density)
+		local tilesX = tilesY * aspect
 		local o = offsets[l.key]
 		local dy = l.speed * rate * elapsed
 		-- The sampling window moves up the sheet so the image falls down the screen.
 		o.y = (o.y - dy) % 1
-		o.x = (o.x - dy * SLANT) % 1
-		textures[l.key]:SetTexCoord(o.x, o.x + tilesY * aspect, o.y, o.y + tilesY)
+		-- Slant drift, plus the camera swing scaled into this layer's tiling so
+		-- every layer sweeps the same distance across the screen.
+		o.x = (o.x - dy * SLANT + swing * PARALLAX[l.key] * tilesX) % 1
+		textures[l.key]:SetTexCoord(o.x, o.x + tilesX, o.y, o.y + tilesY)
 	end
 end
 
@@ -146,6 +188,12 @@ local function BuildOverlay()
 	overlay:SetAllPoints(WorldFrame)
 	overlay:SetFrameStrata("BACKGROUND")
 	overlay:EnableMouse(false)
+
+	-- Drawn first and multiplied, so everything behind it dims; the rain and the
+	-- lightning flash are added on top of the already-darkened frame.
+	gloom = overlay:CreateTexture(nil, "BACKGROUND", nil, 0)
+	gloom:SetAllPoints(overlay)
+	gloom:SetBlendMode("MOD")
 
 	local sources = {
 		mist = MIST_TEXTURE,
@@ -299,9 +347,9 @@ local Refresh = AlwaysRain_Refresh
 
 local function Status()
 	msg(string.format(
-		"%s - %s, alpha x%.2f, speed x%.2f, sound %s%s, thunder %s, indoors %s (channel %s)%s",
+		"%s - %s, alpha x%.2f, speed x%.2f, gloom x%.2f, sound %s%s, thunder %s, indoors %s (channel %s)%s",
 		db.enabled and "|cff66ff66on|r" or "|cffff6666off|r",
-		db.intensity, db.scale, db.speed,
+		db.intensity, db.scale, db.speed, db.gloom,
 		db.sound and "on" or "off",
 		bedFallback and " |cffff9900(bundled audio)|r" or "",
 		db.thunder and "on" or "off",
@@ -316,6 +364,7 @@ local function Help()
 	print("  |cffffd100/rain light|normal|heavy|monsoon|r - intensity")
 	print("  |cffffd100/rain alpha <0-1.5>|r - how visible it is")
 	print("  |cffffd100/rain speed <0.2-3>|r - how fast it falls")
+	print("  |cffffd100/rain gloom <0-2>|r - how much it darkens the world (0 = off)")
 	print("  |cffffd100/rain indoors on|off|r - rain inside buildings too")
 	print("  |cffffd100/rain sound on|off|r, |cffffd100/rain thunder on|off|r")
 	print("  |cffffd100/rain channel Ambience|SFX|Master|r - which volume slider owns it")
@@ -341,6 +390,10 @@ local function HandleSlash(input)
 		local v = tonumber(arg)
 		if not v then msg("usage: /rain speed 1.4") return end
 		db.speed = math.max(0.2, math.min(3, v))
+	elseif cmd == "gloom" then
+		local v = tonumber(arg)
+		if not v then msg("usage: /rain gloom 0.5  (0 turns the darkening off)") return end
+		db.gloom = math.max(0, math.min(2, v))
 	elseif cmd == "sound" then
 		db.sound = (arg ~= "off")
 	elseif cmd == "thunder" then
