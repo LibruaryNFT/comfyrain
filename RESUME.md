@@ -115,7 +115,63 @@ at launch. Later Lua edits need only `/reload`.
 
 `/rain` toggle · `/rain light|normal|heavy|monsoon` · `/rain alpha 0.75` · `/rain speed 1.4` ·
 `/rain gloom 0.5` · `/rain indoors on|off` · `/rain sound on|off` · `/rain thunder on|off` ·
-`/rain channel Ambience|SFX|Master` · `/rain status`
+`/rain channel Ambience|SFX|Master` · `/rain density` · `/rain status`
+
+## Prior art — what every other weather addon does
+
+Surveyed 2026-10-12. Each was downloaded and the Lua read; **nothing was copied**, the
+sources are listed so a reader can check the claims. Downloads live in `/tmp/wowaddons`
+and are not part of this repo.
+
+| Addon | Source | Size | What it actually does |
+|---|---|---|---|
+| [Dynamic Weather](https://www.curseforge.com/wow/addons/dynamic-weather-immersive-realistic-changing) | Scroll_Keeper, Public Domain, 20.7k dl, last touched 2021 (`## Interface: 40300`) | 1,895 Lua lines, 46 MB of TGA | 18 weather states, ~200 zones mapped to biomes, four seasonal biome tables keyed off the real calendar, a Mersenne Twister in Lua seeded from `GetServerTime()`, hourly forecast bar, flavour text per transition, Blizzard soundkit IDs per state, 14 lens droplets |
+| [Dynamic Azeroth Weather](https://www.curseforge.com/wow/addons/dynamic-azeroth-weather) | ForgeDMC, 2026, 358 dl | 1,061 Lua lines over 7 files | FNV-1a hash of `zone .. hour bucket` → weighted choice, 4-hour forecast, per-zone climate weights, minimap button, options panel, thunder flash + fake screen shake |
+| [RainingBlood](https://www.curseforge.com/wow/addons/rainingblood) | vggoecks, MIT, 2019 | **2 lines** | `SetCVar("weatherDensity", 3)` and `violencelevel 5` |
+| [ImmersiveWeather](https://www.curseforge.com/wow/addons/immersiveweather) | Viinchesterr, 2025 | ~40 lines | A text label by the minimap. No visuals at all |
+| [DayNight](https://www.curseforge.com/projects/95595/) | 2015, 136 dl | tiny | Drives the `gamma` CVar down at night. Darkens the UI too |
+
+### What they have that we do not
+
+1. **Deterministic weather with no addon comms.** Hash the zone name plus the current
+   hour bucket of `GetServerTime()` and everyone running the addon sees the same sky
+   without a single packet. Both of the serious addons landed on this independently.
+2. **Per-zone climate weights.** Rain in Wetlands, sandstorm in Tanaris, snow in Dun
+   Morogh. One table, and the addon stops being a rain addon.
+3. **Seasons**, from the real calendar month.
+4. **A forecast** — "heavy rain in two hours" — and flavour text on each transition.
+   This is what makes it feel like a world rather than a filter.
+5. **Blizzard weather soundkits by ID**, far beyond our two files. From Dynamic
+   Weather's table: overcast 18414, light rain 111995, heavy rain 112759, thunder
+   111998, blizzard 39789, high wind 39821, sandstorm 21436, snow flurry 4197.
+6. **Lens droplets** — a handful of droplet sprites held on the camera.
+7. **An options panel.** Both have one. We have slash commands only.
+
+### What we already do better
+
+- **Neither of them calls `SetBlendMode` at all**, so neither can darken anything. Our
+  MOD-blend gloom quad is the only thing in this survey that makes the world dimmer.
+- Dynamic Azeroth Weather parents its particles to `UIParent`, so its rain draws **over
+  the action bars**. Ours is a `WorldFrame` child.
+- Its "rain" is 200 white 2x20 rectangles moved in `OnUpdate`. Ours is a tiling sheet.
+- Dynamic Weather ships 46 MB of uncompressed TGA; ours are two 512px sheets generated
+  at install time.
+- Nobody in the survey shifts time of day.
+
+### The two-line finding
+
+`weatherDensity` on this machine is **`0`** and `graphicsEnvironmentDetail` is **`1`**.
+At those values the client will not draw Blizzard's real weather at all, which is why the
+realm's own rain has never once been visible here. `/rain density on` raises both. That is
+the whole of RainingBlood, and it is a bigger visual change than anything we have written.
+
+### `C_Weather` exists and is readable
+
+Verified in the 1.60.1.70338 binary at offset 81939440: a `C_Weather` namespace with
+`GetCurrentWeather`, an `intensity` field, and `Enum.WeatherType` = `Rain`, `Snow`,
+`Sandstorm`. It is **read-only** — there is no setter, so it still cannot force weather —
+but it lets the addon know when the client is already drawing real rain instead of
+doubling up on it. Surfaced in `/rain status`. Not yet confirmed in a running client.
 
 ## What this can never match
 

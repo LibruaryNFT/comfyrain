@@ -220,6 +220,34 @@ local function ApplyAlphas()
 		1 - g * (1 - GLOOM_TINT[3]), 1)
 end
 
+-- What Blizzard's own weather system thinks is happening here. C_Weather is a
+-- read-only namespace (Enum.WeatherType is Rain / Snow / Sandstorm plus an
+-- intensity), so it cannot make it rain - but it tells us when the client is
+-- already drawing real rain, which is worth knowing before we draw ours on top.
+local WEATHER_NAME = { [0] = "none", "rain", "snow", "sandstorm" }
+
+local function RealWeather()
+	if not C_Weather or not C_Weather.GetCurrentWeather then return nil end
+	local ok, info = pcall(C_Weather.GetCurrentWeather)
+	if not ok or type(info) ~= "table" then return nil end
+	local t = info.weatherType or info.type or 0
+	return WEATHER_NAME[t] or tostring(t), info.intensity or 0
+end
+
+-- The client will not draw Blizzard's weather at all unless these two are up.
+-- weatherDensity 0 means "never", and environment detail 1 culls it as well.
+local DENSITY_CVARS = { weatherDensity = 3, graphicsEnvironmentDetail = 2 }
+
+local function DensityReport()
+	for cvar in pairs(DENSITY_CVARS) do
+		local v = tonumber(GetCVar(cvar) or "")
+		if v then
+			msg(string.format("%s = %s%d|r", cvar,
+				(cvar == "weatherDensity" and v == 0) and "|cffff6666" or "|cff66ff66", v))
+		end
+	end
+end
+
 -- Rain is wanted right now: on, not in a cinematic, and either outdoors or
 -- the player has asked for it indoors too.
 local function ShouldRain()
@@ -509,6 +537,10 @@ local function Status()
 		db.indoors and "on" or "off",
 		db.channel,
 		indoorsNow and " |cff888888[indoors]|r" or ""))
+	local real, grade = RealWeather()
+	if real and real ~= "none" then
+		msg(string.format("the realm's own weather here is |cff66ff66%s|r at %.2f", real, grade))
+	end
 end
 
 local function Help()
@@ -523,6 +555,7 @@ local function Help()
 	print("  |cffffd100/rain indoors on|off|r - rain inside buildings too")
 	print("  |cffffd100/rain sound on|off|r, |cffffd100/rain thunder on|off|r")
 	print("  |cffffd100/rain channel Ambience|SFX|Master|r - which volume slider owns it")
+	print("  |cffffd100/rain density|r - is the client even allowed to draw real weather?")
 	print("  |cffffd100/rain status|r")
 end
 
@@ -591,6 +624,23 @@ local function HandleSlash(input)
 			if name == db.intensity then i = n end
 		end
 		db.intensity, db.enabled = PRESET_ORDER[(i % #PRESET_ORDER) + 1], true
+	elseif cmd == "density" then
+		-- Not touched automatically: these are the player's graphics settings,
+		-- and raising them turns on Blizzard's real weather everywhere, not ours.
+		if arg == "" then
+			DensityReport()
+			msg("|cffffd100/rain density on|r raises both so the realm's own weather renders")
+			return
+		end
+		for cvar, want in pairs(DENSITY_CVARS) do
+			if arg == "off" then
+				SetCVar(cvar, cvar == "weatherDensity" and 0 or 1)
+			else
+				SetCVar(cvar, want)
+			end
+		end
+		DensityReport()
+		return
 	elseif cmd == "status" then
 		Status()
 		return
