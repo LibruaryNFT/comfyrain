@@ -131,6 +131,46 @@ exist in this client but are **Model-widget methods** (they sit beside `SetModel
 `GetModelFileID` in the API table), so they apply to a model frame, not the world. There is
 no world fog or ambient-light setter exposed to addons.
 
+## How Blizzard keeps everyone's sky the same
+
+Researched 2026-10-12 from [CMaNGOS](https://github.com/cmangos/mangos-classic) source. **Caveat:
+that is a reverse-engineered reimplementation, not Blizzard's code.** It is good evidence of the
+protocol's *shape*, because a server has to match it byte-for-byte or real clients break, and the
+weather chance tables are read from Blizzard's own DBC files. It is not evidence of their
+intentions, which are inferred below and labelled as such.
+
+**Both systems are a seed, not a stream.** The server sends a tiny bit of state; the client
+renders from it. Nothing about the sky is streamed continuously.
+
+| | Day / night | Weather |
+|---|---|---|
+| Packet | `SMSG_LOGIN_SETTIMESPEED`, once at login (`SMSG_GAMETIME_UPDATE` re-syncs drift) | `SMSG_WEATHER` |
+| Payload | realm wall-clock packed into bitfields, + a speed float | type, grade (0-1 float), **sound id**, smooth/instant flag |
+| Scope | per player, but seeded from one realm clock | **per zone**, broadcast to everyone standing in it |
+| Cadence | once; the client then runs its own clock | re-rolled every 10 min (`ChangeWeatherInterval`) |
+
+- **Classic's day/night is exactly 1:1 with real time.** The speed float is `0.01666667`, which is
+  1/60 game-minutes per real second — one game minute per real minute. So the in-game hour is
+  simply the realm's wall-clock hour, which is the whole reason `/rain time local` is worth having.
+- **Weather is rolled per zone from a seasonal table.** 30% no change, 30% better, 30% worse, 10%
+  radical, with rain/snow/storm chances looked up per zone *and per season* (season computed from
+  the real calendar date). Grade falls in three bands at 0.33 and 0.67 — which is exactly why there
+  are three rain loops, and it matches the three FileDataIDs in the table above.
+- **The packet carries the sound id**, so the server nominates which ambience the client plays.
+  Using those same loops by FileDataID is doing what the client would have done anyway.
+- **`m_isPermanentWeather` exists.** Permanent weather is a first-class server-side concept — it is
+  how a zone rains 24/7. What this addon fakes is a thing Blizzard built, just never exposed to the
+  client or to addons.
+- **Inferred intent:** a seed costs almost nothing on a 2005 connection, and broadcasting weather
+  per zone rather than per player means two people standing together always see the same sky. The
+  shared world is the point.
+
+**Why this addon does not touch any of it.** It sends no packets, registers no packet handlers,
+and changes no client state. The realm still tells our client exactly what it tells everyone
+else's, and the client still believes it. We paint over the finished frame afterwards, the same as
+a monitor's colour profile would. Two players standing together still *are* in the same weather at
+the same hour; only one of them is looking at it through a filter.
+
 ## Time of day ("Australian mode")
 
 WoW's day/night runs on the **realm's** clock, so playing far from your realm means in-game
