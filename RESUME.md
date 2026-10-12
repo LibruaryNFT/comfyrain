@@ -3,8 +3,9 @@
 **What this is:** a WoW addon that makes it look and sound like it is always raining,
 because the client cannot be told to actually change the weather.
 
-**Status 2026-10-12:** built and installed to `_classic_beta_`. Not yet seen running —
-WoW was open during the build, so it has never been loaded by the client.
+**Status 2026-10-12:** v2 installed to `_classic_beta_`. v1 was confirmed running in
+Stormwind. v2 switches all audio and the drop sprite to Blizzard's own assets and stops
+the rain indoors; needs `/reload` to pick up (no new files, so no client restart).
 
 ## The finding that shaped it
 
@@ -26,25 +27,59 @@ is patching memory, which is bannable. Not doing that.
 so real in-game weather was not being rendered at all. And `Sound_MasterVolume "0.10000000149012"`,
 `Sound_MusicVolume "0"` in beta.
 
+## Blizzard assets used, by FileDataID
+
+Addons can pass a numeric FileDataID to `SetTexture` and `PlaySoundFile`, so the client's own
+files are reachable with nothing extracted and nothing shipped. **A FileDataID needs no client
+restart** — only new files on disk do. Durations below were measured from the real files
+(pulled via `https://wago.tools/api/casc/<fdid>?download`) and must stay in sync with `BEDS`
+in the Lua, because the loop ticker is driven by them.
+
+| Asset | FileDataID | Measured |
+|---|---|---|
+| RainLightLoop.ogg | 538983 | 20.0 s, mean -35.8 dB |
+| RainMediumLoop.ogg | 538981 | 30.0 s, mean -30.5 dB |
+| RainHeavyLoop.ogg | 538982 | 25.0 s, mean -20.8 dB |
+| FX_TKIsle_MWThunderRumble ×10 | 838830, 838832, 838834, 839725, 839727, 839729, 839731, 839733, 839735, 839737 | 5.5–7.6 s |
+| WeatherMistGrainy01.blp | 396498 | 256×256, the mist veil |
+| RainDrop01.blp | 186226 | 16×128 tapered streak, composited into our sheets |
+
+Snow (538985 / 538989 / 538984) and sandstorm (538988 / 538987 / 538986) loops exist on the
+same naming scheme if the addon ever grows other weather.
+
+Rejected after looking at them: `UI_Worgen_Rain01` (313250, faint horizontal streaks) and
+`worgen_RainEffects_01` (304844, a splash/puddle decal). **Blizzard ships no tiling rain-curtain
+sheet** — only single particle sprites, placed by a particle system an addon cannot reach. That
+is why the curtain is still ours; only the drop in it is theirs.
+
+FileDataIDs came from `listfile/verified-listfile.csv` (community listfile, tag `202610111812`,
+1,087,814 rows — not checked in, 71 MB).
+
 ## How the addon works
 
 - A frame parented to **`WorldFrame`** (not `UIParent`) at strata `BACKGROUND`: draws above the
   3D scene, below every UI frame, and stays visible when the UI is hidden with Alt+Z.
-- Two scrolling rain-streak textures (far/near) using `SetTexture(file, "REPEAT", "REPEAT")` and
-  `SetTexCoord` offsets > 1 to tile. `tilesX` is derived from screen aspect each frame so drops
-  stay round at 2125x1080 and at any other size.
-- A flat grey `SetColorTexture` mist veil, and an additive white flash texture for lightning.
-- Audio: a 24 s synthesised rain bed looped by `C_Timer.NewTicker(24 - 0.35)`; the 0.35 s overlap
-  lands on the clip's fades so the join crossfades instead of clicking. Thunder is a separate
-  one-shot fired 0.6–3.2 s after a flash. Both play on the **Ambience** channel by default.
+- Three scrolling layers — Blizzard's mist texture, then far and near rain sheets — using
+  `SetTexture(..., "REPEAT", "REPEAT")` and `SetTexCoord` offsets > 1 to tile. `tilesX` is derived
+  from screen aspect each frame so drops stay the right shape at 2125x1080 and at any other size.
+- An additive white flash texture for lightning, with thunder trailing 0.6–3.2 s behind it.
+- Audio: Blizzard's rain loop for the current intensity, relooped by
+  `C_Timer.NewTicker(len - 0.12)` using that file's exact measured duration. Falls back to the
+  bundled `rain.ogg` only if `PlaySoundFile` refuses the FileDataID, and says so in `/rain status`.
+- **Indoors:** `IsIndoors()` is polled every 0.3 s with a 0.9 s debounce (so an archway does not
+  restart the audio), plus the `ZONE_CHANGED*` events. Going inside fades the overlay out over
+  0.7 s and stops the bed; `/rain indoors on` opts back into raining inside.
 
 ### Asset generation
 Assets are not checked in; they are deterministic output of the build scripts.
-- `build/make_rain_tga.py` — 256x256 32-bit **uncompressed** TGA (WoW rejects RLE TGA), streaks
-  wrap in both axes. `SLANT = 0.14` here **must match** `SLANT` in `AlwaysRain.lua`.
-- `build/make_rain_audio.sh` — ffmpeg-synthesised, three noise layers (brown roar / mid body /
-  high patter) merged to a slightly decorrelated stereo pair. `DUR` and `FADE` **must match**
-  `RAIN_LEN` and `RAIN_OVERLAP` in `AlwaysRain.lua`.
+- `build/make_rain_tga.py` — 512×512 32-bit **uncompressed** TGA (WoW rejects RLE TGA), built by
+  scattering Blizzard's RainDrop01 sprite so it wraps in both axes. `SLANT_DEG = 7.5` here **must
+  match** `SLANT` in `AlwaysRain.lua` as its tangent (0.1317). Widths are set in absolute pixels,
+  not scaled with length — scaling the 16×128 source proportionally gives 30 px bars, not rain.
+- `build/make_rain_audio.py` — the fallback bed only. Noise is shaped in the frequency domain over
+  exactly one loop length, so the result is periodic and the join is sample-exact; that removed
+  the end fades v1 needed, which were what made two clips audibly swell over each other.
+- `build/assets/` caches the Blizzard files pulled for reference. Read-only, never shipped.
 
 ## Install
 
@@ -58,18 +93,18 @@ at launch. Later Lua edits need only `/reload`.
 ## Commands
 
 `/rain` toggle · `/rain light|normal|heavy|monsoon` · `/rain alpha 0.75` · `/rain speed 1.4` ·
-`/rain sound on|off` · `/rain thunder on|off` · `/rain channel Ambience|SFX|Master` · `/rain status`
+`/rain indoors on|off` · `/rain sound on|off` · `/rain thunder on|off` ·
+`/rain channel Ambience|SFX|Master` · `/rain status`
 
 ## Open / unverified
 
-- **Never launched.** Nothing below is confirmed against a running client.
-- `## Interface: 16001` is inferred from `SET engineSurveyPatch "16001"` in Config.wtf, not read
-  from the binary. If the addon does not appear in the list, tick **Load out of date AddOns** on
-  the character-select AddOns screen and read the real number off the warning.
-- TGA loading is unverified. If the streaks come up blank/black, the textures need converting to
-  BLP (no BLP tooling on this box yet) or swapping for an in-client texture path.
-- Rain currently also falls indoors and in dungeons/raids — literally "always". An `IsIndoors()`
-  suppression toggle is a few lines in `Refresh()` if that turns out to be annoying.
+- **v2 has not been seen running.** v1 was; the Blizzard FileDataIDs, the mist texture and the
+  indoor fade are all unconfirmed against a live client. `/rain status` reports
+  `(bundled audio)` if the sound IDs were refused.
+- `IsIndoors()` is the client's own notion of inside and it is imperfect — it reads true under
+  some large awnings and false in some open-roofed buildings. Nothing better is exposed.
+- Dungeons and raids are not specially handled; they report indoors, so the rain stops there.
+- `## Interface: 16001` is inferred from `SET engineSurveyPatch "16001"` in Config.wtf.
 - the author's beta client runs very low graphics (`RenderScale 0.65`, particles off). The overlay is
-  3 fullscreen quads plus one `OnUpdate`, so cost is negligible, but in-client weather
+  4 fullscreen quads plus one `OnUpdate`, so cost is negligible, but in-client weather
   (`weatherDensity 3`, `particulatesEnabled 1`) is not free on a GTX 1660.

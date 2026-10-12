@@ -20,8 +20,10 @@ mkdir -p "$DEST"
 cp "${HERE}/AlwaysRain/AlwaysRain.lua" "${HERE}/AlwaysRain/AlwaysRain.toc" "$DEST/"
 
 # Assets are generated, not checked in - they are deterministic from these scripts.
+# The addon prefers Blizzard's own weather audio by FileDataID; these files are
+# only the fallback for a client that will not play them.
 python3 "${HERE}/build/make_rain_tga.py" "$DEST"
-bash "${HERE}/build/make_rain_audio.sh" "$DEST"
+python3 "${HERE}/build/make_rain_audio.py" "$DEST"
 
 echo
 echo "installed to ${DEST}"
