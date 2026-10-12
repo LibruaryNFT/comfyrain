@@ -53,6 +53,29 @@ local FOV_H = math.pi * 0.52
 local PARALLAX = { mist = 0.25, far = 0.9, near = 1.0 }
 local PRESET_ORDER = { "light", "normal", "heavy", "monsoon" }
 
+-- Time of day. WoW's day/night runs on the realm's clock, so anyone playing far
+-- from their realm gets night at lunchtime. This grades the screen towards the
+-- hour the player would rather it were. How the world looks at each hour, as a
+-- light multiplier where 1 is full daylight; interpolated between keyframes.
+local LIGHT = {
+	{  0, 0.30, 0.36, 0.62 },   -- deep night, moonlit blue
+	{  3, 0.28, 0.34, 0.60 },
+	{  5, 0.52, 0.50, 0.62 },   -- first light
+	{  6, 0.88, 0.70, 0.58 },   -- dawn, warm
+	{  7, 0.98, 0.92, 0.88 },
+	{  8, 1.00, 1.00, 1.00 },   -- full day
+	{ 17, 1.00, 1.00, 1.00 },
+	{ 18, 0.98, 0.88, 0.76 },
+	{ 19, 1.00, 0.74, 0.55 },   -- sunset
+	{ 20, 0.60, 0.56, 0.70 },   -- dusk
+	{ 22, 0.34, 0.40, 0.66 },
+	{ 24, 0.30, 0.36, 0.62 },   -- wraps onto the first entry
+}
+-- Lifting a night scene towards day barely works: ADD can raise the black level
+-- but cannot restore contrast, and the skybox keeps its stars and its missing
+-- sun either way. Capped low so it never turns the screen into milk.
+local LIFT_CAP = 0.13
+
 local DEFAULTS = {
 	enabled   = true,
 	intensity = "normal",
@@ -63,6 +86,10 @@ local DEFAULTS = {
 	thunder   = true,
 	indoors   = false,     -- rain indoors too
 	channel   = "Ambience",
+	timeMode  = "off",     -- off | local | offset | fixed
+	timeOffset = 0,        -- hours from realm time, for "offset"
+	timeFixed = 21,        -- the hour to hold at, for "fixed"
+	timeStrength = 1.0,
 }
 
 -- tilesY is how many copies of the 512px sheet fit vertically; tilesX is derived
@@ -75,6 +102,7 @@ local LAYERS = {
 
 local db
 local overlay, flash, gloom
+local tod, todDim, todLift, todTicker
 local textures, offsets = {}, {}
 local lastFacing, turnDelta, runSpeed = nil, 0, 0
 local soundHandles, rainTicker, bedFallback, loopedIntensity = {}, nil, false, nil
@@ -94,6 +122,73 @@ end
 --------------------------------------------------------------------------------
 -- Visuals
 --------------------------------------------------------------------------------
+
+--------------------------------------------------------------------------------
+-- Time of day
+--------------------------------------------------------------------------------
+
+local function LightAt(hour)
+	hour = hour % 24
+	for i = 1, #LIGHT - 1 do
+		local a, b = LIGHT[i], LIGHT[i + 1]
+		if hour >= a[1] and hour <= b[1] then
+			local t = (hour - a[1]) / (b[1] - a[1])
+			return a[2] + (b[2] - a[2]) * t,
+			       a[3] + (b[3] - a[3]) * t,
+			       a[4] + (b[4] - a[4]) * t
+		end
+	end
+	return 1, 1, 1
+end
+
+-- The realm clock, which is what the world is actually lit by.
+local function RealmHour()
+	local h, m = GetGameTime()
+	if not h then return nil end
+	return h + (m or 0) / 60
+end
+
+local function ClockHour()
+	local t = date("*t")
+	return t.hour + t.min / 60
+end
+
+-- The hour the player wants it to look like.
+local function ApparentHour()
+	if db.timeMode == "local" then return ClockHour() end
+	if db.timeMode == "fixed" then return db.timeFixed end
+	local r = RealmHour()
+	return r and (r + db.timeOffset) or nil
+end
+
+local function UpdateTimeOfDay()
+	if not tod then return end
+	if db.timeMode == "off" or cinematic then tod:Hide() return end
+
+	local realm = RealmHour()
+	local want = ApparentHour()
+	if not realm or not want then tod:Hide() return end
+
+	-- Grade by the ratio between the two, not by the target alone: the world is
+	-- already lit for the realm's hour, so at realm 22:00 wanting 22:00 there is
+	-- nothing to do. Without this it would double-darken every night.
+	local wr, wg, wb = LightAt(want)
+	local rr, rg, rb = LightAt(realm)
+	local s = db.timeStrength
+
+	local function channel(target, actual)
+		local ratio = target / math.max(actual, 0.05)
+		return 1 + (ratio - 1) * s
+	end
+	local mr, mg, mb = channel(wr, rr), channel(wg, rg), channel(wb, rb)
+
+	tod:Show()
+	-- Anything below 1 is a darkening and multiplies cleanly.
+	todDim:SetColorTexture(math.min(mr, 1), math.min(mg, 1), math.min(mb, 1), 1)
+	-- Anything above it has to be added, which is the weak direction.
+	local lift = math.max(mr, mg, mb) - 1
+	todLift:SetAlpha(math.min(math.max(lift, 0) * 0.09, LIFT_CAP))
+end
 
 -- A fullscreen curtain runs right down over the player's feet and the action
 -- bars, which is the giveaway that it is pasted on the lens. Fading the bottom
@@ -204,9 +299,30 @@ end
 local function BuildOverlay()
 	-- Parented to WorldFrame, not UIParent: the rain sits above the 3D scene but
 	-- below every UI frame, and survives Alt+Z so screenshots keep it.
+	-- The time grade is its own frame, underneath the rain, because it has to be
+	-- usable on its own: wanting your realm's night to match your own clock has
+	-- nothing to do with wanting rain.
+	tod = CreateFrame("Frame", "AlwaysRainTimeOfDay", WorldFrame)
+	tod:SetAllPoints(WorldFrame)
+	tod:SetFrameStrata("BACKGROUND")
+	tod:SetFrameLevel(1)
+	tod:EnableMouse(false)
+	tod:Hide()
+
+	todDim = tod:CreateTexture(nil, "BACKGROUND", nil, 0)
+	todDim:SetAllPoints(tod)
+	todDim:SetBlendMode("MOD")
+
+	todLift = tod:CreateTexture(nil, "BACKGROUND", nil, 1)
+	todLift:SetAllPoints(tod)
+	todLift:SetColorTexture(1, 0.97, 0.90, 1)
+	todLift:SetBlendMode("ADD")
+	todLift:SetAlpha(0)
+
 	overlay = CreateFrame("Frame", "AlwaysRainOverlay", WorldFrame)
 	overlay:SetAllPoints(WorldFrame)
 	overlay:SetFrameStrata("BACKGROUND")
+	overlay:SetFrameLevel(5)
 	overlay:EnableMouse(false)
 
 	-- Drawn first and multiplied, so everything behind it dims; the rain and the
@@ -242,6 +358,10 @@ local function BuildOverlay()
 
 	overlay:SetScript("OnUpdate", OnUpdate)
 	ApplyAlphas()
+
+	-- Game time moves slowly; a third of a minute is finer than the eye needs.
+	UpdateTimeOfDay()
+	todTicker = C_Timer.NewTicker(20, UpdateTimeOfDay)
 end
 
 --------------------------------------------------------------------------------
@@ -341,6 +461,7 @@ end
 
 function AlwaysRain_Refresh()
 	if not overlay then return end
+	UpdateTimeOfDay()
 	local want = ShouldRain()
 
 	fadeTarget = want and 1 or 0
@@ -370,6 +491,14 @@ local Refresh = AlwaysRain_Refresh
 --------------------------------------------------------------------------------
 
 local function Status()
+	if db.timeMode ~= "off" then
+		local realm, want = RealmHour(), ApparentHour()
+		msg(string.format("time: |cff66ff66%s|r - realm reads %s, showing it as %s"
+			.. (db.timeStrength < 1 and (", strength %.2f"):format(db.timeStrength) or ""),
+			db.timeMode == "offset" and ("offset %+g h"):format(db.timeOffset) or db.timeMode,
+			realm and ("%02d:%02d"):format(realm, (realm % 1) * 60) or "?",
+			want and ("%02d:%02d"):format(want % 24, (want % 1) * 60) or "?"))
+	end
 	msg(string.format(
 		"%s - %s, alpha x%.2f, speed x%.2f, gloom x%.2f, sound %s%s, thunder %s, indoors %s (channel %s)%s",
 		db.enabled and "|cff66ff66on|r" or "|cffff6666off|r",
@@ -389,6 +518,8 @@ local function Help()
 	print("  |cffffd100/rain alpha <0-1.5>|r - how visible it is")
 	print("  |cffffd100/rain speed <0.2-3>|r - how fast it falls")
 	print("  |cffffd100/rain gloom <0-2>|r - how much it darkens the world (0 = off)")
+	print("  |cffffd100/rain time local|r - make it look like YOUR clock, not the realm's")
+	print("  |cffffd100/rain time +9|r, |cffffd100/rain time 21|r, |cffffd100/rain time off|r")
 	print("  |cffffd100/rain indoors on|off|r - rain inside buildings too")
 	print("  |cffffd100/rain sound on|off|r, |cffffd100/rain thunder on|off|r")
 	print("  |cffffd100/rain channel Ambience|SFX|Master|r - which volume slider owns it")
@@ -414,6 +545,28 @@ local function HandleSlash(input)
 		local v = tonumber(arg)
 		if not v then msg("usage: /rain speed 1.4") return end
 		db.speed = math.max(0.2, math.min(3, v))
+	elseif cmd == "time" then
+		local sub, rest = arg:match("^(%S*)%s*(.-)$")
+		if sub == "off" or sub == "" then
+			db.timeMode = "off"
+		elseif sub == "local" then
+			db.timeMode = "local"
+		elseif sub == "strength" then
+			local v = tonumber(rest)
+			if not v then msg("usage: /rain time strength 0.7") return end
+			db.timeStrength = math.max(0, math.min(1, v))
+		elseif sub:match("^[+-]%d+%.?%d*$") then
+			db.timeMode, db.timeOffset = "offset", tonumber(sub)
+		elseif tonumber(sub) then
+			db.timeMode, db.timeFixed = "fixed", tonumber(sub) % 24
+		else
+			msg("usage: |cffffd100/rain time local|r (match your own clock), " ..
+			    "|cffffd100+9|r / |cffffd100-5|r (shift by hours), " ..
+			    "|cffffd10021|r (hold one hour), |cffffd100off|r, " ..
+			    "|cffffd100strength 0.7|r")
+			return
+		end
+		UpdateTimeOfDay()
 	elseif cmd == "gloom" then
 		local v = tonumber(arg)
 		if not v then msg("usage: /rain gloom 0.5  (0 turns the darkening off)") return end

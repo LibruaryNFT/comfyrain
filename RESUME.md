@@ -131,6 +131,28 @@ exist in this client but are **Model-widget methods** (they sit beside `SetModel
 `GetModelFileID` in the API table), so they apply to a model frame, not the world. There is
 no world fog or ambient-light setter exposed to addons.
 
+## Time of day ("Australian mode")
+
+WoW's day/night runs on the **realm's** clock, so playing far from your realm means in-game
+midnight at lunchtime. `/rain time local` grades the screen towards your own clock instead.
+
+- `/rain time local` — match the machine's clock · `/rain time +9` / `-5` — shift by hours ·
+  `/rain time 21` — hold one hour · `/rain time off` · `/rain time strength 0.7`
+- Its own frame (`AlwaysRainTimeOfDay`, frame level 1, under the rain at level 5) so it works
+  with the rain off. Wanting your realm's night to match your clock has nothing to do with rain.
+- **Graded by the ratio between the wanted hour and the realm's hour, not by the wanted hour
+  alone.** The world is already lit for the realm, so realm 22:00 wanting 22:00 must be a no-op;
+  grading on the target alone would double-darken every night. Verified: no-shift returns exactly
+  (1.00, 1.00, 1.00) with zero lift.
+- **Day to night works; night to day barely does.** Darkening is a multiply and multiplies are
+  free. Brightening needs ADD, which lifts the black level without restoring contrast, and the
+  skybox keeps its stars and its absent sun regardless. The lift is capped at 0.13 so it never
+  turns the screen to milk. An Australian on a US realm wanting their evening is the good
+  direction; wanting daylight at realm-midnight is not, and that is a hard limit, not a tuning
+  problem.
+- Measured grades: realm 13:00 showing 22:00 → dim (0.34, 0.40, 0.66); realm noon showing 19:00
+  → dim (1.00, 0.74, 0.55); realm 22:00 showing 13:00 → dim unchanged, lift 0.130.
+
 ## Roadmap — towards an atmosphere engine, not a rain addon
 
 From a 2026-10-12 consult of Gemini 2.5 Pro and GPT-OSS-120B (saved under
