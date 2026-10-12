@@ -131,6 +131,68 @@ exist in this client but are **Model-widget methods** (they sit beside `SetModel
 `GetModelFileID` in the API table), so they apply to a model frame, not the world. There is
 no world fog or ambient-light setter exposed to addons.
 
+## Roadmap — towards an atmosphere engine, not a rain addon
+
+From a 2026-10-12 consult of Gemini 2.5 Pro and GPT-OSS-120B (saved under
+`code/eco/operator/reviews/review-{gemini,groq}-2026-10-12.md`). **Every API either model
+assumed was checked against the binary before being written down here** — see the corrections
+at the end, two of them were invented.
+
+Both models independently picked the same #1, which is the strongest signal in the whole consult:
+
+**1. Make effects data, not code.** The engine should read a preset of ordered *layers*, each
+`{ texture, blend, colour, alpha, scrollX, scrollY, parallax, mask }`, plus an audio block of
+`{ loop fdid, len, oneshots[] }` and a trigger block (`indoors`, `zone`, `time`, `submerged`).
+Adding snow or ash then becomes a data entry and a generated texture, not new code. Today
+rain is hardcoded in `LAYERS` and `PRESETS`; `light|normal|heavy|monsoon` should collapse into
+one *intensity slider* and the presets should become weather *types*.
+
+**2. A real options panel.** Both flagged slash commands as developer-only and the single
+biggest adoption blocker. Dropdown of presets, master intensity slider, profiles.
+
+**3. Ship 5-7 distinct, good presets** so it is impressive at install with zero configuration.
+
+### Effects worth building, ranked
+
+| Effect | Verdict |
+|---|---|
+| Snow | same engine, different sprite and slower scroll with sine drift. Do first. |
+| Overcast / colour grading | already have the machinery; cheapest mood per line of code |
+| Fog | scrolling noise; convincing despite having no depth |
+| Ash / embers | snow with ADD blend and a warm tint |
+| Sandstorm | fast streaky scroll; weaker because real ones occlude distance and we cannot |
+| Falling leaves / blossom | needs `SetRotation` per drop and real art effort |
+| Heat haze | **both models overrated this.** A true shimmer is refraction, which needs to sample the scene. We cannot. It would read as a watery smear. |
+| Bloom | impossible — requires reading scene brightness |
+
+### Screen-space tricks
+
+- **Horizon fade** (Gemini's best idea, now built): fade the bottom of each rain layer so drops
+  do not run down over the player's feet and the action bars.
+- **Speed response** (now built): `GetUnitSpeed("player")` drives fall rate, so running into
+  rain makes it fall harder.
+- **Submerged**: `IsSubmerged()` exists — fade everything out underwater. Not built.
+- **Three parallax layers instead of two**, with size, alpha and scroll rate all keyed to depth.
+- **Follow the server's real weather** when it sends some: `C_Weather.GetCurrentWeather()` is
+  readable, so the addon can at least match intensity rather than fight it.
+
+### Where they disagreed
+
+Gemini said cut the camera-turn parallax as a subtle effect with a permanent per-frame cost;
+Groq said extend it. Keeping it — it is a few lines in an `OnUpdate` that already runs, and it
+is the main thing selling the curtain as having depth.
+
+### Corrections to their advice
+
+- `GetCameraPitch()` (Gemini) **does not exist**. No camera pitch is exposed; `GetPlayerFacing()`
+  is the only orientation available, and it is the player, not the camera.
+- `C_Weather.GetWeatherInfo()` (Groq) **does not exist**. Only `GetCurrentWeather()`.
+- Groq proposed faking heat haze by copying `WorldFrame` into a texture and distorting it.
+  Addons cannot sample the rendered scene; there is no such copy.
+- Groq's "merge the mist into the far-rain texture to save memory" is a false economy: four
+  512×512 quads is nothing, and mist has to scroll at its own rate to read as distance.
+- Both quoted invented FileDataIDs for the rain audio. The verified ones are in the table above.
+
 ## Open / unverified
 
 - **v2 has not been seen running.** v1 was; the Blizzard FileDataIDs, the mist texture and the

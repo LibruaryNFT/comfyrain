@@ -76,7 +76,7 @@ local LAYERS = {
 local db
 local overlay, flash, gloom
 local textures, offsets = {}, {}
-local lastFacing, turnDelta = nil, 0
+local lastFacing, turnDelta, runSpeed = nil, 0, 0
 local soundHandles, rainTicker, bedFallback, loopedIntensity = {}, nil, false, nil
 local lightningTimer
 local cinematic, indoorsNow, indoorsSince = false, false, nil
@@ -94,6 +94,21 @@ end
 --------------------------------------------------------------------------------
 -- Visuals
 --------------------------------------------------------------------------------
+
+-- A fullscreen curtain runs right down over the player's feet and the action
+-- bars, which is the giveaway that it is pasted on the lens. Fading the bottom
+-- of each rain layer out gives the drops somewhere to land.
+local function HorizonFade(tex)
+	local function colour(r, g, b, a)
+		if CreateColor then return CreateColor(r, g, b, a) end
+		return { r = r, g = g, b = b, a = a,
+		         GetRGBA = function(s) return s.r, s.g, s.b, s.a end }
+	end
+	-- VERTICAL puts the first colour at the bottom. pcall because the colour
+	-- object shape has moved around between clients and a failure here should
+	-- cost the fade, not the addon.
+	pcall(tex.SetGradient, tex, "VERTICAL", colour(1, 1, 1, 0.12), colour(1, 1, 1, 1))
+end
 
 local function ApplyAlphas()
 	local p, s = Preset(), db.scale
@@ -163,8 +178,13 @@ local function OnUpdate(self, elapsed)
 		lastFacing = facing
 	end
 
+	-- Running into rain makes it appear to fall faster and harder. Smoothed, so
+	-- mounting or dismounting does not snap the whole field to a new speed.
+	local spd = GetUnitSpeed("player") or 0
+	runSpeed = runSpeed + (math.min(spd / 7, 2.2) - runSpeed) * math.min(1, elapsed * 3)
+
 	local aspect = w / h
-	local rate = Preset().speed * db.speed
+	local rate = Preset().speed * db.speed * (1 + runSpeed * 0.3)
 	local density = Preset().density
 
 	for _, l in ipairs(LAYERS) do
@@ -205,7 +225,11 @@ local function BuildOverlay()
 		tex:SetAllPoints(overlay)
 		tex:SetTexture(sources[l.key], "REPEAT", "REPEAT")
 		tex:SetBlendMode(l.blend)
-		if l.key == "mist" then tex:SetVertexColor(0.58, 0.64, 0.74) end
+		if l.key == "mist" then
+			tex:SetVertexColor(0.58, 0.64, 0.74)
+		else
+			HorizonFade(tex)
+		end
 		textures[l.key] = tex
 		offsets[l.key] = { x = math.random(), y = math.random() }
 	end
