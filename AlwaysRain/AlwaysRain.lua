@@ -220,6 +220,15 @@ local function ApplyAlphas()
 		1 - g * (1 - GLOOM_TINT[3]), 1)
 end
 
+-- A value this client will let us do arithmetic on, or nil. Secret values are
+-- non-nil and look ordinary until you touch them, so every restricted getter has
+-- to come through here.
+local function Readable(v)
+	if v == nil then return nil end
+	if canaccessvalue and not canaccessvalue(v) then return nil end
+	return v
+end
+
 -- What Blizzard's own weather system thinks is happening here. C_Weather is a
 -- read-only namespace (Enum.WeatherType is Rain / Snow / Sandstorm plus an
 -- intensity), so it cannot make it rain - but it tells us when the client is
@@ -287,7 +296,13 @@ local function OnUpdate(self, elapsed)
 	if not w or w <= 0 or not h or h <= 0 then return end
 
 	-- How far the camera turned this frame, as a fraction of the screen width.
-	local facing = GetPlayerFacing()
+	-- This is a Forever client (the binary identifies itself as wow-forever-client)
+	-- and it carries Midnight's secret-value machinery: canaccessvalue,
+	-- issecurevariable and a SecretValue type are all present. GetPlayerFacing is
+	-- one of the values Blizzard restricts in encounters, and a secret value throws
+	-- when you do arithmetic on it, so a plain `if facing then` is not enough - it
+	-- is non-nil and still unusable. Freeze the parallax rather than error.
+	local facing = Readable(GetPlayerFacing())
 	local swing = 0
 	if facing then
 		if lastFacing then
@@ -303,7 +318,7 @@ local function OnUpdate(self, elapsed)
 
 	-- Running into rain makes it appear to fall faster and harder. Smoothed, so
 	-- mounting or dismounting does not snap the whole field to a new speed.
-	local spd = GetUnitSpeed("player") or 0
+	local spd = Readable(GetUnitSpeed("player")) or 0
 	runSpeed = runSpeed + (math.min(spd / 7, 2.2) - runSpeed) * math.min(1, elapsed * 3)
 
 	local aspect = w / h
