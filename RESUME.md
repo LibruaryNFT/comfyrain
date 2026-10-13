@@ -550,18 +550,37 @@ in two words to someone scanning a search result page. One internal rename follo
 
 ## THE ROADMAP
 
-The one plan. Supersedes every other schedule in this file. Revised 2026-10-13.
+The one plan. Supersedes every other schedule in this file. Revised 2026-10-13 after a
+second consult (Gemini 2.5 Pro and GPT-OSS-120B, `review-{gemini,groq}-2026-10-13.md`) which
+attacked the previous version and was right twice.
 
-Three fixed dates and one principle. Beta client dies **21 October**. Name reservation
-**27 October**. Launch **4 November, 3pm PST**. Today is 13 October, so there are 8 days of
-client access and 22 days to launch.
+Three fixed dates. Beta client dies **21 October**. Name reservation **27 October**. Game
+launches **4 November, 3pm PST**. Today is 13 October, so there are 8 days of client access.
 
-**The ordering principle:** work is ordered by what *expires*, not by what is interesting or
-what is nearly done. Exactly one body of work expires, so it goes first even though it is
-the least fun thing on the list.
+**Two ordering principles.** Work is ordered by what *expires*, not by what is interesting
+or nearly done. And, added 2026-10-13: **code that has never been run does not ship to
+strangers on a day it cannot be hotfixed.**
 
-**The launch definition:** on 4 November the addon ships rain, sky grading, time of day, a
-working ambience bed, a settings window, and preset import/export. Anything else is Phase 4.
+### The launch is split, and that is the change
+
+The previous version shipped everything on 4 November, including a refactor, a GUI, a
+serialiser and an audio subsystem all written during the 14 days when no client exists. Both
+consult models independently said that blind-shipping, not Phase 1, is the real risk, and
+both independently proposed delaying to 11 November.
+
+They are right about the risk and half right about the fix. Delaying wholesale gives up the
+one day the addon can be found without search ranking. So:
+
+| Date | Ships | Why |
+|---|---|---|
+| **4 Nov** | Only what Phase 1 verified on a live client: rain, sky grading, time of day, the ambience bed, the rename | Captures the launch-day discovery window with code that has actually been run |
+| **~11 Nov**, as v1.1 | The options panel, preset sharing, and anything else written blind | A week of live-client testing first, on a client that exists again from 4 Nov |
+
+This also fixes something both models missed. **The existing v2 code has never been seen
+running either** (see `## Open / unverified`), so Phase 1 is not only the chance to answer
+seven questions, it is the only chance to validate what is already written. That makes the
+split the natural shape rather than a compromise: 4 November ships the verified subset,
+11 November ships the rest.
 
 ### Who does what
 
@@ -574,7 +593,7 @@ be recovered, and no amount of agent time substitutes for it.
 |---|---|---|
 | 1 — client checks | **the author**, in-game | **21 Oct, permanently** |
 | 2 — build and publish prep | Agent | 4 Nov (soft) |
-| 2 — CurseForge submission | **the author** (account, approval) | **27 Oct** |
+| 2 — CurseForge submission | **the author** (account, approval) | **this week**, with placeholders |
 | 3 — launch | Agent tags, the author posts | 4 Nov |
 | 4 — after | Agent | never |
 
@@ -599,70 +618,89 @@ In priority order, because there may not be time for all seven. Mechanics are in
 6. **Which TOC flavour suffix does this client load?** The two candidates are mutually
    exclusive and only one report cited any evidence. Getting it wrong means the addon does
    not load at all on 4 November.
-7. **Can a Model frame host a Blizzard weather M2?** Lowest value of the seven. Do it last,
+7. **Does the Settings API host a panel at all on this build?** Added 2026-10-13 from the
+   consult. `initializer:AddSearchTags()` is already known to throw `ADDON_ACTION_FORBIDDEN`
+   here, which is evidence the settings registration path is partly broken on Forever. Push a
+   stub panel through `Settings.RegisterCanvasLayoutCategory` and see whether it registers,
+   opens, and survives being toggled in combat. Together with item 1 this decides whether a
+   GUI is even possible, and it cannot be answered after the client is gone.
+8. **Can a Model frame host a Blizzard weather M2?** Lowest value of the eight. Do it last,
    or drop it.
 
-Also while the client is up, though it does **not** expire and so is not really Phase 1:
-check the fullscreen quads at 21:9 and at several `UIParent:GetScale()` values. Costs
-minutes now; the alternative is learning about it from a one-star comment on 5 November.
+Also while the client is up, though these do **not** expire and so are not really Phase 1:
+check the fullscreen quads at 21:9 and at several `UIParent:GetScale()` values, and confirm
+the v2 code actually renders (the Blizzard FileDataIDs, the mist texture and the indoor fade
+have never been seen working). Costs minutes now; the alternative is learning about it from a
+one-star comment on 5 November.
 
-### Phase 2 — 21 October to 4 November. 14 days. No client needed.
+### Phase 2 — 21 October to 4 November. 14 days. No client exists.
 
-Two launch blockers, one enabler, one rename, and the publishing pipeline.
+**This is the first thing, before any feature work:**
 
-**Launch blockers** (revised 2026-10-13; both consult models independently called the panel
-a blocker, and the preset strings are the only mechanic by which this spreads without an
-audience):
+- **A mock WoW API in plain Lua, and the addon run under a standalone interpreter.** Both
+  consult models named this independently and unprompted, and it is the single highest-value
+  change in this revision. Stub `CreateFrame`, `GetPlayerFacing`, `GetGameTime`, `GetCVar`,
+  `C_Sound.*`, `IsIndoors` and the rest to return plausible values and record their calls.
+  That makes the clock logic, the preset table, the serialiser and the ambience map all
+  testable with zero client, which is otherwise 14 days of code written and never executed.
+  A 3.3.5 or retail client is the wrong answer: different API family, so every difference
+  becomes a branch that exists only for the test.
 
-- **Options panel.** Minimum viable and nothing more: a preset dropdown, one master
-  intensity slider, audio on/off, and the time-of-day mode. Gated on Phase 1 item 1.
-- **Preset import/export strings.** Serialise the config table, compress, base64. Same gate.
-  Precedent is WeakAuras and wago.io, which is how the most-installed addon in the game's
-  history actually grew.
-
-**Enabler, and the consult's unanimous #1:**
-
-- **Effects as data, not code.** Each layer becomes
-  `{ texture, blend, colour, alpha, scrollX, scrollY, parallax, mask }`, plus an audio block
-  and a trigger block (`indoors`, `zone`, `time`, `submerged`). Today rain is hardcoded in
-  `LAYERS` and `PRESETS`. Doing this first is what makes the panel a thin view over a table
-  rather than forty bespoke setters, and it is what makes snow a data entry in Phase 4.
-  `light|normal|heavy|monsoon` collapse into one intensity slider and the presets become
-  weather *types*.
-
-**Scoped down to pay for the above:**
-
-- **Ambience bed as a dumb zone-to-sound map.** Ambience stays the default and music stays
-  unshipped, but the real scheduler moves to Phase 4. A user in week one cannot tell a
-  zone-keyed loop from a sequenced one; they can absolutely tell there is no settings window.
-
-**The rename:**
+**Ships 4 November, because Phase 1 will have verified it:**
 
 - `AlwaysRain` → `CozyAzeroth`, with the `AlwaysRainDB` → `CozyAzerothDB` migration on first
-  load and `/rain` kept as a permanent alias. Details in `## The name` above.
+  load and `/rain` kept as a permanent alias. Details in `## The name` above. **The whole
+  migration goes in a `pcall`** — a malformed old DB must fall back to defaults with a
+  printed warning, never brick the addon. This is the single most likely way to break a
+  stranger's install while never breaking the author's.
+- **Ambience bed as a dumb zone-to-sound map**, with a **fallback FileDataID per track** in
+  case a user's install lacks the file. The real scheduler is Phase 4; a user in week one
+  cannot tell a zone-keyed loop from a sequenced one.
+- **A first-run message on `PLAYER_LOGIN`**, once, for a fresh install only. Both models
+  flagged that the plan had no onboarding at all: a stranger installs an atmosphere addon,
+  sees weather they may think is Blizzard's, and never learns there is anything to configure.
+  One line naming the addon and the slash command.
+- Three good default presets, so it is worth something with zero configuration.
 
-**Publishing. Starts 21 October, not launch week, because most of it waits on other people:**
+**Ships ~11 November as v1.1, written in Phase 2 but not shipped untested:**
+
+- **Options panel.** Gated on Phase 1 items 1 and 7. Minimum viable and nothing more: a
+  preset dropdown, one master intensity slider, audio on/off, and the time-of-day mode.
+- **Preset sharing, downgraded.** A plain-text, human-readable config string, no compression
+  and no base64. The sharing *mechanic* is what matters (the WeakAuras and wago.io precedent)
+  and a readable `key=value;key=value` string gets nearly all of it for a fraction of the
+  code. Compression can come later if strings ever get long.
+- **Effects as data, not code**, which is the 2026-10-12 consult's unanimous #1 and is now
+  correctly understood as an *enabler, not a blocker*. Each layer becomes
+  `{ texture, blend, colour, alpha, scrollX, scrollY, parallax, mask }` plus an audio block
+  and a trigger block. It makes snow a data entry and the panel a thin view over a table, but
+  **the panel does not depend on it** — see the cut order.
+
+**Publishing. Starts immediately, not on 21 October, and not in launch week:**
 
 - GitHub repo, public, **MIT licence** (permissive so addon managers and forks are unblocked;
   `Weather`'s All Rights Reserved is a discovery cost for no gain).
 - Release workflow pinned to `BigWigsMods/packager@v2.6.1`. v2.6.0 added Forever support in
   PR #202; v2.6.1 fixed a WoWInterface classic check.
-- **CurseForge project submitted by 27 October.** New projects wait on human approval, and a
-  missed launch window cannot be recovered. This is the single hardest deadline in Phase 2
-  and it is the author's, not the agent's.
+- **CurseForge project submitted this week, with placeholder assets.** Revised from
+  27 October. Gemini's point, and free: the page does not need the finished code or the final
+  GIF, and submitting early starts a human approval queue that both models think takes longer
+  than six days for a first-time author. Fill the page in afterwards. Hold a GitHub Releases
+  link as the fallback if approval slips past 4 November.
 - WoWInterface as the second channel.
-- **One 10-second looping GIF** of rain plus the day-to-night transition. It is the whole
-  marketing asset and it goes on the CurseForge gallery, in the README, in the Reddit post
-  and in the Discord post. Both consult models named a neglected project page as the
-  anti-pattern that caps a first addon regardless of code quality. No YouTube edit before
-  launch: more work, less reach.
-- Five to seven good presets, so it is impressive at install with zero configuration.
+- **One 10-second looping GIF** of rain plus the day-to-night transition. The whole marketing
+  asset: CurseForge gallery, README, Reddit post, Discord post. Both models named a neglected
+  project page as the anti-pattern that caps a first addon regardless of code quality. No
+  YouTube edit before launch.
 
-### Phase 3 — 4 November, launch day.
+### Phase 3 — 4 November, then ~11 November.
 
-Tag `v1.0.0`, the workflow uploads. Post once to the Forever community with the GIF.
-Launch day is the one day the addon can be found without search ranking, because nobody has
-ranking yet.
+**4 November:** tag `v1.0.0` with the verified subset. Post once to the Forever community
+with the GIF. This is the one day the addon can be found without search ranking.
+
+**~11 November:** tag `v1.1.0` with the panel and preset sharing, after a week of running
+them on a live client. A second release a week after launch is also a second appearance in
+the addon managers' "recently updated" lists, which is not nothing.
 
 ### Phase 4 — after launch, in this order.
 
@@ -676,23 +714,34 @@ ranking yet.
 4. **Fog**, then **ash and embers** (snow with ADD blend and a warm tint).
 5. Submerged fade using `IsSubmerged()`.
 
-### The cut order, if 4 November is at risk
+### The cut order, if the dates are at risk
 
 Decided now, in the calm, so it is not decided at 2am on 3 November. Cut from the bottom:
 
-1. The five-to-seven preset library, down to three.
-2. WoWInterface as a second channel. CurseForge alone is fine.
-3. Snow. It was already Phase 4.
-4. The effects-as-data refactor, reverting to hardcoded layers. **Costs the panel its clean
-   implementation**, so cutting this means cutting the panel too, which is why it is this far
-   down.
-5. **Nothing below this line gets cut.** The options panel, the preset strings, the rename,
-   the GIF and the CurseForge submission are the launch. Shipping without any one of them is
-   not a reduced launch, it is a launch that does not spread.
+1. WoWInterface as a second channel. CurseForge alone is fine.
+2. Snow, fog, ash. Already Phase 4.
+3. **The effects-as-data refactor.** Corrected 2026-10-13: the previous version claimed
+   cutting this also cost the options panel, and **both consult models independently called
+   that a rationalisation for doing a refactor the author wanted to do anyway.** They are
+   right. A panel over hardcoded setters is ugly code and an identical experience, and it is
+   a weekend rather than two weeks. The refactor is now independently droppable and the panel
+   does not move with it.
+4. Preset sharing, if the plain-text serialiser turns out to be more than a day. It is the
+   growth mechanic, so it is the last feature cut rather than the first, but it is a feature
+   and not the product.
+5. **Nothing below this line gets cut.** The rename, the ambience bed, the first-run message,
+   the GIF, the CurseForge submission, and the options panel in v1.1. Shipping without any
+   one of these is not a reduced launch, it is a launch that cannot be found or configured.
 
-**The biggest risk is not engineering, it is that Phase 1 does not happen.** Eight days of
-client access, seven checks, and two of them gate the two launch blockers. If the author does
-not log in before 21 October, the panel ships on an unverified assumption or not at all.
+### The biggest risk, corrected
+
+The previous version named Phase 1 not happening. **Both consult models said that was wrong,
+and that the real risk is shipping 14 days of never-executed code to strangers on a day it
+cannot be hotfixed.** They are right, and the fix is the mock API plus the split launch
+above, both of which are now in the plan.
+
+Phase 1 is still the hard deadline, because it expires and nothing else does. But it is a
+deadline, not the risk. The risk was the thing the plan was comfortable about.
 
 ## The distribution consult, 2026-10-13
 
