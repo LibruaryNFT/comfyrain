@@ -359,6 +359,73 @@ midnight at lunchtime. `/rain time local` grades the screen towards your own clo
 - Measured grades: realm 13:00 showing 22:00 → dim (0.34, 0.40, 0.66); realm noon showing 19:00
   → dim (1.00, 0.74, 0.55); realm 22:00 showing 13:00 → dim unchanged, lift 0.130.
 
+## The scope question we never asked: is this an audio product?
+
+Raised 2026-10-12. Every consult, all three deep-research reports and the whole roadmap
+below treat this as a **visual** addon with a soundtrack. Audio appears in the proposed
+effect schema as one sub-field of a visual layer — `{ loop fdid, len, oneshots[] }` — and
+nowhere as the thing itself. That framing came from the prompts, which asked for the best
+*weather* addon; nobody pushed back because nobody was asked to.
+
+It is probably backwards, and the binary is why.
+
+### The two ceilings are nowhere near the same height
+
+The visual ceiling is **hard and low**, and already documented below: a MOD-blend quad over
+a 2D sheet is the only darkening available. No world fog, no lighting, no framebuffer read,
+no camera pitch, no occlusion. Blizzard's rain is 3D particles in world space and we will
+never be in the same category.
+
+The audio ceiling is **high**, and higher than we had assumed. Probed in the 1.60.1.70338
+binary 2026-10-12 (positive control `GetUnitSpeed` = 2 hits):
+
+| Symbol | Hits | What it buys |
+|---|---|---|
+| `C_Sound.PlaySoundWithOptions` | 1 | A params table, not a bare call |
+| `volumeOverride` | 1 | **Per-sound volume.** The limitation the whole audio design works around |
+| `runFinishCallback` | 1 | Fires when a sound ends — the sequencing primitive |
+| `C_Sound.IsPlaying` / `GetSoundScaledVolume` | 1 / 2 | Query a live handle |
+| `MuteSoundFile` / `UnmuteSoundFile` | 3 / 3 | Silence specific Blizzard files by FileDataID |
+| `PlayMusic` / `StopMusic` | 2 / 1 | The music channel, separate from SFX and Ambience |
+| `Sound_EnableMusic` / `_EnableAmbience` / `_EnableSFX` | 1 each | Per-channel suppression |
+
+`volumeOverride` and `runFinishCallback` sit in the C_Sound string region between
+`uiSoundSubType` and the `GetSoundScaledVolume` usage line, which is strong evidence they
+are fields of the `PlaySound`/`PlaySoundWithOptions` params table but is **adjacency, not a
+declared struct**. Confirm with `/dump C_Sound` and `/api C_Sound` in a running client
+before building on them.
+
+**Immediate consequence:** the five pre-baked gain variants exist only because
+`PlaySoundFile` has no volume argument. `volumeOverride` does. That ladder is obsolete
+engineering and should collapse into real crossfades on a single file.
+
+### What "radio station" can and cannot mean
+
+It **cannot** mean internet radio. There is no HTTP in the addon sandbox and there never
+will be. Nor can we ship music — bundling audio is redistribution and it is the single most
+reliable way to get an addon pulled.
+
+It **can** mean a programme director over the game's own sound library. Every ambient loop,
+zone theme, tavern track and weather bed Blizzard ships is addressable by FileDataID, which
+plays the user's own installed files and redistributes nothing — the same mechanism already
+used for rain, with the same legal standing. Add `MuteSoundFile` to suppress what the engine
+would have played, `runFinishCallback` to sequence, `volumeOverride` to mix, and that is a
+station: scheduled, zone-aware, weather-aware, and driven by the apparent-hour clock the
+addon already computes.
+
+Nobody in the competitive survey has built this. Weather does indoor muffling and skyriding
+wind; Dynamic Weather has a soundkit ID per state. A scheduler over the library is unoccupied.
+
+### The call
+
+The audio half is the bigger product and the better-defended one, because the differentiator
+is scheduling rather than pixels and there is no Blizzard implementation to lose to.
+
+It does **not** change the next nine days. Calibration expires with the beta client on
+21 October; none of the audio work does, and the client is there from 4 November onwards.
+Bank the finding, take the `volumeOverride` simplification when the audio ladder is next
+touched, and revisit the product shape after launch — not before the calibration session.
+
 ## Roadmap — towards an atmosphere engine, not a rain addon
 
 From a 2026-10-12 consult of Gemini 2.5 Pro and GPT-OSS-120B (saved under
