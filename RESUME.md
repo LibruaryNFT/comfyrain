@@ -359,6 +359,92 @@ midnight at lunchtime. `/rain time local` grades the screen towards your own clo
 - Measured grades: realm 13:00 showing 22:00 → dim (0.34, 0.40, 0.66); realm noon showing 19:00
   → dim (1.00, 0.74, 0.55); realm 22:00 showing 13:00 → dim unchanged, lift 0.130.
 
+## The product research: three reports, 2026-10-13
+
+Three reports against `dr-prompt-product.md`. The one finding that mattered came from a
+single report and was missed by the other two, so it was verified directly before being
+believed.
+
+### FAME exists, and it is not this product
+
+[Forever Ambient Music Extended](https://www.curseforge.com/wow/addons/forever-ambient-music-extended-fame)
+(kirillburton, project 1728351). Downloaded 0.2.0 and read all 2,731 lines on 2026-10-13.
+133 downloads across two files, 0.1.0 on 6 October and 0.2.0 on **12 October** — one day
+before this was written, so it is actively developed. Forever-only, game version 1.60.1.
+
+It is a **zone-music track-pool expander**: 408 extra Blizzard tracks tagged by biome,
+culture and mood, chosen by location, deliberately preserving Blizzard's own schedule,
+silences and arrival fanfares. No UI. Data files are plain Lua and editable.
+
+What it is not, verified by grep across `Core.lua`, `Tracks.lua` and `Zones.lua`:
+
+| Probe | Result |
+|---|---|
+| Audio API used | **`PlayMusic` only**, 16 calls |
+| `C_Sound.*`, `volumeOverride`, `runFinishCallback`, `MuteSoundFile`, `StopSound` | **zero** |
+| The string "ambience", anywhere | **zero** |
+| Weather, rain, `SetBlendMode`, `CreateTexture` | **zero** |
+| Time of day | a binary night check, `hour >= 21 or hour < 6` |
+
+So it is music, on the music channel, with no ambience, no weather, no visuals and no
+mixing. It cannot reach a player who has `Sound_EnableMusic` off, which per all three
+reports is a large share of the audience.
+
+**Two things follow.** It is a positive control for the whole audio thesis: FileDataID
+scheduling demonstrably works on a live Forever client *today*, which was previously only
+inferred from binary strings. And the `C_Sound` params path we found is still unexploited
+by anyone, FAME included.
+
+### What all three reports agreed on
+
+Treat as settled; none of it was contradicted and each has independent support.
+
+1. **Ambience is the default, music is opt-in.** Music-off is common and the stated cause
+   is repetition, not dislike. Ambience does not fatigue the same way and, decisively, it
+   survives `Sound_EnableMusic = 0` — a music station cannot reach that audience without
+   hijacking their ambience channel, which is what EpicMusicPlayer does and charges for in
+   muted ambience.
+2. **One addon, not two.** Same inputs drive all outputs, so splitting risks visual and
+   audio rain desynchronising. Mitigation is unanimous: the post-rename default must behave
+   exactly as today, with audio opt-in and the old slash commands intact.
+3. **The second browser tab is the real competitor and context is the only edge.** A lo-fi
+   tab has unlimited content and zero setup. It cannot know you just walked into an inn, or
+   that it is 2am, or that the sky is grey. Design to play *under* the tab, not against it.
+4. **Brand plus descriptive subtitle.** A name with no searchable word costs real
+   discovery; CurseForge has ~31k WoW projects and search is the primary vector.
+5. **"Cozy", not "comfy".** Two of three, with evidence: "cozy" is native to this audience
+   (the Cozy Sleeping Bag item, housing content), "comfy" reads as imageboard and Twitch
+   slang.
+6. **User-supplied OGGs are a power-user tail.** Support a folder, never depend on it.
+7. **Micro-sequencing is the world-class feature**, proposed independently by all three.
+   Chain and vary beds via `runFinishCallback` instead of looping one file, which is exactly
+   what myNoise's Animate and Noisli's oscillation do — the converged answer to loop fatigue
+   after fifteen years of commercial ambient audio.
+
+### Where they split, and the calls
+
+- **Name.** Hearthlight / AzerothAmbience / "CozyWeather: Ambient Mood Engine". Rejecting
+  all three as given: `Hearth*` grazes a Blizzard trademark, and "CozyWeather" re-caps the
+  product at weather, which is the exact trap we are leaving. The pattern is right, the
+  brands are not.
+- **The folder name is the only irreversible part.** Renaming it breaks every user's
+  SavedVariables. Pick it once, keep it short and scope-free, and let the CurseForge title
+  and TOC title carry the keywords, since those are free to change later.
+- **Download figures.** Report 3's Ring 1 numbers conflate per-file with per-project counts
+  (EpicMusicPlayer as 697 against the other two reports' ~600k). Reports 1 and 2 agree with
+  each other and are the ones to trust. Report 3 found FAME, which neither of them did.
+
+### One modification to their unanimous launch advice
+
+All three said: ship the visuals for 4 November, add audio after. That ships the **weak
+half** first — the visual ceiling is the low one and it is already documented as
+unreachable territory against Blizzard's 3D particles.
+
+Better wedge: **visuals plus an ambience bed**, which is nearly what exists today, since
+the rain audio bed is already built and already prefers Blizzard FileDataIDs. Ambience is
+the half nobody occupies, FAME structurally is not going there, and it reaches the music-off
+audience. The music station stays post-launch.
+
 ## The scope question we never asked: is this an audio product?
 
 Raised 2026-10-12. Every consult, all three deep-research reports and the whole roadmap
