@@ -257,6 +257,139 @@ local function DensityReport()
 	end
 end
 
+--------------------------------------------------------------------------------
+-- Calibration
+--------------------------------------------------------------------------------
+--
+-- Every visual default in this addon is a guess. weatherDensity has been 0 on
+-- this machine since before the addon existed, so the client has never once
+-- drawn Blizzard's real rain here and nothing below is calibrated against the
+-- thing it imitates. The beta client goes away on 2026-10-21, and after that
+-- there is nothing left to calibrate against, so this exists to make the one
+-- session that matters a single command rather than a protocol.
+--
+-- Real weather is server-driven and intermittent. You cannot summon it, you can
+-- only be ready when it arrives - hence a logger that shouts, rather than a
+-- checklist.
+
+local calibFrame
+local calibOn = false
+
+-- Blizzard's own weather line, which the engine prints to the console:
+--
+--   Weather changed to <type> intensity <0.00> recID <id>
+--
+-- Reading it off CONSOLE_MESSAGE is how keyboardturner's LibForecast sources
+-- weather, and it is better than C_Weather for us on two counts: it carries a
+-- raw numeric type and a record ID rather than a three-value enum, and it is
+-- old engine plumbing, where C_Weather is a 12.1.5 retail addition we have only
+-- proven the *strings* of in the Forever binary. Console messages are always
+-- English, so the pattern needs no localisation.
+local function ParseWeatherLine(line)
+	if type(line) ~= "string" or not line:find("Weather changed to", 1, true) then return nil end
+	return {
+		type      = tonumber(line:match("changed to (%d+)")),
+		intensity = tonumber(line:match("intensity ([%d%.]+)")),
+		recordID  = tonumber(line:match("recID (%d+)")),
+		raw       = line,
+	}
+end
+
+-- One observation, with everything a screenshot would need to be interpretable
+-- later. Written to SavedVariables *and* printed, because early Forever builds
+-- wrote SavedVariables and never read them back; that is reportedly fixed, but
+-- it is contested and a log that only exists in one of two places is not a log.
+local function CalibRecord(source, parsed)
+	local real, grade = RealWeather()
+	local entry = {
+		at       = time(),
+		source   = source,
+		uiMapID  = Readable(C_Map and C_Map.GetBestMapForUnit and C_Map.GetBestMapForUnit("player")),
+		zone     = GetRealZoneText(),
+		subzone  = GetSubZoneText(),
+		gameTime = { GetGameTime() },
+		indoors  = IsIndoors() and true or false,
+		cWeather = real,
+		cGrade   = grade,
+		console  = parsed,
+		density  = tonumber(GetCVar("weatherDensity") or ""),
+		detail   = tonumber(GetCVar("graphicsEnvironmentDetail") or ""),
+	}
+	db.calib = db.calib or {}
+	table.insert(db.calib, entry)
+
+	local what = parsed and string.format("type %s intensity %s recID %s",
+		tostring(parsed.type), tostring(parsed.intensity), tostring(parsed.recordID))
+		or string.format("%s at %.2f", tostring(real), grade or 0)
+
+	-- Loud on purpose. The whole session is worthless if he is looking away.
+	msg("|cffffd100>>> REAL WEATHER <<<|r " .. what)
+	msg(string.format("   %s - screenshot it now, then |cffffd100/rain off|r and screenshot again",
+		entry.subzone ~= "" and entry.subzone or entry.zone))
+	return entry
+end
+
+local function CalibStart()
+	if calibOn then msg("already logging"); return end
+	calibFrame = calibFrame or CreateFrame("Frame")
+
+	-- An unregistered-event name throws on this client and aborts the rest of
+	-- the file with it, so neither of these may be registered bare.
+	local got = {}
+	for _, e in ipairs({ "CONSOLE_MESSAGE", "WEATHER_CHANGED" }) do
+		if pcall(calibFrame.RegisterEvent, calibFrame, e) then got[#got + 1] = e end
+	end
+	if #got == 0 then
+		msg("|cffff6666neither CONSOLE_MESSAGE nor WEATHER_CHANGED exists on this client|r")
+		return
+	end
+
+	calibFrame:SetScript("OnEvent", function(_, event, arg1)
+		if event == "CONSOLE_MESSAGE" then
+			local parsed = ParseWeatherLine(arg1)
+			if parsed then CalibRecord("console", parsed) end
+		else
+			CalibRecord("event", nil)
+		end
+	end)
+
+	-- Without these two the client will not draw real weather at all, and the
+	-- session measures nothing.
+	for cvar, want in pairs(DENSITY_CVARS) do SetCVar(cvar, want) end
+
+	calibOn = true
+	db.calib = db.calib or {}
+	msg("logging via |cff66ff66" .. table.concat(got, " + ") .. "|r, density raised")
+	msg("turn on |cffffd100/chatlog|r too, then go stand somewhere wet and play")
+	-- Seed one entry so there is a clear-weather baseline to difference against.
+	CalibRecord("baseline", nil)
+end
+
+local function CalibStop()
+	if calibFrame then
+		calibFrame:UnregisterAllEvents()
+		calibFrame:SetScript("OnEvent", nil)
+	end
+	calibOn = false
+	msg(string.format("stopped. |cff66ff66%d|r observations held in AlwaysRainDB.calib",
+		db.calib and #db.calib or 0))
+end
+
+local function CalibReport()
+	local n = db.calib and #db.calib or 0
+	msg(string.format("calibration: %s, |cff66ff66%d|r observations",
+		calibOn and "|cff66ff66logging|r" or "|cffff6666off|r", n))
+	for i = math.max(1, n - 4), n do
+		local e = db.calib[i]
+		msg(string.format("  %s %s%s", date("%H:%M", e.at), e.zone or "?",
+			e.console and string.format(" - type %s @ %s", tostring(e.console.type),
+				tostring(e.console.intensity)) or ""))
+	end
+	if n > 0 then
+		msg("|cffffd100/rain calib off|r when done; the table survives a /reload")
+	end
+end
+
 -- Rain is wanted right now: on, not in a cinematic, and either outdoors or
 -- the player has asked for it indoors too.
 local function ShouldRain()
@@ -571,6 +704,7 @@ local function Help()
 	print("  |cffffd100/rain sound on|off|r, |cffffd100/rain thunder on|off|r")
 	print("  |cffffd100/rain channel Ambience|SFX|Master|r - which volume slider owns it")
 	print("  |cffffd100/rain density|r - is the client even allowed to draw real weather?")
+	print("  |cffffd100/rain calib on|r - log real weather so the defaults stop being guesses")
 	print("  |cffffd100/rain status|r")
 end
 
@@ -655,6 +789,18 @@ local function HandleSlash(input)
 			end
 		end
 		DensityReport()
+		return
+	elseif cmd == "calib" or cmd == "calibrate" then
+		if arg == "off" then
+			CalibStop()
+		elseif arg == "on" then
+			CalibStart()
+		elseif arg == "wipe" then
+			db.calib = {}
+			msg("calibration log cleared")
+		else
+			CalibReport()
+		end
 		return
 	elseif cmd == "status" then
 		Status()

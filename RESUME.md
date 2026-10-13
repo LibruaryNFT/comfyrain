@@ -115,7 +115,24 @@ at launch. Later Lua edits need only `/reload`.
 
 `/rain` toggle · `/rain light|normal|heavy|monsoon` · `/rain alpha 0.75` · `/rain speed 1.4` ·
 `/rain gloom 0.5` · `/rain indoors on|off` · `/rain sound on|off` · `/rain thunder on|off` ·
-`/rain channel Ambience|SFX|Master` · `/rain density` · `/rain status`
+`/rain channel Ambience|SFX|Master` · `/rain density` · `/rain status` ·
+`/rain calib on|off|wipe`
+
+### `/rain calib` — the session that expires on 21 October
+
+`/rain calib on` raises the density CVars, registers `CONSOLE_MESSAGE` and
+`WEATHER_CHANGED` (each through `pcall`, because an unknown event name throws on this
+client and aborts the rest of the file with it), and from then on every real weather
+change is shouted in chat and appended to `AlwaysRainDB.calib` with the zone, uiMapID,
+game time, indoor flag, both CVars, the `C_Weather` reading and the parsed console line.
+
+It is written to shout because real weather is server-driven and intermittent: it cannot
+be summoned, so the only workable protocol is to raise the density, go and play, and be
+told when it arrives. Turn `/chatlog` on as well — early Forever builds wrote
+SavedVariables and never read them back, and a log in one place is not a log.
+
+When it fires: screenshot, `/rain off`, screenshot the same frame again. Those pairs are
+what every gloom and streak default should have been derived from.
 
 ## Prior art — what every other weather addon does
 
