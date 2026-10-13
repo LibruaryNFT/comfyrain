@@ -548,71 +548,151 @@ nothing (rain, snow, night and ambience all live under it), and communicates the
 in two words to someone scanning a search result page. One internal rename follows: the
 `overcast` *preset* keeps its name, since the brand no longer competes with it.
 
-## The schedule, with publishing
+## THE ROADMAP
 
-Three fixed dates: beta client dies **21 October**, name reservation **27 October**, launch
-**4 November 3pm PST**. Today is 13 October. The ordering principle is that only one body of
-work expires with the client, so it goes first regardless of how interesting the rest is.
+The one plan. Supersedes every other schedule in this file. Revised 2026-10-13.
 
-### Phase 1 — by 21 October. Client-gated, 8 days, cannot be redone later.
+Three fixed dates and one principle. Beta client dies **21 October**. Name reservation
+**27 October**. Launch **4 November, 3pm PST**. Today is 13 October, so there are 8 days of
+client access and 22 days to launch.
 
-Everything here needs a running client and dies with the beta. See
-`### /rain calib` above for the mechanics.
+**The ordering principle:** work is ordered by what *expires*, not by what is interesting or
+what is nearly done. Exactly one body of work expires, so it goes first even though it is
+the least fun thing on the list.
 
-1. `/rain calib on`, then travel. Log real weather transitions across several zones and
-   both indoor and outdoor states.
-2. `/dump C_Sound` — settles whether `volumeOverride` and `runFinishCallback` are really
-   params fields. Currently adjacency evidence only, and `volumeOverride` alone deletes the
-   five pre-baked gain variants.
-3. Play an ambience-channel sound with `Sound_EnableMusic` set to 0. This is the single
-   assumption the whole ambience-led strategy rests on.
-4. Does `MuteSoundFile` survive a relog, or must it be reapplied on `PLAYER_LOGIN`?
-5. Which TOC flavour suffix does this client actually load? Only one report cited any
-   evidence and the two candidates are mutually exclusive.
-6. **Does SavedVariables read back on build 70338? Do this one first.** It gates both the
-   options panel and the preset strings, which are now the two launch blockers, so it
-   decides the shape of Phase 2 rather than one feature in it.
-7. Can a Model frame host a Blizzard weather M2? Lowest value of the seven; do it last or
-   drop it.
+**The launch definition:** on 4 November the addon ships rain, sky grading, time of day, a
+working ambience bed, a settings window, and preset import/export. Anything else is Phase 4.
 
-Not Phase 1, but free while the client is up: check the fullscreen quads at 21:9 and at
-several `UIParent:GetScale()` values. This does not expire, so it breaks the ordering
-principle, but the alternative is finding out from a one-star comment on 5 November.
+### Who does what
 
-### Phase 2 — 21 October to 4 November. No client needed, 14 days.
+This matters more than it looks. **Phase 1 is entirely the author's hands** — it needs a logged-in
+client and the agent has no game access. Everything in Phase 2 except the CurseForge
+submission is entirely the agent's. If Phase 1 does not happen in the next 8 days it cannot
+be recovered, and no amount of agent time substitutes for it.
 
-- Rename to `CozyAzeroth`, with the DB migration and the `/rain` alias.
-- Effects-as-data refactor (the consult's unanimous #1): layers become a table, the four
-  presets collapse into weather *types* plus one intensity slider.
-- **Options panel. Required, not conditional** (revised 2026-10-13 after both consult models
-  independently called it a launch blocker). Minimum viable: a preset dropdown, one master
-  intensity slider, an audio on/off, and the time-of-day mode. Nothing more.
-- **Preset import/export strings.** The mechanic by which this spreads at all, per the
-  WeakAuras/wago precedent. Serialise the config table, compress, base64.
-- Ambience bed as a **dumb zone-to-sound map**, not the real scheduler. Ambience is still
-  the default and music stays unshipped; the sequencing engine moves to Phase 4. This is
-  what pays for the panel and the preset strings.
-- **Publishing, all of which is manual and slow, so start it on 21 October not 3 November:**
-  GitHub repo and an MIT licence (permissive, so addon managers and forks are unblocked;
-  `Weather`'s All Rights Reserved is a discovery cost for no gain). A release workflow
-  pinned to `BigWigsMods/packager@v2.6.1` — v2.6.0 added Forever support in PR #202 and
-  v2.6.1 fixed a WoWInterface classic check. CurseForge project submitted by **27 October**,
-  since new projects wait on human approval and missing the launch window cannot be
-  recovered. WoWInterface as the second channel. Screenshots and a short GIF, because the
-  product is visual and the gallery outranks the description.
+| Phase | Whose hands | Expires |
+|---|---|---|
+| 1 — client checks | **the author**, in-game | **21 Oct, permanently** |
+| 2 — build and publish prep | Agent | 4 Nov (soft) |
+| 2 — CurseForge submission | **the author** (account, approval) | **27 Oct** |
+| 3 — launch | Agent tags, the author posts | 4 Nov |
+| 4 — after | Agent | never |
+
+### Phase 1 — by 21 October. 8 days. Client-gated and unrepeatable.
+
+In priority order, because there may not be time for all seven. Mechanics are in
+`### /rain calib` above; the logger is already built and committed.
+
+1. **Does SavedVariables read back on build 70338?** First, because it gates both launch
+   blockers. Set a value, `/reload`, read it back. If it fails, the options panel and the
+   preset strings both die and the launch shape changes, so this answer is worth more than
+   the other six combined.
+2. **Play an ambience-channel sound with `Sound_EnableMusic` set to 0.** The single
+   assumption the entire ambience-led strategy rests on. If ambience is silenced along with
+   music, the product thesis needs rebuilding.
+3. **`/dump C_Sound`.** Settles whether `volumeOverride` and `runFinishCallback` are really
+   params fields rather than adjacent strings. `volumeOverride` alone deletes the five
+   pre-baked gain variants; `runFinishCallback` is the whole Phase 4 sequencing engine.
+4. **`/rain calib on`, then travel.** Log real weather transitions across several zones and
+   both indoor and outdoor states. Feeds the ambience map and the zone-to-biome table.
+5. **Does `MuteSoundFile` survive a relog**, or must it be reapplied on `PLAYER_LOGIN`?
+6. **Which TOC flavour suffix does this client load?** The two candidates are mutually
+   exclusive and only one report cited any evidence. Getting it wrong means the addon does
+   not load at all on 4 November.
+7. **Can a Model frame host a Blizzard weather M2?** Lowest value of the seven. Do it last,
+   or drop it.
+
+Also while the client is up, though it does **not** expire and so is not really Phase 1:
+check the fullscreen quads at 21:9 and at several `UIParent:GetScale()` values. Costs
+minutes now; the alternative is learning about it from a one-star comment on 5 November.
+
+### Phase 2 — 21 October to 4 November. 14 days. No client needed.
+
+Two launch blockers, one enabler, one rename, and the publishing pipeline.
+
+**Launch blockers** (revised 2026-10-13; both consult models independently called the panel
+a blocker, and the preset strings are the only mechanic by which this spreads without an
+audience):
+
+- **Options panel.** Minimum viable and nothing more: a preset dropdown, one master
+  intensity slider, audio on/off, and the time-of-day mode. Gated on Phase 1 item 1.
+- **Preset import/export strings.** Serialise the config table, compress, base64. Same gate.
+  Precedent is WeakAuras and wago.io, which is how the most-installed addon in the game's
+  history actually grew.
+
+**Enabler, and the consult's unanimous #1:**
+
+- **Effects as data, not code.** Each layer becomes
+  `{ texture, blend, colour, alpha, scrollX, scrollY, parallax, mask }`, plus an audio block
+  and a trigger block (`indoors`, `zone`, `time`, `submerged`). Today rain is hardcoded in
+  `LAYERS` and `PRESETS`. Doing this first is what makes the panel a thin view over a table
+  rather than forty bespoke setters, and it is what makes snow a data entry in Phase 4.
+  `light|normal|heavy|monsoon` collapse into one intensity slider and the presets become
+  weather *types*.
+
+**Scoped down to pay for the above:**
+
+- **Ambience bed as a dumb zone-to-sound map.** Ambience stays the default and music stays
+  unshipped, but the real scheduler moves to Phase 4. A user in week one cannot tell a
+  zone-keyed loop from a sequenced one; they can absolutely tell there is no settings window.
+
+**The rename:**
+
+- `AlwaysRain` → `CozyAzeroth`, with the `AlwaysRainDB` → `CozyAzerothDB` migration on first
+  load and `/rain` kept as a permanent alias. Details in `## The name` above.
+
+**Publishing. Starts 21 October, not launch week, because most of it waits on other people:**
+
+- GitHub repo, public, **MIT licence** (permissive so addon managers and forks are unblocked;
+  `Weather`'s All Rights Reserved is a discovery cost for no gain).
+- Release workflow pinned to `BigWigsMods/packager@v2.6.1`. v2.6.0 added Forever support in
+  PR #202; v2.6.1 fixed a WoWInterface classic check.
+- **CurseForge project submitted by 27 October.** New projects wait on human approval, and a
+  missed launch window cannot be recovered. This is the single hardest deadline in Phase 2
+  and it is the author's, not the agent's.
+- WoWInterface as the second channel.
+- **One 10-second looping GIF** of rain plus the day-to-night transition. It is the whole
+  marketing asset and it goes on the CurseForge gallery, in the README, in the Reddit post
+  and in the Discord post. Both consult models named a neglected project page as the
+  anti-pattern that caps a first addon regardless of code quality. No YouTube edit before
+  launch: more work, less reach.
+- Five to seven good presets, so it is impressive at install with zero configuration.
 
 ### Phase 3 — 4 November, launch day.
 
-Tag `v1.0.0` and let the workflow upload. Ship rain, sky grading, time of day and the
-ambience bed. Post once to the Forever community. Launch-window download share is real and
-it is the one day the addon can be discovered without search ranking.
+Tag `v1.0.0`, the workflow uploads. Post once to the Forever community with the GIF.
+Launch day is the one day the addon can be found without search ranking, because nobody has
+ranking yet.
 
-### Phase 4 — after launch.
+### Phase 4 — after launch, in this order.
 
-Music as an opt-in mode. Snow, fog and ash presets. Micro-sequencing beds through
-`runFinishCallback` instead of looping one file, which all three reports independently named
-as the world-class feature and which matches where fifteen years of commercial ambient
-audio converged.
+1. **Micro-sequencing beds through `runFinishCallback`** instead of looping one file. All
+   three product reports independently named this as the one world-class feature, and it is
+   where fifteen years of commercial ambient audio converged (myNoise's Animate, Noisli's
+   oscillation). Gated on Phase 1 item 3.
+2. **Snow**, which is the same engine with a different sprite and a slower scroll with sine
+   drift. First new weather type because it is nearly free once effects are data.
+3. **Music as an opt-in mode**, routed so a `Sound_EnableMusic = 0` user is unaffected.
+4. **Fog**, then **ash and embers** (snow with ADD blend and a warm tint).
+5. Submerged fade using `IsSubmerged()`.
+
+### The cut order, if 4 November is at risk
+
+Decided now, in the calm, so it is not decided at 2am on 3 November. Cut from the bottom:
+
+1. The five-to-seven preset library, down to three.
+2. WoWInterface as a second channel. CurseForge alone is fine.
+3. Snow. It was already Phase 4.
+4. The effects-as-data refactor, reverting to hardcoded layers. **Costs the panel its clean
+   implementation**, so cutting this means cutting the panel too, which is why it is this far
+   down.
+5. **Nothing below this line gets cut.** The options panel, the preset strings, the rename,
+   the GIF and the CurseForge submission are the launch. Shipping without any one of them is
+   not a reduced launch, it is a launch that does not spread.
+
+**The biggest risk is not engineering, it is that Phase 1 does not happen.** Eight days of
+client access, seven checks, and two of them gate the two launch blockers. If the author does
+not log in before 21 October, the panel ships on an unverified assumption or not at all.
 
 ## The distribution consult, 2026-10-13
 
@@ -684,26 +764,17 @@ looping GIF of the rain and the day-to-night transition. It goes on the CurseFor
 the README, in the Reddit post and in the Discord post. A 30-second YouTube edit is more
 work for less reach and is not worth making before launch.
 
-## Roadmap — towards an atmosphere engine, not a rain addon
+## Engineering reference — what to build, and what is impossible
 
-From a 2026-10-12 consult of Gemini 2.5 Pro and GPT-OSS-120B (saved under
-`code/eco/operator/reviews/review-{gemini,groq}-2026-10-12.md`). **Every API either model
-assumed was checked against the binary before being written down here** — see the corrections
-at the end, two of them were invented.
+Not a schedule. `## THE ROADMAP` above is the only schedule; this is the technical backing
+for the items in it, from a 2026-10-12 consult of Gemini 2.5 Pro and GPT-OSS-120B (saved
+under `code/eco/operator/reviews/review-{gemini,groq}-2026-10-12.md`). **Every API either
+model assumed was checked against the binary before being written down here** — see the
+corrections at the end, two of them were invented.
 
-Both models independently picked the same #1, which is the strongest signal in the whole consult:
-
-**1. Make effects data, not code.** The engine should read a preset of ordered *layers*, each
-`{ texture, blend, colour, alpha, scrollX, scrollY, parallax, mask }`, plus an audio block of
-`{ loop fdid, len, oneshots[] }` and a trigger block (`indoors`, `zone`, `time`, `submerged`).
-Adding snow or ash then becomes a data entry and a generated texture, not new code. Today
-rain is hardcoded in `LAYERS` and `PRESETS`; `light|normal|heavy|monsoon` should collapse into
-one *intensity slider* and the presets should become weather *types*.
-
-**2. A real options panel.** Both flagged slash commands as developer-only and the single
-biggest adoption blocker. Dropdown of presets, master intensity slider, profiles.
-
-**3. Ship 5-7 distinct, good presets** so it is impressive at install with zero configuration.
+Its three top recommendations have all moved into the roadmap: effects-as-data is the Phase 2
+enabler, the options panel is a Phase 2 launch blocker, and the 5-7 preset library is the
+first thing in the cut order.
 
 ### Effects worth building, ranked
 
