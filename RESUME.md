@@ -569,18 +569,29 @@ Everything here needs a running client and dies with the beta. See
 4. Does `MuteSoundFile` survive a relog, or must it be reapplied on `PLAYER_LOGIN`?
 5. Which TOC flavour suffix does this client actually load? Only one report cited any
    evidence and the two candidates are mutually exclusive.
-6. Does SavedVariables read back on build 70338? This gates the options panel, which the
-   consult called the biggest adoption blocker.
-7. Can a Model frame host a Blizzard weather M2?
+6. **Does SavedVariables read back on build 70338? Do this one first.** It gates both the
+   options panel and the preset strings, which are now the two launch blockers, so it
+   decides the shape of Phase 2 rather than one feature in it.
+7. Can a Model frame host a Blizzard weather M2? Lowest value of the seven; do it last or
+   drop it.
+
+Not Phase 1, but free while the client is up: check the fullscreen quads at 21:9 and at
+several `UIParent:GetScale()` values. This does not expire, so it breaks the ordering
+principle, but the alternative is finding out from a one-star comment on 5 November.
 
 ### Phase 2 — 21 October to 4 November. No client needed, 14 days.
 
 - Rename to `CozyAzeroth`, with the DB migration and the `/rain` alias.
 - Effects-as-data refactor (the consult's unanimous #1): layers become a table, the four
   presets collapse into weather *types* plus one intensity slider.
-- Ambience bed scheduler, built on the Phase 1 calibration data. Ambience is the default;
-  music stays unshipped.
-- Options panel, if and only if Phase 1 item 6 says SavedVariables work.
+- **Options panel. Required, not conditional** (revised 2026-10-13 after both consult models
+  independently called it a launch blocker). Minimum viable: a preset dropdown, one master
+  intensity slider, an audio on/off, and the time-of-day mode. Nothing more.
+- **Preset import/export strings.** The mechanic by which this spreads at all, per the
+  WeakAuras/wago precedent. Serialise the config table, compress, base64.
+- Ambience bed as a **dumb zone-to-sound map**, not the real scheduler. Ambience is still
+  the default and music stays unshipped; the sequencing engine moves to Phase 4. This is
+  what pays for the panel and the preset strings.
 - **Publishing, all of which is manual and slow, so start it on 21 October not 3 November:**
   GitHub repo and an MIT licence (permissive, so addon managers and forks are unblocked;
   `Weather`'s All Rights Reserved is a discovery cost for no gain). A release workflow
@@ -602,6 +613,76 @@ Music as an opt-in mode. Snow, fog and ash presets. Micro-sequencing beds throug
 `runFinishCallback` instead of looping one file, which all three reports independently named
 as the world-class feature and which matches where fifteen years of commercial ambient
 audio converged.
+
+## The distribution consult, 2026-10-13
+
+Gemini 2.5 Pro and GPT-OSS-120B on distribution, the name and the phase ordering. Saved to
+`code/eco/operator/reviews/review-{gemini,groq}-2026-10-13.md`. **This is a two-model
+consult, not a four:** Grok returned 403 out of credits and Claude Opus timed out at 362s.
+Two models agreeing is a weaker signal than four and the conclusions below are weighted
+accordingly.
+
+### The one thing that changes the plan: the options panel is a launch blocker
+
+Both models, unprompted, moved it from conditional to required, and both volunteered the
+same reason: someone who installs an addon called *Cozy* is not a power user, finds no
+settings window, and uninstalls inside two minutes. Both also proposed paying for it the
+same way, by shipping the ambience bed as a dumb zone-to-sound map and deferring the real
+scheduler.
+
+Taking it. The consequence is that **Phase 1 item 6, whether SavedVariables reads back on
+build 70338, is now the highest-value check in the whole phase** rather than one of seven.
+A panel that cannot persist a setting is worse than no panel, and that answer only exists
+while the beta client is up.
+
+### The genuinely new idea: shareable presets are the virality mechanic
+
+Gemini's strongest point, and nothing in six prior reports raised it. The claim is that
+Skyrim ENB presets and Minecraft shaderpacks (BSL, SEUS) spread because users shared
+*configurations*, not merely because they looked good, and that an addon configurable only
+by slash commands has nothing to share however well it renders.
+
+This holds, and the proof is inside WoW rather than outside it: **WeakAuras** is the
+most-installed addon in the game's history and its growth mechanism is wago.io import
+strings. The addon is the player, the content is other people's strings.
+
+So an import/export preset string is not a nice-to-have, it is the only mechanic by which
+this product can spread without an audience. It is also cheap: serialise the config table,
+compress, base64. It needs working SavedVariables, which is the same gate as the panel, and
+it belongs in the launch build.
+
+### Where the consult was wrong, and ignored
+
+- GPT-OSS-120B wanted the name changed to **Azeroth Mist**, citing that "cozy" reads as
+  pejorative in "62% of recent Forever forum threads". It has no browsing and cannot have
+  measured that; the number is fabricated and was discarded. The recommendation fails on its
+  own merits regardless: *Mist* re-caps the product at one weather type, which is the exact
+  trap `AlwaysRain` is being renamed to escape. **The name stands.**
+- The same model claimed the beta client "will stop loading `## OptionalDeps:` entries after
+  21 October". That is not a thing. The client is withdrawn, not degraded.
+- It also wanted the folder to carry the keywords. That loses the one property the folder
+  has, which is that it is the only expensive name to change, so it should be the stable one.
+
+### Accepted with a correction
+
+Gemini proposed a Phase 1 check for ultrawide aspect ratios and `UIParent:GetScale()`
+against the fullscreen quads. **It does not expire with the beta** — a resolution and UI
+scale can be changed on any client at any time, so this is not a Phase 1 item by the
+ordering principle. It is still worth doing now, because it costs minutes while the client
+is up and the alternative is learning about it from a one-star comment on 5 November.
+
+### Distribution, where the two split and what to do
+
+One said a 10-second loop GIF on the main WoW subreddit on launch day; the other a
+30-second before/after YouTube video embedded on the CurseForge page plus a post in the
+Forever Discord the day before. Both flagged the same anti-pattern, which is the part worth
+keeping: **a neglected CurseForge page with no media caps a project regardless of what the
+code does**, because the decision to install happens in seconds on the preview image.
+
+The resolution is that these are one asset, not two strategies. Make a single 10-second
+looping GIF of the rain and the day-to-night transition. It goes on the CurseForge page, in
+the README, in the Reddit post and in the Discord post. A 30-second YouTube edit is more
+work for less reach and is not worth making before launch.
 
 ## Roadmap — towards an atmosphere engine, not a rain addon
 
