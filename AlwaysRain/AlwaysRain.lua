@@ -109,7 +109,7 @@ local soundHandles, rainTicker, bedFallback, loopedIntensity = {}, nil, false, n
 local lightningTimer
 local cinematic, indoorsNow, indoorsSince = false, false, nil
 local fade, fadeTarget = 1, 1
-local indoorPoll = 0
+local indoorTicker
 
 local function msg(text)
 	print("|cff7fb8ff" .. ADDON .. "|r: " .. text)
@@ -398,25 +398,29 @@ local function ShouldRain()
 	return true
 end
 
-local function OnUpdate(self, elapsed)
-	-- Indoor state has no reliable event on its own, so poll it cheaply.
-	indoorPoll = indoorPoll + elapsed
-	if indoorPoll > 0.3 then
-		indoorPoll = 0
-		local inside = IsIndoors() and true or false
-		if inside ~= indoorsNow then
-			-- Debounce: walking under an arch should not restart the audio.
-			indoorsSince = indoorsSince or GetTime()
-			if GetTime() - indoorsSince > 0.9 then
-				indoorsNow = inside
-				indoorsSince = nil
-				AlwaysRain_Refresh()
-			end
-		else
+-- Indoor state has no reliable event of its own, so it is polled.
+--
+-- The poll cannot live on the overlay's OnUpdate, which is where it started.
+-- The overlay hides when it is not raining, a hidden frame stops receiving
+-- OnUpdate, and going indoors is exactly what hides it - so the poll would
+-- stop running at the precise moment it is needed, and the addon would be
+-- blind to the player walking back outside. A ticker runs either way.
+local function PollIndoors()
+	local inside = IsIndoors() and true or false
+	if inside ~= indoorsNow then
+		-- Debounce: walking under an arch should not restart the audio.
+		indoorsSince = indoorsSince or GetTime()
+		if GetTime() - indoorsSince > 0.9 then
+			indoorsNow = inside
 			indoorsSince = nil
+			AlwaysRain_Refresh()
 		end
+	else
+		indoorsSince = nil
 	end
+end
 
+local function OnUpdate(self, elapsed)
 	if fade ~= fadeTarget then
 		local step = elapsed / 0.7
 		fade = (fade < fadeTarget) and math.min(fadeTarget, fade + step)
@@ -538,6 +542,8 @@ local function BuildOverlay()
 	-- Game time moves slowly; a third of a minute is finer than the eye needs.
 	UpdateTimeOfDay()
 	todTicker = C_Timer.NewTicker(20, UpdateTimeOfDay)
+	-- Off the overlay deliberately; see PollIndoors.
+	indoorTicker = C_Timer.NewTicker(0.3, PollIndoors)
 end
 
 --------------------------------------------------------------------------------

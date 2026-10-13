@@ -635,16 +635,28 @@ one-star comment on 5 November.
 
 ### Phase 2 — 21 October to 4 November. 14 days. No client exists.
 
-**This is the first thing, before any feature work:**
+**The mock API is DONE, 2026-10-13.** It was the first thing and it is built: `test/`, run
+with `lua test/run.lua`, **50 specs, all passing**, under Lua 5.1.5 built to `~/.local`
+because that is WoW's own interpreter version and a 5.2+ construct that would fail in the
+client has to fail here too. `test/README.md` has the detail. What it covers: boot and
+SavedVariables defaults, the time-of-day grade, the three rain layers and their geometry,
+the audio bed and its reloop, lightning, and the calibration logger.
 
-- **A mock WoW API in plain Lua, and the addon run under a standalone interpreter.** Both
-  consult models named this independently and unprompted, and it is the single highest-value
-  change in this revision. Stub `CreateFrame`, `GetPlayerFacing`, `GetGameTime`, `GetCVar`,
-  `C_Sound.*`, `IsIndoors` and the rest to return plausible values and record their calls.
-  That makes the clock logic, the preset table, the serialiser and the ambience map all
-  testable with zero client, which is otherwise 14 days of code written and never executed.
-  A 3.3.5 or retail client is the wrong answer: different API family, so every difference
-  becomes a branch that exists only for the test.
+The mock reproduces client *misbehaviour* rather than an idealised API, which is where its
+value is: `RegisterEvent` on an unknown event raises, restricted getters can return a secret
+value, `PlaySoundFile` can refuse a FileDataID, `GetBuildInfo` returns interface `16001`, and
+hidden frames get no `OnUpdate`.
+
+**It found one real bug on its first run** (fixed, `f0f6…`): the indoor poll lived on the
+overlay's `OnUpdate`, and the overlay hides when it is not raining. Going indoors hid it,
+hiding stopped the poll, and nothing could then notice the player walking back outside except
+a `ZONE_CHANGED` event — and the unreliability of those events is the entire reason the poll
+exists. The poll is now a `C_Timer` ticker, which runs either way. This is a bug Phase 1
+would most likely not have caught: it needs a player to go inside, come out somewhere that
+fires no zone event, and notice that the rain never came back.
+
+Note for later: the mock will not invent a number it cannot measure. Sound durations are
+supplied per spec rather than defaulted, so no test result rests on a fabricated length.
 
 **Ships 4 November, because Phase 1 will have verified it:**
 
@@ -763,7 +775,8 @@ Decided now, in the calm, so it is not decided at 2am on 3 November. Cut from th
 The previous version named Phase 1 not happening. **Both consult models said that was wrong,
 and that the real risk is shipping 14 days of never-executed code to strangers on a day it
 cannot be hotfixed.** They are right, and the fix is the mock API plus the split launch
-above, both of which are now in the plan.
+above. **The mock half is now built and green**, so the remaining exposure is the part it
+cannot reach: everything in `## Open / unverified`, which needs the client.
 
 Phase 1 is still the hard deadline, because it expires and nothing else does. But it is a
 deadline, not the risk. The risk was the thing the plan was comfortable about.
@@ -893,9 +906,12 @@ is the main thing selling the curtain as having depth.
 
 ## Open / unverified
 
-- **v2 has not been seen running.** v1 was; the Blizzard FileDataIDs, the mist texture and the
-  indoor fade are all unconfirmed against a live client. `/rain status` reports
-  `(bundled audio)` if the sound IDs were refused.
+- **v2 has not been seen running *in the client*.** It now runs green under the mock
+  (`lua test/run.lua`, 50 specs), which settles the logic but not the rendering: the Blizzard
+  FileDataIDs, the mist texture, the blend modes and the horizon fade are all still
+  unconfirmed against real hardware. `/rain status` reports `(bundled audio)` if the sound IDs
+  were refused. **A green suite is not a working addon** — the mock records what was asked of
+  the renderer, and has no opinion on what came back.
 - `IsIndoors()` is the client's own notion of inside and it is imperfect — it reads true under
   some large awnings and false in some open-roofed buildings. Nothing better is exposed.
 - Dungeons and raids are not specially handled; they report indoors, so the rain stops there.
