@@ -130,6 +130,7 @@ and are not part of this repo.
 | [RainingBlood](https://www.curseforge.com/wow/addons/rainingblood) | vggoecks, MIT, 2019 | **2 lines** | `SetCVar("weatherDensity", 3)` and `violencelevel 5` |
 | [ImmersiveWeather](https://www.curseforge.com/wow/addons/immersiveweather) | Viinchesterr, 2025 | ~40 lines | A text label by the minimap. No visuals at all |
 | [DayNight](https://www.curseforge.com/projects/95595/) | 2015, 136 dl | tiny | Drives the `gamma` CVar down at night. Darkens the UI too |
+| [Weather](https://www.curseforge.com/wow/addons/weather) | keyboardturner, **All Rights Reserved**, 2,308 dl, 0.0.9 of 2026-08-17 (read 2026-10-12) | 18 Lua files, 49 MB | The only other addon in the survey that tints the screen. Indoor audio muffling, free-fall wind, skyriding wind by speed, a "Collector Almanac", a forecast icon, **`LibForecast`**, and a fullscreen `ScreenEffects` tint |
 
 ### What they have that we do not
 
@@ -149,8 +150,10 @@ and are not part of this repo.
 
 ### What we already do better
 
-- **Neither of them calls `SetBlendMode` at all**, so neither can darken anything. Our
-  MOD-blend gloom quad is the only thing in this survey that makes the world dimmer.
+- **Not one addon in the survey calls `SetBlendMode`** — grepped across all six, including
+  every one of Weather's 18 Lua files. Our MOD-blend gloom quad is the only multiplicative
+  darkening in the field. See "Weather tints, we multiply" below for why that is not a
+  quibble.
 - Dynamic Azeroth Weather parents its particles to `UIParent`, so its rain draws **over
   the action bars**. Ours is a `WorldFrame` child.
 - Its "rain" is 200 white 2x20 rectangles moved in `OnUpdate`. Ours is a tiling sheet.
@@ -172,6 +175,96 @@ Verified in the 1.60.1.70338 binary at offset 81939440: a `C_Weather` namespace 
 `Sandstorm`. It is **read-only** — there is no setter, so it still cannot force weather —
 but it lets the addon know when the client is already drawing real rain instead of
 doubling up on it. Surfaced in `/rain status`. Not yet confirmed in a running client.
+
+### Weather tints, we multiply
+
+Read 2026-10-12 from `Weather/ScreenEffects.lua` (231 lines). It builds one fullscreen
+texture on a `WorldFrame` child at `BACKGROUND` strata, draw layer `BACKGROUND` sublevel
+`-8`, and calls `SetColorTexture(r, g, b, a)` with `MAX_ALPHA = 0.30` — the source comment
+reads *"any higher than this feels a bit too intense"*, which is a calibrated number from a
+shipping author and worth having. There is **no `SetBlendMode` call**, so it is the default
+`BLEND`: alpha compositing, not multiplication.
+
+That is a different operation, not a weaker version of ours:
+
+| | Alpha blend (`Weather`) | MOD (ours) |
+|---|---|---|
+| Maths | `scene·(1−a) + colour·a` | `scene × colour` |
+| Black pixel | **lifted** off black | stays black |
+| Physical analogue | translucent sheet in front of the lens | less light reaching the scene |
+
+Their rain colour is `{0.20, 0.45, 0.85}`, a saturated blue. At alpha 0.30 a black pixel
+becomes `{0.06, 0.135, 0.255}` and a white one `{0.76, 0.835, 0.955}`. The scene is washed
+toward mid-blue from *both* ends and the black floor comes up — a colour cast. MOD leaves
+black at black and scales everything else down, which is what a cloud layer actually does
+to sunlight. Their snow colour `{0.90, 0.95, 1.00}` is near-white and **brightens** a dark
+scene, which is right for a whiteout and wrong for gloom.
+
+So the claim to make publicly is not "nothing else darkens the sky" — Weather does. It is
+**nothing else darkens it multiplicatively**, which is checkable and true across all six.
+
+### `CONSOLE_MESSAGE`: a second weather source, better than `C_Weather`
+
+The best idea in the survey, and it was in none of the three reports. `Weather` does not
+call `C_Weather` at all. Its bundled `LibForecast` registers the **`CONSOLE_MESSAGE`**
+event and regex-parses the engine's own line:
+
+```
+Weather changed to <type> intensity <0.0-1.0> recID <id>
+```
+
+via `string.match(message, "changed to (%d+)")`, `"intensity ([%d.]+)"` and
+`"recID (%d+)"`. The library's header notes console messages are always English, so there
+is no localisation problem.
+
+Three reasons this beats `C_Weather.GetCurrentWeather()` for us:
+
+- **Raw numeric type, not a 3-value enum.** They carry a `Firestorm` type that
+  `Enum.WeatherType` has no name for.
+- **A `recordID`**, resolved through a 206-line table — the specific weather record, far
+  more granular than Rain/Snow/Sandstorm.
+- **It is old engine plumbing.** `C_Weather` is a 12.1.5 retail addition; we have only
+  proven its *strings* are in the Forever binary, never that it answers at runtime.
+  `CONSOLE_MESSAGE` long predates it.
+
+Not yet tested on our client — the message text above is read from their Lua, not observed
+in our console. `/etrace` plus a real storm settles it, and that is a calibration-session
+task. Use it as the primary source with `C_Weather` as the cross-check, not the reverse.
+
+## The three deep-research reports
+
+Delivered 2026-10-12, all three reading `dr-prompt.md` v2. Their disagreements, resolved:
+
+| Question | Verdict | How it was settled |
+|---|---|---|
+| Does `Weather` darken the screen? | **Yes.** Report 2 said audio-only and was wrong; report 3 was right | Read `ScreenEffects.lua:72` ourselves |
+| Does anything else use MOD? | **No** | `grep -rn SetBlendMode` over all six addons, 0 hits |
+| Beta window | Ends **21 Oct 2026**; launch 4 Nov 2026, 3pm PST | Two independent sources |
+| TOC flavour suffix | **Unresolved.** R1 says `_Camelot.toc` and that `_Forever.toc` is "proven ignored"; R2 and R3 say comma-separated `## Interface:` plus `AllowLoadGameType` | Only R1 cited anything. Must be tested on the client |
+| Packager version | **v2.6.1** | Unanimous, and v2.6.1 fixes a WoWI check in v2.6.0 |
+| Collapse the MOD quads | **Yes**, exact and free | Unanimous |
+| Determinism | Hash **uiMapID** + time bucket, FNV-1a, no `SendAddonMessage` | Unanimous |
+| Schema before GUI? | **Yes.** R1 and R2 say schema first; R3 says GUI first and is outvoted | Binding sliders to hard-coded locals means rewiring every one later |
+| Keep permanent rain? | **Yes.** Vary *intensity* so it never flatlines, never to zero | R2 argued for 20% clear spells; the addon is called AlwaysRain |
+
+Only report 1 flagged the **SavedVariables bug** — early Forever builds wrote them and
+never read them back. Reportedly fixed by build 69913, contested, and we are on 70338. A
+settings GUI is worthless if settings evaporate, so probe it before building one:
+`/run AlwaysRainDB.probe = time()` → `/reload` → `/dump AlwaysRainDB.probe`.
+
+Other traps worth keeping, all from report 1: registering an unknown event **throws and
+aborts the whole file**, so `pcall` the `WEATHER_CHANGED` registration; `select(4,
+GetBuildInfo())` returns `16001`, so any `>= 100000` check takes the wrong branch; the
+client stops reporting Lua errors after 100 in a session; and do not call
+`initializer:AddSearchTags(...)`, which throws `ADDON_ACTION_FORBIDDEN` on Forever.
+
+### The deadline that reorders everything
+
+**Beta client access ends 21 October 2026.** Launch is 4 November. Every visual default in
+this addon — gloom colour, streak alpha, sheet density, layer speeds — was guessed, because
+`weatherDensity` was `0` on this machine and Blizzard's real rain has never once been
+rendered here. Calibration is the **only** task on the roadmap that becomes impossible
+after the 21st. It goes first, ahead of the schema, the GUI and everything else.
 
 ## What this can never match
 
