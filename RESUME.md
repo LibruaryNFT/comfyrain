@@ -512,6 +512,97 @@ It does **not** change the next nine days. Calibration expires with the beta cli
 Bank the finding, take the `volumeOverride` simplification when the audio ladder is next
 touched, and revisit the product shape after launch — not before the calibration session.
 
+## The name: Cozy Azeroth
+
+Decided 2026-10-13. `AlwaysRain` is a feature name that caps the product at one weather
+type and already fights a roadmap containing snow, fog, ash and time-of-day.
+
+| Field | Value |
+|---|---|
+| Folder (**irreversible**) | `CozyAzeroth` |
+| TOC `## Title` | `Cozy Azeroth` |
+| CurseForge title | `Cozy Azeroth: Weather, Ambience and Time of Day` |
+| Slash | `/cozy`, with `/rain` kept as a permanent alias |
+| SavedVariables | `CozyAzerothDB`, migrating from `AlwaysRainDB` on first load |
+
+**Only the folder name is expensive to change** — renaming it orphans every user's
+SavedVariables, because the file is named after the folder. The displayed title, the
+CurseForge title and the description are all free to revise later, which is why the brand
+goes in the folder and every search keyword goes in the title.
+
+Why this and not the three the reports proposed:
+
+- **Hearthlight** (report 1) grazes *Hearthstone*, a live Blizzard trademark, in an addon
+  whose entire legal position rests on Blizzard's goodwill. Not worth it for a name.
+- **CozyWeather** (report 3) re-caps the product at weather, which is the exact trap being
+  escaped.
+- **AzerothAmbience** (report 2) has the right structure but caps the other way, at audio,
+  and the product is both halves.
+- **"ComfyVibes"**, the original instinct, is right about the feeling and wrong about the
+  word. Two of three reports found, with evidence, that *cozy* is native to this audience
+  (the Cozy Sleeping Bag item, housing content) while *comfy* reads as imageboard and
+  Twitch slang. "Vibes" also carries no search weight.
+
+`Cozy Azeroth` keeps the evidenced native keyword, is searchable on both words, caps
+nothing (rain, snow, night and ambience all live under it), and communicates the product
+in two words to someone scanning a search result page. One internal rename follows: the
+`overcast` *preset* keeps its name, since the brand no longer competes with it.
+
+## The schedule, with publishing
+
+Three fixed dates: beta client dies **21 October**, name reservation **27 October**, launch
+**4 November 3pm PST**. Today is 13 October. The ordering principle is that only one body of
+work expires with the client, so it goes first regardless of how interesting the rest is.
+
+### Phase 1 — by 21 October. Client-gated, 8 days, cannot be redone later.
+
+Everything here needs a running client and dies with the beta. See
+`### /rain calib` above for the mechanics.
+
+1. `/rain calib on`, then travel. Log real weather transitions across several zones and
+   both indoor and outdoor states.
+2. `/dump C_Sound` — settles whether `volumeOverride` and `runFinishCallback` are really
+   params fields. Currently adjacency evidence only, and `volumeOverride` alone deletes the
+   five pre-baked gain variants.
+3. Play an ambience-channel sound with `Sound_EnableMusic` set to 0. This is the single
+   assumption the whole ambience-led strategy rests on.
+4. Does `MuteSoundFile` survive a relog, or must it be reapplied on `PLAYER_LOGIN`?
+5. Which TOC flavour suffix does this client actually load? Only one report cited any
+   evidence and the two candidates are mutually exclusive.
+6. Does SavedVariables read back on build 70338? This gates the options panel, which the
+   consult called the biggest adoption blocker.
+7. Can a Model frame host a Blizzard weather M2?
+
+### Phase 2 — 21 October to 4 November. No client needed, 14 days.
+
+- Rename to `CozyAzeroth`, with the DB migration and the `/rain` alias.
+- Effects-as-data refactor (the consult's unanimous #1): layers become a table, the four
+  presets collapse into weather *types* plus one intensity slider.
+- Ambience bed scheduler, built on the Phase 1 calibration data. Ambience is the default;
+  music stays unshipped.
+- Options panel, if and only if Phase 1 item 6 says SavedVariables work.
+- **Publishing, all of which is manual and slow, so start it on 21 October not 3 November:**
+  GitHub repo and an MIT licence (permissive, so addon managers and forks are unblocked;
+  `Weather`'s All Rights Reserved is a discovery cost for no gain). A release workflow
+  pinned to `BigWigsMods/packager@v2.6.1` — v2.6.0 added Forever support in PR #202 and
+  v2.6.1 fixed a WoWInterface classic check. CurseForge project submitted by **27 October**,
+  since new projects wait on human approval and missing the launch window cannot be
+  recovered. WoWInterface as the second channel. Screenshots and a short GIF, because the
+  product is visual and the gallery outranks the description.
+
+### Phase 3 — 4 November, launch day.
+
+Tag `v1.0.0` and let the workflow upload. Ship rain, sky grading, time of day and the
+ambience bed. Post once to the Forever community. Launch-window download share is real and
+it is the one day the addon can be discovered without search ranking.
+
+### Phase 4 — after launch.
+
+Music as an opt-in mode. Snow, fog and ash presets. Micro-sequencing beds through
+`runFinishCallback` instead of looping one file, which all three reports independently named
+as the world-class feature and which matches where fifteen years of commercial ambient
+audio converged.
+
 ## Roadmap — towards an atmosphere engine, not a rain addon
 
 From a 2026-10-12 consult of Gemini 2.5 Pro and GPT-OSS-120B (saved under
