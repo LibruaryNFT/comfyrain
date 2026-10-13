@@ -714,6 +714,31 @@ the addon managers' "recently updated" lists, which is not nothing.
 4. **Fog**, then **ash and embers** (snow with ADD blend and a warm tint).
 5. Submerged fade using `IsSubmerged()`.
 
+### How much development is actually left, and where
+
+The honest shape, and the reason the product plan is what it is:
+
+| Half | State | Work remaining, ever |
+|---|---|---|
+| **Visual** | **Essentially finished.** The ceiling is documented, hard and reached | ~2 weeks, total. Snow, fog and ash are data entries plus a generated texture once effects are data. There is no third act, because MOD blend over a 2D sheet is the last thing an addon can do to the screen |
+| **Audio** | **Barely started.** A single looping rain bed | Months. The sequencing engine, a zone-biome-time map over Blizzard's entire library, bed mixing, crossfades, `MuteSoundFile` to remove what grates |
+
+That asymmetry *is* the plan. The visual half bought the launch; it is finished and cannot
+be extended. Everything after 11 November is audio, and the field is empty: nobody sequences
+audio, FAME is music-only with zero ambience, and `runFinishCallback` and `volumeOverride`
+are unexploited by anyone shipping today.
+
+**What makes it defensible is context, not fidelity.** A browser tab of lo-fi has unlimited
+content and zero setup, and will always beat us on both. It cannot know the player walked
+into an inn at 2am in the rain. Every hour of Phase 4 should go into the engine knowing
+*where and when you are*, not into making any single sound better.
+
+**The honest ceiling.** This is a quiet atmosphere addon, not WeakAuras. Dynamic Weather took
+years to reach 20.7k. The counter-evidence is that Forever-native *audio* addons move much
+faster than that (Spoken Player: 97,856 in 24 days), which is the main reason the audio half
+is the product rather than a feature of it. Low tens of thousands is a good outcome here;
+anything framed around more than that is not supported by anything observed.
+
 ### The cut order, if the dates are at risk
 
 Decided now, in the calm, so it is not decided at 2am on 3 November. Cut from the bottom:
