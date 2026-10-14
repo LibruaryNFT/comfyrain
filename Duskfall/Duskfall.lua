@@ -711,6 +711,7 @@ local function Help()
 	print("  |cffffd100/dusk channel Ambience|SFX|Master|r - which volume slider owns it")
 	print("  |cffffd100/dusk density|r - is the client even allowed to draw real weather?")
 	print("  |cffffd100/dusk calib on|r - log real weather so the defaults stop being guesses")
+	print("  |cffffd100/dusk probe|r - answer the client-gated questions before the beta dies")
 	print("  |cffffd100/dusk status|r")
 end
 
@@ -796,6 +797,14 @@ local function HandleSlash(input)
 			end
 		end
 		DensityReport()
+		return
+	-- Probe.lua is a separate chunk and may not be installed; see its header.
+	elseif cmd == "probe" then
+		if Duskfall_Probe then
+			Duskfall_Probe(arg)
+		else
+			msg("Probe.lua is not installed.")
+		end
 		return
 	elseif cmd == "calib" or cmd == "calibrate" then
 		if arg == "off" then

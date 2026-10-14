@@ -15,6 +15,7 @@ local prefix = (root ~= "" and root .. "." or "")
 
 local DIR = debug.getinfo(1, "S").source:match("^@(.*)/[^/]*$") or "."
 local ADDON_FILE = DIR .. "/../Duskfall/Duskfall.lua"
+local PROBE_FILE = DIR .. "/../Duskfall/Probe.lua"
 
 --------------------------------------------------------------------------------
 -- Assertions
@@ -96,10 +97,23 @@ function H.world(opts)
 	if not chunk then error("could not load the addon: " .. tostring(err)) end
 	setfenv(chunk, env)
 
+	-- Probe.lua is a second chunk in the real TOC, and that separation is the
+	-- point of it, so it is loaded as a second chunk here too. Specs that do not
+	-- need it pass probe = false and get a world where /dusk probe is absent,
+	-- which is also what a shipped build without the file looks like.
+	local probe
+	if opts.probe ~= false then
+		local pchunk, perr = loadfile(PROBE_FILE)
+		if not pchunk then error("could not load the probe: " .. tostring(perr)) end
+		setfenv(pchunk, env)
+		probe = pchunk
+	end
+
 	local w = { mock = mock, env = env, chunk = chunk }
 
 	function w:load()
 		chunk()
+		if probe then probe() end
 		mock.fire("ADDON_LOADED", "Duskfall")
 		mock.fire("PLAYER_ENTERING_WORLD")
 		return self

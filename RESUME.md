@@ -800,6 +800,29 @@ be recovered, and no amount of agent time substitutes for it.
 In priority order, because there may not be time for all seven. Mechanics are in
 `### /rain calib` above; the logger is already built and committed.
 
+**Seven of the eight are now one command.** `Duskfall/Probe.lua`, built 2026-10-14. Type
+`/dusk probe` in game, `/reload` when it says to, then `/dusk probe report`. Every answer is
+written to `DuskfallDB.probe` in `WTF/Account/<ACCOUNT>/SavedVariables/Duskfall.lua`, so the
+results come off disk afterwards rather than being transcribed out of a chat window. Items 4
+and 6 are the exceptions: 4 is travel the probe cannot do, and 6 is a folder-naming
+experiment, not a Lua question.
+
+Three things about it that are the whole point:
+
+- **Negative results carry a positive control.** The mute check plays an *unmuted* file
+  first; if the client refuses that, it records `unknown` and refuses to conclude. The finish
+  check fires a known SoundKit first; a silent FileDataID next to a silent control proves
+  nothing and is recorded as `unknown`, not `no`.
+- **Proxies are not reported as the thing.** The client can only say it *agreed* to play.
+  Whether sound came out is the player's ears, so the ambience check records `ask` and waits
+  for `/dusk probe heard yes|no`.
+- **It is a separate chunk, pcall'd per check.** A raise in the probe cannot abort
+  `Duskfall.lua`, and one exploding check cannot cost the other six. Covered by
+  `test/spec_probe.lua`; drop the file and its TOC line to ship without it.
+
+It leaves the rain muted on purpose when it finishes, because the mute has to outlive the
+session to be measured after a `/reload`. It says so.
+
 1. **Does SavedVariables read back on build 70338?** First, because it gates both launch
    blockers. Set a value, `/reload`, read it back. If it fails, the options panel and the
    preset strings both die and the launch shape changes, so this answer is worth more than
@@ -807,8 +830,8 @@ In priority order, because there may not be time for all seven. Mechanics are in
 2. **Play an ambience-channel sound with `Sound_EnableMusic` set to 0.** The single
    assumption the entire ambience-led strategy rests on. If ambience is silenced along with
    music, the product thesis needs rebuilding.
-3. **`/dump C_Sound`.** Settles whether `volumeOverride` and `runFinishCallback` are really
-   params fields rather than adjacent strings. `volumeOverride` alone deletes the five
+3. **Enumerate `C_Sound`.** Confirms on a live client what the re-probe already established
+   in the binary: that these are declared params fields rather than adjacent strings. `volumeOverride` alone deletes the five
    pre-baked gain variants; `runFinishCallback` is the whole Phase 4 sequencing engine.
 4. **`/rain calib on`, then travel.** Log real weather transitions across several zones and
    both indoor and outdoor states. Feeds the ambience map and the zone-to-biome table.
@@ -834,7 +857,7 @@ one-star comment on 5 November.
 ### Phase 2 — 21 October to 4 November. 14 days. No client exists.
 
 **The mock API is DONE, 2026-10-13.** It was the first thing and it is built: `test/`, run
-with `lua test/run.lua`, **50 specs, all passing**, under Lua 5.1.5 built to `~/.local`
+with `lua test/run.lua`, **74 specs, all passing**, under Lua 5.1.5 built to `~/.local`
 because that is WoW's own interpreter version and a 5.2+ construct that would fail in the
 client has to fail here too. `test/README.md` has the detail. What it covers: boot and
 SavedVariables defaults, the time-of-day grade, the three rain layers and their geometry,
@@ -1119,7 +1142,7 @@ is the main thing selling the curtain as having depth.
 ## Open / unverified
 
 - **v2 has not been seen running *in the client*.** It now runs green under the mock
-  (`lua test/run.lua`, 50 specs), which settles the logic but not the rendering: the Blizzard
+  (`lua test/run.lua`, 74 specs), which settles the logic but not the rendering: the Blizzard
   FileDataIDs, the mist texture, the blend modes and the horizon fade are all still
   unconfirmed against real hardware. `/rain status` reports `(bundled audio)` if the sound IDs
   were refused. **A green suite is not a working addon** — the mock records what was asked of

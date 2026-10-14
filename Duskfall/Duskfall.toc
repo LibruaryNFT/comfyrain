@@ -7,3 +7,4 @@
 ## OptionalDeps: AlwaysRain
 
 Duskfall.lua
+Probe.lua

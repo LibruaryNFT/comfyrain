@@ -20,6 +20,7 @@ local SPECS = {
 	"spec_visuals",
 	"spec_sound",
 	"spec_calib",
+	"spec_probe",
 }
 
 os.exit(H.run(SPECS) and 0 or 1)

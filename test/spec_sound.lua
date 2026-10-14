@@ -168,21 +168,56 @@ it("never stacks more than two beds on top of each other", function()
 	lt(live, 3, "beds audible at once after ten minutes")
 end)
 
-it("exposes the sequencing primitive Phase 4 is built on", function()
-	-- Not used by the addon yet. This pins the mock's contract so the engine
-	-- can be written against it before 4 November, and marks what /dump C_Sound
-	-- has to confirm on a live client before any of it is trusted.
-	local w = H.world()
-	local finished = {}
-	local ok_, handle = w.env.C_Sound.PlaySoundWithOptions(538981, {
-		channel = "Ambience",
-		volumeOverride = 0.4,
-		length = 5.0,
-		runFinishCallback = function(h) finished[#finished + 1] = h end,
+it("arms SOUNDKIT_FINISHED for a SoundKit, which is the positive control", function()
+	-- runFinishCallback is a boolean field in the C_Sound params struct, not a
+	-- Lua function. It arms the SOUNDKIT_FINISHED event, which is present in
+	-- WowB.exe 1.60.1.70338. This spec exists to prove the instrument works at
+	-- all, so that the next one's negative result means something.
+	local w = H.world({ soundKits = { 567 } })
+	local heard = {}
+	local f = w.env.CreateFrame("Frame")
+	f:RegisterEvent("SOUNDKIT_FINISHED")
+	f:SetScript("OnEvent", function(_, _, h) heard[#heard + 1] = h end)
+
+	local ok_, handle = w.env.C_Sound.PlaySoundWithOptions(567, {
+		channel = "Master", length = 5.0, runFinishCallback = true,
 	})
 	eq(ok_, true, "played")
 	eq(w.env.C_Sound.IsPlaying(handle), true, "handle is live")
 	w:advance(6)
-	eq(#finished, 1, "the finish callback fired once")
-	eq(finished[1], handle, "with the handle that ended")
+	eq(#heard, 1, "the event fired once for a SoundKit")
+	eq(heard[1], handle, "with the handle that ended")
+end)
+
+it("cannot assume SOUNDKIT_FINISHED fires for a FileDataID", function()
+	-- Every sound this addon owns is a FileDataID, not a SoundKit. Whether the
+	-- event fires for those is unknown until /dusk probe answers it on a live
+	-- client, so the mock defaults to the hostile answer and the sequencer in
+	-- Phase 4 is driven by a timer. If this spec ever starts failing because
+	-- the default flipped, the sequencer design has to be revisited, not the test.
+	local w = H.world()
+	local heard = 0
+	local f = w.env.CreateFrame("Frame")
+	f:RegisterEvent("SOUNDKIT_FINISHED")
+	f:SetScript("OnEvent", function() heard = heard + 1 end)
+
+	local ok_ = w.env.C_Sound.PlaySoundWithOptions(538981, {
+		channel = "Ambience", volumeOverride = 0.4,
+		length = 5.0, runFinishCallback = true,
+	})
+	eq(ok_, true, "played")
+	w:advance(6)
+	eq(heard, 0, "no finish event for a file, under the assumption we ship on")
+end)
+
+it("records volumeOverride and runFinishCallback as the params struct fields they are", function()
+	local w = H.world()
+	local before = #w.mock.sounds
+	w.env.C_Sound.PlaySoundWithOptions(538981, {
+		channel = "Ambience", volumeOverride = 0.4, runFinishCallback = true,
+	})
+	local s = w.mock.sounds[before + 1]
+	eq(s.channel, "Ambience", "channel")
+	near(s.volumeOverride, 0.4, 1e-9, "volumeOverride")
+	eq(s.runFinishCallback, true, "runFinishCallback is a flag")
 end)

@@ -183,6 +183,8 @@ local DEFAULT_EVENTS = {
 	"ZONE_CHANGED", "ZONE_CHANGED_INDOORS", "ZONE_CHANGED_NEW_AREA",
 	"CINEMATIC_START", "CINEMATIC_STOP", "PLAY_MOVIE", "STOP_MOVIE",
 	"CONSOLE_MESSAGE", "WEATHER_CHANGED", "PLAYER_LOGOUT",
+	-- Verified present in WowB.exe 1.60.1.70338 at offset 81230320.
+	"SOUNDKIT_FINISHED",
 }
 
 function M.reset(opts)
@@ -228,6 +230,17 @@ function M.reset(opts)
 	-- Whether the client will play a given sound. Returning false models the one
 	-- real risk with Blizzard's library: a FileDataID the user's install lacks.
 	M.canPlaySound = opts.canPlaySound or function() return true end
+	M.muted = {}
+
+	-- Three things nobody has seen on a live 1.60.1 client. The mock takes a
+	-- position only because a test has to; the probe exists to replace these
+	-- with observations, and every spec that depends on one says which it set.
+	local function pick(v, default) if v == nil then return default end return v end
+	M.muteAffectsOwnPlayback = pick(opts.muteAffectsOwnPlayback, true)
+	M.finishEventForKits     = pick(opts.finishEventForKits, true)   -- documented since 7.0.3
+	M.finishEventForFiles    = pick(opts.finishEventForFiles, false) -- unknown, assumed hostile
+	M.soundKits = {}
+	for _, id in ipairs(opts.soundKits or { 567 }) do M.soundKits[id] = true end
 
 	-- How long each file runs, so a handle stops being live when the sound
 	-- ends. Without this every handle looks like it is still playing forever
@@ -246,6 +259,13 @@ local function newFrame(kind, name, parent, template)
 		_name = name, _parent = parent, _kind = kind, _template = template,
 		_shown = true, _scripts = {}, _events = {}, _textures = {},
 	}, Frame)
+	-- Only a Model frame has SetModel, so code that forgets to pass "Model"
+	-- fails here the way it would in the client.
+	if kind == "Model" then
+		f.SetModel = function(self, id) self._model = id end
+		f.GetModelFileID = function(self) return self._model end
+		f.SetCamDistanceScale = function() end
+	end
 	M.frames[#M.frames + 1] = f
 	if name then M.env[name] = f end
 	return f
@@ -436,6 +456,14 @@ function M.install(env)
 	-- lands on decides whether a player who muted the music hears it at all, and
 	-- that is the single assumption the whole audio plan rests on.
 	local function play(file, channel, kind)
+		-- Warcraft Wiki says MuteSoundFile reaches "sounds played manually by
+		-- PlaySoundFile()". Unverified on 1.60.1, and it decides whether the
+		-- suppression plan works, so it is a switch, not an assumption.
+		if M.muteAffectsOwnPlayback and M.muted and M.muted[file] then
+			M.sounds[#M.sounds + 1] = { file = file, channel = channel, kind = kind,
+			                            at = M.now, ok = false, muted = true }
+			return false
+		end
 		if not M.canPlaySound(file, channel) then
 			M.sounds[#M.sounds + 1] = { file = file, channel = channel, kind = kind,
 			                            at = M.now, ok = false }
@@ -472,24 +500,34 @@ function M.install(env)
 	env.MuteSoundFile = function(id) M.muted = M.muted or {}; M.muted[id] = true end
 	env.UnmuteSoundFile = function(id) if M.muted then M.muted[id] = nil end end
 
-	-- C_Sound as probed in the binary. volumeOverride and runFinishCallback are
-	-- adjacency evidence from the string region, NOT a declared struct, so the
-	-- mock accepts them and records them rather than asserting their shape. The
+	-- C_Sound as probed in the binary. uiSoundSubType, forceNoDuplicates,
+	-- runFinishCallback, overridePriority and volumeOverride sit at 81780880 to
+	-- 81780968, immediately before both "(params)" usage strings, so they are a
+	-- declared struct rather than adjacency. runFinishCallback is a FLAG: it
+	-- arms SOUNDKIT_FINISHED, it does not call anything. The
 	-- real check is /dump C_Sound on a live client before 21 October.
 	env.C_Sound = {
 		PlaySound = function(kit, channel) return play(kit, channel, "kit") end,
-		PlaySoundWithOptions = function(kit, params)
+		PlaySoundWithOptions = function(id, params)
 			params = params or {}
-			local ok, handle = play(kit, params.channel, "options")
+			local ok, handle = play(id, params.channel, "options")
 			local entry = M.sounds[#M.sounds]
 			entry.volumeOverride = params.volumeOverride
 			entry.runFinishCallback = params.runFinishCallback and true or false
-			if ok and params.runFinishCallback and params.length then
-				-- Model the sequencing primitive the whole Phase 4 engine needs.
-				M.timers[#M.timers + 1] = {
-					at = M.now + params.length,
-					fn = function() params.runFinishCallback(handle) end,
-				}
+			if ok and params.runFinishCallback then
+				-- runFinishCallback does not call anything. It arms the
+				-- SOUNDKIT_FINISHED event, which the binary does contain. The
+				-- open question is whether it fires for a FileDataID or only
+				-- for a SoundKit, so the mock is told, never assumes.
+				local isKit = M.soundKits[id] and true or false
+				local fires = isKit and M.finishEventForKits or M.finishEventForFiles
+				local length = params.length or M.soundLengths[id] or M.defaultSoundLength or 1.0
+				if fires then
+					M.timers[#M.timers + 1] = {
+						at = M.now + length,
+						fn = function() M.fire("SOUNDKIT_FINISHED", handle) end,
+					}
+				end
 			end
 			return ok, handle
 		end,
@@ -512,6 +550,7 @@ function M.install(env)
 		-- any retail-era interface-number check mis-branches here.
 		return "1.60.1", "70338", "2026-09-17", 16001
 	end
+	env.GetPhysicalScreenSize = function() return M.width, M.height end
 	env.GetLocale = function() return "enUS" end
 	env.UnitName = function() return "Tester" end
 	env.GetAddOnMetadata = function(_, field)
@@ -523,7 +562,14 @@ function M.install(env)
 	-- unverified, and AddSearchTags is already known to raise here.
 	env.Settings = {
 		RegisterCanvasLayoutCategory = function(frame, name)
-			local cat = { frame = frame, name = name, ID = name }
+			local cat = {
+				frame = frame, name = name, ID = name,
+				-- Known to raise ADDON_ACTION_FORBIDDEN on Forever. Reproduced,
+				-- because a probe that does not survive it is useless.
+				AddSearchTags = function()
+					error("ADDON_ACTION_FORBIDDEN: AddSearchTags", 2)
+				end,
+			}
 			M.settingsCategories = M.settingsCategories or {}
 			M.settingsCategories[#M.settingsCategories + 1] = cat
 			return cat

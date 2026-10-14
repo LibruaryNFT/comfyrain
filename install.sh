@@ -17,7 +17,7 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 [ -d "${WOW}/${FLAVOR}" ] || { echo "no such flavor: ${FLAVOR}" >&2; exit 1; }
 
 mkdir -p "$DEST"
-cp "${HERE}/Duskfall/Duskfall.lua" "${HERE}/Duskfall/Duskfall.toc" "$DEST/"
+cp "${HERE}/Duskfall/Duskfall.lua" "${HERE}/Duskfall/Probe.lua" "${HERE}/Duskfall/Duskfall.toc" "$DEST/"
 
 # Assets are generated, not checked in - they are deterministic from these scripts.
 # The addon prefers Blizzard's own weather audio by FileDataID; these files are
