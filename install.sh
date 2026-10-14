@@ -23,6 +23,7 @@ cp "${HERE}/Duskfall/Duskfall.lua" "${HERE}/Duskfall/Probe.lua" "${HERE}/Duskfal
 # The addon prefers Blizzard's own weather audio by FileDataID; these files are
 # only the fallback for a client that will not play them.
 python3 "${HERE}/build/make_rain_tga.py" "$DEST"
+python3 "${HERE}/build/make_snow_tga.py" "$DEST"
 python3 "${HERE}/build/make_rain_audio.py" "$DEST"
 
 echo

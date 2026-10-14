@@ -49,8 +49,8 @@ referenced by number. `ls` of the installed folder should only ever show `.lua`,
 Addons can pass a numeric FileDataID to `SetTexture` and `PlaySoundFile`, so the client's own
 files are reachable with nothing extracted and nothing shipped. **A FileDataID needs no client
 restart** — only new files on disk do. Durations below were measured from the real files
-(pulled via `https://wago.tools/api/casc/<fdid>?download`) and must stay in sync with `BEDS`
-in the Lua, because the loop ticker is driven by them.
+(pulled via `https://wago.tools/api/casc/<fdid>?download`) and must stay in sync with the
+`bed` entries in the Lua's `WEATHER` table, because the loop ticker is driven by them.
 
 | Asset | FileDataID | Measured |
 |---|---|---|
@@ -59,9 +59,17 @@ in the Lua, because the loop ticker is driven by them.
 | RainHeavyLoop.ogg | 538982 | 25.0 s, mean -20.8 dB |
 | FX_TKIsle_MWThunderRumble ×10 | 838830, 838832, 838834, 839725, 839727, 839729, 839731, 839733, 839735, 839737 | 5.5–7.6 s |
 | WeatherMistGrainy01.blp | 396498 | 256×256, the mist veil |
+| SnowLight.ogg | 538985 | **29.951 s**, mean -33.1 dB |
+| SnowMedium.ogg | 538989 | 50.0 s, mean -30.8 dB |
+| SnowHeavy.ogg | 538984 | 40.0 s, mean -22.9 dB |
+| AMB_FrostFire_Heavy_Wind_base_loop.OGG | 918050 | 110.713 s, mean -24.2 dB — the blizzard's wind |
+| FX_WindGust_OneShot_01-07 | 982361, 982363, 982365, 982367, 982369, 982371, 982373 | 5–6 s |
+| SNOWMIST01.BLP | 186229 | the snow analogue of the mist veil |
 
-Snow (538985 / 538989 / 538984) and sandstorm (538988 / 538987 / 538986) loops exist on the
-same naming scheme if the addon ever grows other weather.
+SnowLight is **29.951 s, not 30** — rounding it would gap the loop by 49 ms every 30 seconds.
+The snow beds spread 10 dB light-to-heavy where the rain beds spread 16 dB; that is Blizzard's
+own mix and it is left alone. Sandstorm (538988 / 538987 / 538986) exists on the same naming
+scheme but has no art here, so `/dusk auto` declines it rather than half-applying it.
 
 **Blizzard ships no tiling rain-curtain sheet** — only single particle sprites (`RainDrop01`,
 186226), placed by a particle system an addon cannot reach, and a sprite cannot be tiled into a
@@ -76,13 +84,26 @@ FileDataIDs came from `listfile/verified-listfile.csv` (community listfile, tag 
 
 - A frame parented to **`WorldFrame`** (not `UIParent`) at strata `BACKGROUND`: draws above the
   3D scene, below every UI frame, and stays visible when the UI is hidden with Alt+Z.
-- Three scrolling layers — Blizzard's mist texture, then far and near rain sheets — using
+- Two weathers, **rain and snow**, as one `WEATHER` table: each carries its own sheets, mist
+  texture and tint, slant and sway, gloom tint, four beds, one-shot list, and whether it
+  flashes. Everything else in the addon reads through it, so a third weather is a table entry.
+- Three scrolling layers — Blizzard's mist texture, then far and near sheets — using
   `SetTexture(..., "REPEAT", "REPEAT")` and `SetTexCoord` offsets > 1 to tile. `tilesX` is derived
   from screen aspect each frame so drops stay the right shape at 2125x1080 and at any other size.
 - An additive white flash texture for lightning, with thunder trailing 0.6–3.2 s behind it.
+  Snow does not flash: the same scheduler fires a wind gust instead, because a snowstorm has
+  no lightning in it.
+- **Snow is not slow rain.** Rain falls at ~9 m/s and smears into streaks; snow falls at ~1,
+  tumbles, and drifts sideways on any breeze, so the snow sheets are soft blobs and the scroll
+  carries a sway term (a sine on the slant, ~18 s period) that rain's is zero for.
+- **Blizzard** is the one preset with a whiteout: an **ADD** quad, because MOD can only darken
+  and a whiteout brightens. Capped at 0.22 even at maximum alpha, since an addon that hides a
+  mob is an addon that gets uninstalled. It also swaps the near layer for a separate gale sheet
+  (wind-driven snow is near-horizontal streaks, not the same sprite scrolled faster) and runs a
+  **second audio loop** — the 110.7 s wind under the 40 s snow bed. Nothing else needs two.
 - Audio: Blizzard's rain loop for the current intensity, relooped by
   `C_Timer.NewTicker(len - 0.12)` using that file's exact measured duration. Falls back to the
-  bundled `rain.ogg` only if `PlaySoundFile` refuses the FileDataID, and says so in `/rain status`.
+  bundled `rain.ogg` only if `PlaySoundFile` refuses the FileDataID, and says so in `/dusk status`.
 - **Indoors:** `IsIndoors()` is polled every 0.3 s with a 0.9 s debounce (so an archway does not
   restart the audio), plus the `ZONE_CHANGED*` events. Going inside fades the overlay out over
   0.7 s and stops the bed; `/rain indoors on` opts back into raining inside.
@@ -98,6 +119,14 @@ Assets are not checked in; they are deterministic output of the build scripts.
   curvature and an 8% chance of a brighter glint give variety a single sprite could not.
   Widths are absolute pixels, not a fraction of length — real rain stays hair-thin however long
   the streak is, and scaling width with length gives 30 px bars.
+- `build/make_snow_tga.py` — `snow-far.tga`, `snow-near.tga`, `snow-gale.tga`, same format and
+  same no-Blizzard-art rule. Flakes are rasterised from a model: a Gaussian with a brighter core,
+  plus a **weak** (0.07) randomly-phased six-fold modulation on the near layer only — enough to
+  break the perfect circle, not enough to draw a snowflake icon. Placement is a **jittered grid**,
+  not uniform random: at a few hundred flakes, uniform random leaves bald patches and clumps, and
+  a 512 px sheet repeats any such blotch four or five times across the screen. Elongation comes
+  from wind, not gravity, which is why only the gale sheet has it (7× at 78° off vertical).
+  Measured coverage: far 4.6%, near 14.8%, gale 24.3%, against rain's 2.7% and 6.6%.
 - `build/make_rain_audio.py` — the fallback bed only. Noise is shaped in the frequency domain over
   exactly one loop length, so the result is periodic and the join is sample-exact; that removed
   the end fades v1 needed, which were what made two clips audibly swell over each other.
@@ -113,10 +142,18 @@ at launch. Later Lua edits need only `/reload`.
 
 ## Commands
 
-`/rain` toggle · `/rain light|normal|heavy|monsoon` · `/rain alpha 0.75` · `/rain speed 1.4` ·
-`/rain gloom 0.5` · `/rain indoors on|off` · `/rain sound on|off` · `/rain thunder on|off` ·
-`/rain channel Ambience|SFX|Master` · `/rain density` · `/rain status` ·
-`/rain calib on|off|wipe`
+`/dusk` toggle · `/dusk rain|snow` · `/dusk light|normal|heavy` · `/dusk monsoon` ·
+`/dusk blizzard` · `/dusk auto` · `/dusk alpha 0.75` · `/dusk speed 1.4` · `/dusk dim 0.5` ·
+`/dusk indoors on|off` · `/dusk sound on|off` · `/dusk thunder on|off` ·
+`/dusk channel Ambience|SFX|Master` · `/dusk density` · `/dusk status` ·
+`/dusk probe` · `/dusk calib on|off|wipe`   (`/rain` and `/duskfall` are permanent aliases)
+
+`monsoon` and `blizzard` each name a weather as well as an intensity, so they switch both:
+nobody typing `/dusk blizzard` wants rain. Switching weather at the top of one scale lands at
+the top of the other, and `db.intensity` is normalised on every change so a saved setting can
+never name a preset the current weather does not have. `/dusk auto` is a one-shot match to
+`C_Weather`, not a mode — there is no weather event to hang a mode on, and a ticker polling it
+would cost more than it is worth.
 
 ### `/rain calib` — the session that expires on 21 October
 
@@ -849,15 +886,16 @@ session to be measured after a `/reload`. It says so.
    or drop it.
 
 Also while the client is up, though these do **not** expire and so are not really Phase 1:
-check the fullscreen quads at 21:9 and at several `UIParent:GetScale()` values, and confirm
-the v2 code actually renders (the Blizzard FileDataIDs, the mist texture and the indoor fade
+check the fullscreen quads at 21:9 and at several `UIParent:GetScale()` values, eyeball
+`/dusk snow` and `/dusk blizzard` in daylight and at night (the whiteout cap and the snow
+tint are both guesses until seen), and confirm the v2 code actually renders (the Blizzard FileDataIDs, the mist texture and the indoor fade
 have never been seen working). Costs minutes now; the alternative is learning about it from a
 one-star comment on 5 November.
 
 ### Phase 2 — 21 October to 4 November. 14 days. No client exists.
 
 **The mock API is DONE, 2026-10-13.** It was the first thing and it is built: `test/`, run
-with `lua test/run.lua`, **74 specs, all passing**, under Lua 5.1.5 built to `~/.local`
+with `lua test/run.lua`, **96 specs, all passing**, under Lua 5.1.5 built to `~/.local`
 because that is WoW's own interpreter version and a 5.2+ construct that would fail in the
 client has to fail here too. `test/README.md` has the detail. What it covers: boot and
 SavedVariables defaults, the time-of-day grade, the three rain layers and their geometry,
@@ -1142,7 +1180,7 @@ is the main thing selling the curtain as having depth.
 ## Open / unverified
 
 - **v2 has not been seen running *in the client*.** It now runs green under the mock
-  (`lua test/run.lua`, 74 specs), which settles the logic but not the rendering: the Blizzard
+  (`lua test/run.lua`, 96 specs), which settles the logic but not the rendering: the Blizzard
   FileDataIDs, the mist texture, the blend modes and the horizon fade are all still
   unconfirmed against real hardware. `/rain status` reports `(bundled audio)` if the sound IDs
   were refused. **A green suite is not a working addon** — the mock records what was asked of

@@ -149,6 +149,14 @@ function H.world(opts)
 		return out
 	end
 
+	-- The blizzard whiteout: the only ADD colour quad in the ARTWORK layer. The
+	-- near snow layer also adds, but it is a texture, not a colour.
+	function w:whiteout()
+		for _, t in ipairs(self:overlay()._textures) do
+			if t.layer == "ARTWORK" and t.blend == "ADD" and t.colour then return t end
+		end
+	end
+
 	function w:flash()
 		local o = self:overlay()
 		for _, t in ipairs(o._textures) do

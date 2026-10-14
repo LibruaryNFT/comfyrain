@@ -12,38 +12,111 @@
 local ADDON = "Duskfall"
 local MEDIA = "Interface\\AddOns\\Duskfall\\"
 
-local SLANT = 0.1317          -- tan(7.5 deg); must match SLANT_DEG in make_rain_tga.py
 local BED_OVERLAP = 0.12      -- seconds of overlap when relooping the bed
 
 -- Blizzard weather ambience, Sound/ambience/Weather/*. Durations measured from
 -- the shipped files; they are exact, so the loop never gaps or doubles.
-local BEDS = {
-	light   = { id = 538983, len = 20.0 },   -- RainLightLoop.ogg
-	normal  = { id = 538981, len = 30.0 },   -- RainMediumLoop.ogg
-	heavy   = { id = 538982, len = 25.0 },   -- RainHeavyLoop.ogg
-	monsoon = { id = 538982, len = 25.0 },
-}
-local FALLBACK_BED = { file = MEDIA .. "rain.ogg", len = 24.0 }
+-- Snow beds verified the same way as the rain ones, against the same listfile,
+-- with a known rain ID pulled first as the control. Note SnowLight is 29.951 s
+-- and not 30: rounding it would gap the loop by 49 ms, every 30 seconds.
+--
+--   538983 RainLightLoop   20.000 s    538985 SnowLight    29.951 s
+--   538981 RainMediumLoop  30.000 s    538989 SnowMedium   50.000 s
+--   538982 RainHeavyLoop   25.000 s    538984 SnowHeavy    40.000 s
+--   918050 AMB_FrostFire_Heavy_Wind_base_loop  110.713 s
+--
+-- The beds get louder as they get heavier, by 16 dB across the rain set and
+-- 10 dB across the snow set. That is Blizzard's own mix and it is left alone:
+-- flattening it would make a monsoon sound like drizzle.
 
 -- Sound/DOODAD/FX_TKIsle_MWThunderRumble01-10.ogg - real recorded thunder.
 local THUNDER = { 838830, 838832, 838834, 839725, 839727, 839729, 839731, 839733, 839735, 839737 }
-local FALLBACK_THUNDER = MEDIA .. "thunder.ogg"
+-- sound/ambience/zoneambience/FX_WindGust_OneShot_01-07.ogg. Snow's answer to
+-- thunder: a snowstorm has no lightning, it has gusts.
+local GUSTS = { 982361, 982363, 982365, 982367, 982369, 982371, 982373 }
 
 local MIST_TEXTURE = 396498   -- Textures/WEATHER/WeatherMistGrainy01.blp
+local SNOWMIST_TEXTURE = 186229   -- Textures/WEATHER/SNOWMIST01.BLP
 
-local PRESETS = {
-	light   = { mist = 0.05, far = 0.40, near = 0.35, density = 1.35, speed = 0.80, gloom = 0.10 },
-	normal  = { mist = 0.10, far = 0.70, near = 0.65, density = 1.00, speed = 1.00, gloom = 0.20 },
-	heavy   = { mist = 0.17, far = 0.95, near = 0.90, density = 0.78, speed = 1.25, gloom = 0.32 },
-	monsoon = { mist = 0.26, far = 1.00, near = 1.00, density = 0.58, speed = 1.60, gloom = 0.45 },
+-- Everything that differs between falling water and falling ice.
+--
+-- They are not the same effect with a different sprite. Rain falls at about
+-- 9 m/s and smears into streaks; snow falls at about 1, tumbles, and drifts
+-- sideways on any breeze at all, so it needs a sway term rain does not have.
+-- Rain darkens the scene. Heavy snow does too, but a blizzard does the
+-- opposite: it is a whiteout, and the only way a 2D overlay can brighten the
+-- world is an ADD quad, so blizzard is the one preset that uses one.
+local WEATHER = {
+	rain = {
+		label   = "rain",
+		order   = { "light", "normal", "heavy", "monsoon" },
+		mist    = MIST_TEXTURE,
+		mistTint = { 0.58, 0.64, 0.74 },
+		far     = MEDIA .. "rain-far.tga",
+		near    = MEDIA .. "rain-near.tga",
+		-- tan(7.5 deg); must match SLANT_DEG in make_rain_tga.py
+		slant   = 0.1317,
+		sway    = 0,            -- rain is too heavy to be pushed about
+		swayRate = 0,
+		-- Real weather darkens and cools the whole scene, because the client
+		-- swaps in the weather's own fog and light. An addon cannot touch world
+		-- lighting, so this multiplies the finished frame by a blue-grey
+		-- instead. It is the cheat that makes the overlay read as weather
+		-- rather than as drops stuck to the lens.
+		tint    = { 0.55, 0.62, 0.78 },
+		flash   = true,         -- lightning
+		oneShots = THUNDER,
+		fallbackOneShot = MEDIA .. "thunder.ogg",
+		fallbackBed = { file = MEDIA .. "rain.ogg", len = 24.0 },
+		presets = {
+			light   = { mist = 0.05, far = 0.40, near = 0.35, density = 1.35, speed = 0.80, gloom = 0.10, bed = { id = 538983, len = 20.0 } },
+			normal  = { mist = 0.10, far = 0.70, near = 0.65, density = 1.00, speed = 1.00, gloom = 0.20, bed = { id = 538981, len = 30.0 } },
+			heavy   = { mist = 0.17, far = 0.95, near = 0.90, density = 0.78, speed = 1.25, gloom = 0.32, bed = { id = 538982, len = 25.0 } },
+			monsoon = { mist = 0.26, far = 1.00, near = 1.00, density = 0.58, speed = 1.60, gloom = 0.45, bed = { id = 538982, len = 25.0 } },
+		},
+	},
+	snow = {
+		label   = "snow",
+		order   = { "light", "normal", "heavy", "blizzard" },
+		mist    = SNOWMIST_TEXTURE,
+		mistTint = { 0.80, 0.84, 0.92 },
+		far     = MEDIA .. "snow-far.tga",
+		near    = MEDIA .. "snow-near.tga",
+		slant   = 0.06,
+		-- Sway is the whole reason snow reads as snow. Flakes have almost no
+		-- terminal velocity to resist a breeze, so the field drifts one way and
+		-- then the other over several seconds. Without it this is just slow rain.
+		sway    = 0.22,
+		swayRate = 0.055,       -- Hz; one full drift every ~18 s
+		tint    = { 0.72, 0.78, 0.90 },
+		flash   = false,        -- a snowstorm has no lightning
+		oneShots = GUSTS,
+		fallbackOneShot = nil,  -- nothing bundled; a missing gust costs nothing
+		fallbackBed = { file = MEDIA .. "rain.ogg", len = 24.0 },
+		presets = {
+			light    = { mist = 0.06, far = 0.34, near = 0.30, density = 1.20, speed = 0.26, gloom = 0.06, bed = { id = 538985, len = 29.951 } },
+			normal   = { mist = 0.12, far = 0.62, near = 0.58, density = 1.00, speed = 0.36, gloom = 0.14, bed = { id = 538989, len = 50.0 } },
+			heavy    = { mist = 0.20, far = 0.88, near = 0.84, density = 0.82, speed = 0.52, gloom = 0.24, bed = { id = 538984, len = 40.0 } },
+			blizzard = {
+				mist = 0.30, far = 1.00, near = 1.00, density = 0.66, speed = 1.70, gloom = 0.12,
+				bed = { id = 538984, len = 40.0 },
+				-- The gale sheet replaces the near layer: wind-driven snow is
+				-- near-horizontal streaks, which is a different sprite, not a
+				-- faster scroll of the same one.
+				near_texture = MEDIA .. "snow-gale.tga",
+				slant = 1.9, sway = 0.5, swayRate = 0.12,
+				-- A whiteout brightens. Capped hard: this is the one effect in
+				-- the addon that can make the world harder to play in, and an
+				-- addon that hides a mob is an addon that gets uninstalled.
+				whiteout = 0.16,
+				-- Wind over the snow bed. Two loops at once, which nothing else
+				-- in the addon needs, because this is what a blizzard sounds like.
+				wind = { id = 918050, len = 110.713 },
+				gustEvery = 14,
+			},
+		},
+	},
 }
-
--- Real weather darkens and cools the whole scene, because the client swaps in the
--- weather's own fog and light parameters. An addon cannot touch world lighting -
--- SetFogColor and SetLight belong to the Model widget, not the world - so this
--- multiplies the finished frame by a blue-grey instead. It is the cheat that makes
--- the overlay read as weather rather than as drops stuck to the lens.
-local GLOOM_TINT = { 0.55, 0.62, 0.78 }
 
 -- Yaw parallax. Turning the camera should sweep the curtain sideways; without it
 -- the sheet slides at one fixed rate no matter what the camera does, which is the
@@ -51,7 +124,6 @@ local GLOOM_TINT = { 0.55, 0.62, 0.78 }
 -- (no camera-yaw API is exposed) over roughly the horizontal field of view.
 local FOV_H = math.pi * 0.52
 local PARALLAX = { mist = 0.25, far = 0.9, near = 1.0 }
-local PRESET_ORDER = { "light", "normal", "heavy", "monsoon" }
 
 -- Time of day. WoW's day/night runs on the realm's clock, so anyone playing far
 -- from their realm gets night at lunchtime. This grades the screen towards the
@@ -78,13 +150,14 @@ local LIFT_CAP = 0.13
 
 local DEFAULTS = {
 	enabled   = true,
+	weather   = "rain",    -- rain | snow
 	intensity = "normal",
 	scale     = 1.0,       -- multiplies every layer's alpha
 	speed     = 1.0,       -- multiplies fall speed
 	gloom     = 1.0,       -- multiplies the darkening; 0 disables it
 	sound     = true,
 	thunder   = true,
-	indoors   = false,     -- rain indoors too
+	indoors   = false,     -- draw it indoors too
 	channel   = "Ambience",
 	timeMode  = "off",     -- off | local | offset | fixed
 	timeOffset = 0,        -- hours from realm time, for "offset"
@@ -101,12 +174,18 @@ local LAYERS = {
 }
 
 local db
-local overlay, flash, gloom
+local overlay, flash, gloom, whiteout
 local tod, todDim, todLift, todTicker
 local textures, offsets = {}, {}
 local lastFacing, turnDelta, runSpeed = nil, 0, 0
-local soundHandles, rainTicker, bedFallback, loopedIntensity = {}, nil, false, nil
+-- Two loop slots. A blizzard is a snow bed with a wind loop running under it,
+-- and one slot would mean choosing between them when the point is the mix.
+local bedSlot  = { handles = {} }
+local windSlot = { handles = {} }
+local bedFallback, loopedKey = false, nil
 local lightningTimer
+local appliedTextures
+local drift = 0
 local cinematic, indoorsNow, indoorsSince = false, false, nil
 local fade, fadeTarget = 1, 1
 local indoorTicker
@@ -115,8 +194,29 @@ local function msg(text)
 	print("|cff7fb8ff" .. ADDON .. "|r: " .. text)
 end
 
+local function W()
+	return WEATHER[db.weather] or WEATHER.rain
+end
+
+-- The bottom three intensities are shared; the top one is named for its own
+-- weather, monsoon or blizzard. Someone at the top of one scale who switches
+-- weather means the top of the other, not a silent drop to normal.
 local function Preset()
-	return PRESETS[db.intensity] or PRESETS.normal
+	local w = W()
+	local p = w.presets[db.intensity]
+	if p then return p end
+	if db.intensity == "monsoon" or db.intensity == "blizzard" then
+		return w.presets[w.order[#w.order]]
+	end
+	return w.presets.normal
+end
+
+-- Keep db.intensity truthful after a weather change, so /dusk status and the
+-- saved settings never name a preset this weather does not have.
+local function NormaliseIntensity()
+	if W().presets[db.intensity] then return end
+	db.intensity = (db.intensity == "monsoon" or db.intensity == "blizzard")
+		and W().order[#W().order] or "normal"
 end
 
 --------------------------------------------------------------------------------
@@ -205,8 +305,33 @@ local function HorizonFade(tex)
 	pcall(tex.SetGradient, tex, "VERTICAL", colour(1, 1, 1, 0.12), colour(1, 1, 1, 1))
 end
 
+-- Point each layer at the sheet the current weather wants. Cheap, but not free,
+-- so it is keyed and only actually runs when the weather or preset changed.
+local function ApplyTextures()
+	if not overlay then return end
+	local w, p = W(), Preset()
+	local key = db.weather .. "/" .. db.intensity
+	if appliedTextures == key then return end
+	appliedTextures = key
+
+	-- A blizzard swaps the near layer for the gale sheet. Wind-driven snow is
+	-- near-horizontal streaks, which is a different sprite and not the same one
+	-- scrolled faster.
+	local sources = { mist = w.mist, far = w.far, near = p.near_texture or w.near }
+	for _, l in ipairs(LAYERS) do
+		local tex = textures[l.key]
+		if tex then
+			tex:SetTexture(sources[l.key], "REPEAT", "REPEAT")
+			if l.key == "mist" then
+				tex:SetVertexColor(w.mistTint[1], w.mistTint[2], w.mistTint[3])
+			end
+		end
+	end
+end
+
 local function ApplyAlphas()
-	local p, s = Preset(), db.scale
+	ApplyTextures()
+	local w, p, s = W(), Preset(), db.scale
 	textures.mist:SetAlpha(math.min(p.mist * s, 0.6))
 	textures.far:SetAlpha(math.min(p.far * s, 1))
 	textures.near:SetAlpha(math.min(p.near * s, 1))
@@ -215,9 +340,16 @@ local function ApplyAlphas()
 	-- itself: 1 is untouched, and we lerp towards the tint from there.
 	local g = math.min(p.gloom * db.gloom, 0.75)
 	gloom:SetColorTexture(
-		1 - g * (1 - GLOOM_TINT[1]),
-		1 - g * (1 - GLOOM_TINT[2]),
-		1 - g * (1 - GLOOM_TINT[3]), 1)
+		1 - g * (1 - w.tint[1]),
+		1 - g * (1 - w.tint[2]),
+		1 - g * (1 - w.tint[3]), 1)
+
+	-- The whiteout is the opposite move and only a blizzard uses it: ADD is the
+	-- only way a 2D overlay can brighten anything. Capped well below the point
+	-- where it could hide a mob, because an addon that does that gets deleted.
+	if whiteout then
+		whiteout:SetAlpha(math.min((p.whiteout or 0) * s, 0.22))
+	end
 end
 
 -- A value this client will let us do arithmetic on, or nil. Secret values are
@@ -459,8 +591,20 @@ local function OnUpdate(self, elapsed)
 	runSpeed = runSpeed + (math.min(spd / 7, 2.2) - runSpeed) * math.min(1, elapsed * 3)
 
 	local aspect = w / h
-	local rate = Preset().speed * db.speed * (1 + runSpeed * 0.3)
-	local density = Preset().density
+	local weather, p = W(), Preset()
+	local rate = p.speed * db.speed * (1 + runSpeed * 0.3)
+	local density = p.density
+	local slant = p.slant or weather.slant
+
+	-- Snow has almost no terminal velocity to resist a breeze, so the whole
+	-- field drifts one way and then back over several seconds. Rain's sway is
+	-- zero and this collapses to nothing; without it, snow is just slow rain.
+	local sway = p.sway or weather.sway
+	if sway ~= 0 then
+		local rateHz = p.swayRate or weather.swayRate
+		drift = drift + elapsed
+		slant = slant + math.sin(drift * rateHz * 2 * math.pi) * sway
+	end
 
 	for _, l in ipairs(LAYERS) do
 		local tilesY = l.tilesY * (l.key == "mist" and 1 or density)
@@ -471,7 +615,7 @@ local function OnUpdate(self, elapsed)
 		o.y = (o.y - dy) % 1
 		-- Slant drift, plus the camera swing scaled into this layer's tiling so
 		-- every layer sweeps the same distance across the screen.
-		o.x = (o.x - dy * SLANT + swing * PARALLAX[l.key] * tilesX) % 1
+		o.x = (o.x - dy * slant + swing * PARALLAX[l.key] * tilesX) % 1
 		textures[l.key]:SetTexCoord(o.x, o.x + tilesX, o.y, o.y + tilesY)
 	end
 end
@@ -511,24 +655,24 @@ local function BuildOverlay()
 	gloom:SetAllPoints(overlay)
 	gloom:SetBlendMode("MOD")
 
-	local sources = {
-		mist = MIST_TEXTURE,
-		far  = MEDIA .. "rain-far.tga",
-		near = MEDIA .. "rain-near.tga",
-	}
+	-- The sheets themselves are chosen by ApplyTextures, which runs below and
+	-- again whenever the weather changes.
 	for i, l in ipairs(LAYERS) do
 		local tex = overlay:CreateTexture(nil, l.layer, nil, i)
 		tex:SetAllPoints(overlay)
-		tex:SetTexture(sources[l.key], "REPEAT", "REPEAT")
 		tex:SetBlendMode(l.blend)
-		if l.key == "mist" then
-			tex:SetVertexColor(0.58, 0.64, 0.74)
-		else
-			HorizonFade(tex)
-		end
+		if l.key ~= "mist" then HorizonFade(tex) end
 		textures[l.key] = tex
 		offsets[l.key] = { x = math.random(), y = math.random() }
 	end
+
+	-- Above the curtain, below the lightning: a blizzard washes out what is
+	-- behind it, including its own snow.
+	whiteout = overlay:CreateTexture(nil, "ARTWORK", nil, #LAYERS + 1)
+	whiteout:SetAllPoints(overlay)
+	whiteout:SetColorTexture(0.95, 0.97, 1, 1)
+	whiteout:SetBlendMode("ADD")
+	whiteout:SetAlpha(0)
 
 	flash = overlay:CreateTexture(nil, "OVERLAY")
 	flash:SetAllPoints(overlay)
@@ -550,35 +694,57 @@ end
 -- Sound
 --------------------------------------------------------------------------------
 
+-- There is no looping flag on PlaySoundFile, so a loop is the clip relaunched
+-- BED_OVERLAP seconds before it ends. Two handles are kept so the old copy is
+-- still running while the new one starts; a third would be a stack, not a loop.
+local function SlotStop(slot)
+	for _, h in ipairs(slot.handles) do
+		if h then StopSound(h) end
+	end
+	wipe(slot.handles)
+	if slot.ticker then slot.ticker:Cancel() slot.ticker = nil end
+end
+
+local function SlotPlay(slot, file)
+	local ok, handle = PlaySoundFile(file, db.channel)
+	if not ok then return false end
+	slot.handles[#slot.handles + 1] = handle
+	while #slot.handles > 2 do table.remove(slot.handles, 1) end
+	return true
+end
+
 local function CurrentBed()
-	if bedFallback then return FALLBACK_BED.file, FALLBACK_BED.len end
-	local b = BEDS[db.intensity] or BEDS.normal
+	local w = W()
+	if bedFallback then return w.fallbackBed.file, w.fallbackBed.len end
+	local b = Preset().bed
 	return b.id, b.len
 end
 
 local function PlayBedClip()
 	if not ShouldRain() or not db.sound then return end
 	local file = CurrentBed()
-	local ok, handle = PlaySoundFile(file, db.channel)
-	if not ok then
+	if not SlotPlay(bedSlot, file) then
 		if not bedFallback then
 			bedFallback = true
-			msg("the client would not play Blizzard's rain loop; using the bundled one.")
+			msg("the client would not play Blizzard's " .. W().label ..
+			    " loop; using the bundled one.")
 			return PlayBedClip()
 		end
-		return
 	end
-	soundHandles[#soundHandles + 1] = handle
-	while #soundHandles > 2 do table.remove(soundHandles, 1) end
+end
+
+-- The blizzard's second loop. Nothing else in the addon has one, and nothing
+-- falls back if it will not play: wind under snow is a bonus, not the bed.
+local function PlayWindClip()
+	local wind = Preset().wind
+	if not wind or not ShouldRain() or not db.sound then return end
+	SlotPlay(windSlot, wind.id)
 end
 
 local function StopBed()
-	for _, h in ipairs(soundHandles) do
-		if h then StopSound(h) end
-	end
-	wipe(soundHandles)
-	if rainTicker then rainTicker:Cancel() rainTicker = nil end
-	loopedIntensity = nil
+	SlotStop(bedSlot)
+	SlotStop(windSlot)
+	loopedKey = nil
 end
 
 local function StartBed()
@@ -586,8 +752,14 @@ local function StartBed()
 	if not ShouldRain() or not db.sound then return end
 	PlayBedClip()
 	local _, len = CurrentBed()
-	rainTicker = C_Timer.NewTicker(len - BED_OVERLAP, PlayBedClip)
-	loopedIntensity = db.intensity
+	bedSlot.ticker = C_Timer.NewTicker(len - BED_OVERLAP, PlayBedClip)
+
+	local wind = Preset().wind
+	if wind then
+		PlayWindClip()
+		windSlot.ticker = C_Timer.NewTicker(wind.len - BED_OVERLAP, PlayWindClip)
+	end
+	loopedKey = db.weather .. "/" .. db.intensity
 end
 
 --------------------------------------------------------------------------------
@@ -611,25 +783,35 @@ local function FlashOnce(peak, duration)
 	end)
 end
 
+-- Rain's punctuation is a thunderclap with a flash in front of it. Snow's is a
+-- gust: same scheduler, no lightning, because a snowstorm has none.
 local function Strike()
 	if not ShouldRain() or not db.thunder then return end
-	local peak = 0.14 + Preset().mist * 1.4
-	FlashOnce(peak, 0.22)
-	if math.random() < 0.45 then
-		C_Timer.After(0.26, function() FlashOnce(peak * 0.7, 0.18) end)
+	local w = W()
+	if w.flash then
+		local peak = 0.14 + Preset().mist * 1.4
+		FlashOnce(peak, 0.22)
+		if math.random() < 0.45 then
+			C_Timer.After(0.26, function() FlashOnce(peak * 0.7, 0.18) end)
+		end
 	end
-	-- Thunder trails the flash the way distance makes it.
-	C_Timer.After(0.6 + math.random() * 2.6, function()
+	-- Thunder trails the flash the way distance makes it. A gust has no flash
+	-- to trail, so it simply arrives.
+	C_Timer.After(w.flash and (0.6 + math.random() * 2.6) or 0, function()
 		if not ShouldRain() or not db.thunder or not db.sound then return end
-		local ok = PlaySoundFile(THUNDER[math.random(#THUNDER)], db.channel)
-		if not ok then PlaySoundFile(FALLBACK_THUNDER, db.channel) end
+		local list = w.oneShots
+		local ok = PlaySoundFile(list[math.random(#list)], db.channel)
+		if not ok and w.fallbackOneShot then
+			PlaySoundFile(w.fallbackOneShot, db.channel)
+		end
 	end)
 end
 
 local function ScheduleLightning()
 	if lightningTimer then lightningTimer:Cancel() lightningTimer = nil end
 	if not db.enabled or not db.thunder then return end
-	local base = 70 - (Preset().speed - 0.8) * 28
+	-- A blizzard gusts far more often than a storm thunders.
+	local base = Preset().gustEvery or (70 - (Preset().speed - 0.8) * 28)
 	lightningTimer = C_Timer.NewTimer(base * (0.55 + math.random() * 0.9), function()
 		lightningTimer = nil
 		Strike()
@@ -654,7 +836,9 @@ function Duskfall_Refresh()
 	ApplyAlphas()
 
 	if want and db.sound then
-		if not rainTicker or loopedIntensity ~= db.intensity then StartBed() end
+		if not bedSlot.ticker or loopedKey ~= db.weather .. "/" .. db.intensity then
+			StartBed()
+		end
 	else
 		StopBed()
 	end
@@ -682,11 +866,12 @@ local function Status()
 			want and ("%02d:%02d"):format(want % 24, (want % 1) * 60) or "?"))
 	end
 	msg(string.format(
-		"%s - %s, alpha x%.2f, speed x%.2f, dim x%.2f, sound %s%s, thunder %s, indoors %s (channel %s)%s",
+		"%s - %s %s, alpha x%.2f, speed x%.2f, dim x%.2f, sound %s%s, %s %s, indoors %s (channel %s)%s",
 		db.enabled and "|cff66ff66on|r" or "|cffff6666off|r",
-		db.intensity, db.scale, db.speed, db.gloom,
+		db.intensity, W().label, db.scale, db.speed, db.gloom,
 		db.sound and "on" or "off",
 		bedFallback and " |cffff9900(bundled audio)|r" or "",
+		W().flash and "thunder" or "gusts",
 		db.thunder and "on" or "off",
 		db.indoors and "on" or "off",
 		db.channel,
@@ -700,14 +885,17 @@ end
 local function Help()
 	msg("commands:")
 	print("  |cffffd100/dusk|r - toggle on/off")
-	print("  |cffffd100/dusk light|normal|heavy|monsoon|r - intensity")
+	print("  |cffffd100/dusk rain|snow|r - which weather to draw")
+	print("  |cffffd100/dusk light|normal|heavy|r - intensity")
+	print("  |cffffd100/dusk monsoon|r, |cffffd100/dusk blizzard|r - the top of each, weather included")
+	print("  |cffffd100/dusk auto|r - match whatever the realm says the weather is here")
 	print("  |cffffd100/dusk alpha <0-1.5>|r - how visible it is")
 	print("  |cffffd100/dusk speed <0.2-3>|r - how fast it falls")
 	print("  |cffffd100/dusk dim <0-2>|r - how much it darkens the world (0 = off)")
 	print("  |cffffd100/dusk time local|r - make it look like YOUR clock, not the realm's")
 	print("  |cffffd100/dusk time +9|r, |cffffd100/dusk time 21|r, |cffffd100/dusk time off|r")
-	print("  |cffffd100/dusk indoors on|off|r - rain inside buildings too")
-	print("  |cffffd100/dusk sound on|off|r, |cffffd100/dusk thunder on|off|r")
+	print("  |cffffd100/dusk indoors on|off|r - draw it inside buildings too")
+	print("  |cffffd100/dusk sound on|off|r, |cffffd100/dusk thunder on|off|r (gusts, in snow)")
 	print("  |cffffd100/dusk channel Ambience|SFX|Master|r - which volume slider owns it")
 	print("  |cffffd100/dusk density|r - is the client even allowed to draw real weather?")
 	print("  |cffffd100/dusk calib on|r - log real weather so the defaults stop being guesses")
@@ -721,9 +909,40 @@ local function HandleSlash(input)
 
 	if cmd == "" then
 		db.enabled = not db.enabled
-	elseif PRESETS[cmd] then
-		db.intensity, db.enabled = cmd, true
+	elseif WEATHER[cmd] then
+		db.weather, db.enabled = cmd, true
+		NormaliseIntensity()
+		StartBed()
 		ScheduleLightning()
+	-- "blizzard" and "monsoon" each name a weather as well as an intensity, so
+	-- they switch both at once: nobody typing /dusk blizzard wants rain.
+	elseif cmd == "blizzard" or cmd == "monsoon" then
+		db.weather = (cmd == "blizzard") and "snow" or "rain"
+		db.intensity, db.enabled = cmd, true
+		StartBed()
+		ScheduleLightning()
+	elseif W().presets[cmd] then
+		db.intensity, db.enabled = cmd, true
+		StartBed()
+		ScheduleLightning()
+	elseif cmd == "auto" then
+		-- Follow the realm's own weather if it is telling us anything. This is
+		-- a one-shot match, not a mode: C_Weather is a poll with no event, and
+		-- a ticker on it would cost more than it is worth.
+		local real = RealWeather()
+		if not real or real == "none" then
+			msg("the realm reports no weather here, so there is nothing to match.")
+			return
+		end
+		if not WEATHER[real] then
+			msg("the realm reports |cffffd100" .. real .. "|r, which this addon cannot draw.")
+			return
+		end
+		db.weather, db.enabled = real, true
+		NormaliseIntensity()
+		StartBed()
+		ScheduleLightning()
+		msg("matched the realm: |cff66ff66" .. real .. "|r")
 	elseif cmd == "on" or cmd == "off" then
 		db.enabled = (cmd == "on")
 	elseif cmd == "alpha" then
@@ -777,10 +996,12 @@ local function HandleSlash(input)
 		StartBed()
 	elseif cmd == "cycle" then
 		local i = 1
-		for n, name in ipairs(PRESET_ORDER) do
+		local order = W().order
+		for n, name in ipairs(order) do
 			if name == db.intensity then i = n end
 		end
-		db.intensity, db.enabled = PRESET_ORDER[(i % #PRESET_ORDER) + 1], true
+		db.intensity, db.enabled = order[(i % #order) + 1], true
+		StartBed()
 	elseif cmd == "density" then
 		-- Not touched automatically: these are the player's graphics settings,
 		-- and raising them turns on Blizzard's real weather everywhere, not ours.
