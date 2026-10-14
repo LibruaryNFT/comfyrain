@@ -512,18 +512,46 @@ It does **not** change the next nine days. Calibration expires with the beta cli
 Bank the finding, take the `volumeOverride` simplification when the audio ladder is next
 touched, and revisit the product shape after launch — not before the calibration session.
 
-## The name: Cozy Azeroth
+## The name: Gloaming
 
-Decided 2026-10-13. `AlwaysRain` is a feature name that caps the product at one weather
-type and already fights a roadmap containing snow, fog, ash and time-of-day.
+**Revised 2026-10-13, second pass. `Cozy Azeroth` is dead; see the section below it for why.**
+`AlwaysRain` is a feature name that caps the product at one weather type and already fights
+a roadmap containing snow, fog, ash and time-of-day.
 
 | Field | Value |
 |---|---|
-| Folder (**irreversible**) | `CozyAzeroth` |
-| TOC `## Title` | `Cozy Azeroth` |
-| CurseForge title | `Cozy Azeroth: Weather, Ambience and Time of Day` |
-| Slash | `/cozy`, with `/rain` kept as a permanent alias |
-| SavedVariables | `CozyAzerothDB`, migrating from `AlwaysRainDB` on first load |
+| Folder (**irreversible**) | `Gloaming` |
+| TOC `## Title` | `Gloaming` |
+| CurseForge title | `Gloaming: Weather, Ambience and Time of Day` |
+| Slash | `/gloam`, with `/rain` kept as a permanent alias |
+| SavedVariables | `GloamingDB`, migrating from `AlwaysRainDB` on first load |
+
+**The clinching argument is a rendering constraint, and no outside adviser could have made
+it.** MOD blend over a 2D sheet is the only way an addon can touch the world's brightness,
+and it can only ever *darken*. This product will never render a bright sunny meadow; it is
+structurally the dim one. *Gloaming* is the twilight, the quality of dim light itself. It is
+therefore the only candidate considered that is honest about the technical ceiling rather
+than writing a cheque the renderer cannot cash.
+
+It also passes the test every rejected name failed: it caps nothing. It is not a weather
+type, so snow, fog and ash all live under it, and it is not an audio word, so the
+sequencing engine does too. It names the *feeling*, which is the thing the product actually
+sells.
+
+And it is native WoW vocabulary, more strongly than *cozy* was. Wowhead, checked 2026-10-13:
+**Gloaming Reef** (zone 8017), **Gloaming Powder** (spell 290031), **Gloaming Veil** (spell
+1254722), **The Gloaming Blade** (item 88149), **Greatshield of the Gloaming** (item 94945),
+**Gloaming Alloy** (item 238202, a Midnight crafting reagent). The register is already the
+game's own.
+
+One small follow-on: the addon's own `/rain gloom` subcommand shares a root with the brand,
+and `/gloam gloom 0.5` reads badly. Rename that subcommand to `/gloam dim` during the rename
+pass, keeping `gloom` as a hidden alias.
+
+Residual risk, stated rather than hidden: **Gloaming Alloy is a Midnight-expansion
+reagent.** If *Gloaming* becomes a prominent retail-expansion term, general web search for
+the word could crowd later. It does not affect CurseForge addon search, which is the channel
+that matters, and a reagent is not a zone name. Accepted.
 
 **Only the folder name is expensive to change** — renaming it orphans every user's
 SavedVariables, because the file is named after the folder. The displayed title, the
@@ -543,10 +571,52 @@ Why this and not the three the reports proposed:
   (the Cozy Sleeping Bag item, housing content) while *comfy* reads as imageboard and
   Twitch slang. "Vibes" also carries no search weight.
 
-`Cozy Azeroth` keeps the evidenced native keyword, is searchable on both words, caps
-nothing (rain, snow, night and ambience all live under it), and communicates the product
-in two words to someone scanning a search result page. One internal rename follows: the
-`overcast` *preset* keeps its name, since the brand no longer competes with it.
+### Why Cozy Azeroth died, 2026-10-13
+
+It was decided earlier the same day on reasoning alone. Nobody had run a single search. Two
+checks killed it, and a third killed its replacement.
+
+| Check | Result | Verdict |
+|---|---|---|
+| Is `CozyAzeroth` a creator brand? | **Yes.** YouTube channel "Zachary Fruhling (Fruhling Designs / CozyAzeroth)", videos titled "CozyAzeroth: Casual WoW & Housing Decor Hunt" and "CozyAzeroth: Casual Sunday WoW" | Same game, same cozy/housing niche, identical string |
+| Is `Cozy*` crowded on CurseForge? | **Yes.** Cozy Companion, CozyCamps, and **CozyFire** (732 downloads, flavour Forever, updated 13 Oct 2026) | Would have launched as the fourth Cozy, behind one actively shipping on this exact client |
+| Is any addon called Cozy Azeroth? | No | The collision is a brand and a prefix, not an addon |
+
+A two-model consult (Gemini 2.5 Pro and GPT-OSS-120B; **Grok 403'd on credits again, so this
+was two models, not three**) was unanimous that the name had to change, and split on whether
+the crowded prefix is a penalty or proof of a category worth joining.
+
+**The split was settled with data neither model had.** All three `Cozy*` addons sit in the
+hundreds of downloads (471 to 990), while the Forever-native hits that actually move -
+Spoken Player at 97,856 in 24 days - carry no such prefix. The prefix is not doing
+distribution work, so there is nothing to join. GPT-OSS's case for keeping it also rested on
+two fabrications: that addon managers rank alphabetically then by downloads, and a "Nihilum
+UI / popular forum user" precedent. Both discarded.
+
+### The three candidates the search killed, and the rule each produced
+
+Worth keeping, because each is a reusable filter and all three were found in minutes with
+`https://www.curseforge.com/wow/search?search=<term>`, which is the right instrument: it is
+CurseForge's own fuzzy matcher, so it shows what a user's search would actually surface.
+
+1. **Evermood** (Gemini's pick) → **no name may contain `ever`.** Searching *reverie*
+   returned **1,207 projects**, almost all of them Forever addons, because the fuzzy match
+   catches `ever` inside `Forever`. On a client called Forever that substring is the single
+   most polluted in the namespace. Separately, `Evermore UI` and `Forevermore Classic UI`
+   already exist.
+2. **Overcast** → **no name may contain a WoW mechanic word.** Free as a name, but the
+   search returns 32 castbar addons (HoverCasts, PlayerCastBars, FocusCastbarMover). To a
+   WoW player *cast* means spellcasting before it means weather.
+3. **Cozy Echoes** (GPT-OSS's pick) keeps the dead prefix and leans audio-only. Rejected on
+   the evidence above.
+
+**Gloaming**, by the same instrument: **1 project returned, unrelated** (a herb and mining
+tracker). No creator brand found. Clean.
+
+A note on method, so it is not repeated: **`curl` against a Twitch channel URL is not an
+existence check.** It returns HTTP 200 for a channel that cannot exist; a nonsense handle was
+tried as a control and also returned 200. The CozyAzeroth brand finding rests on the YouTube
+channel name and video titles, not on that status code.
 
 ## THE ROADMAP
 
@@ -660,7 +730,7 @@ supplied per spec rather than defaulted, so no test result rests on a fabricated
 
 **Ships 4 November, because Phase 1 will have verified it:**
 
-- `AlwaysRain` → `CozyAzeroth`, with the `AlwaysRainDB` → `CozyAzerothDB` migration on first
+- `AlwaysRain` → `Gloaming`, with the `AlwaysRainDB` → `GloamingDB` migration on first
   load and `/rain` kept as a permanent alias. Details in `## The name` above. **The whole
   migration goes in a `pcall`** — a malformed old DB must fall back to defaults with a
   printed warning, never brick the addon. This is the single most likely way to break a
