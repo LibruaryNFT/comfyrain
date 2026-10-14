@@ -579,23 +579,24 @@ existing users re-download. Its real lesson is mechanism, not velocity: daily do
 from ~6.5k to 9.9k to 13.8k immediately after Team Overpowered published a video on
 11 October framed as **immersion**. That is the channel this product fits.
 
-**Schedule consequence:** submit the project as `Gloaming` on **27 October**, the day name
+**Schedule consequence:** submit the project as `Duskfall` on **27 October**, the day name
 reservation opens, so it clears moderation before launch. Ship 4 November. The window that
 sets the ceiling is days 7 to 30, while creators are making "Forever addons you need" lists.
 
-### The name survives
+### The name does not survive, and the report's own evidence is why
 
-No WoW addon, no WoWInterface addon, no GitHub WoW repo called Gloaming. The collisions
-found are a USPTO bedding mark (class 24), a cosmetics mark, an Android DND tool, a Google
-Play generative-sunsets app, three Steam titles, an Irish band on Real World Records, a
-Radiohead subtitle and an Australian TV series. **None is in the channel that matters.** Do
-not file a trademark: USD 350 per class buys nothing for a free addon.
+The round cleared Gloaming on collisions: no WoW addon, no WoWInterface addon, no GitHub
+WoW repo. What it found instead was a USPTO bedding mark (class 24), a cosmetics mark, an
+Android DND tool, a Google Play generative-sunsets app, three Steam titles, an Irish band on
+Real World Records, a Radiohead subtitle and an Australian TV series. **None is in the
+channel that matters.** Do not file a trademark either: USD 350 per class buys nothing for a
+free addon whose legal position rests on Blizzard's goodwill rather than trademark law.
 
-One real weakness: every dictionary tags *gloaming* as literary or poetic, it is pronounced
-"GLOH-ming", and heard once in voice chat it is spelled *glowing* - which on CurseForge
-lands on cursor-glow addons. Mitigations, cheap, do them during the rename: register
-`/gloaming` as an alias alongside `/gloam` and `/rain`, and caption the first screenshot
-**"Gloaming (GLOH-ming)"**.
+It also found, and buried under "one real weakness", that every dictionary tags *gloaming*
+as literary or poetic and that it is spelled *glowing* when heard once. **That weakness was
+the verdict and the report scored it as a footnote.** See `## The name: Duskfall` below. The
+same round's finding that the brand carries no search load is what makes comprehension the
+brand's only remaining job.
 
 ### Open items this round added
 
@@ -605,56 +606,78 @@ lands on cursor-glow addons. Mitigations, cheap, do them during the rename: regi
   before the folder name is committed.
 - The `AlwaysRainDB` migration has a dependency nobody had noticed: **the old SavedVariables
   file only loads if an addon declares it.** Ship a stub `AlwaysRain` folder that declares
-  `AlwaysRainDB`, and list it in Gloaming's `## OptionalDeps` so it loads first. Unverified,
+  `AlwaysRainDB`, and list it in Duskfall's `## OptionalDeps` so it loads first. Unverified,
   test it on the client before 21 October.
 
-## The name: Gloaming
+## The name: Duskfall
 
-**Revised 2026-10-13, second pass. `Cozy Azeroth` is dead; see the section below it for why.**
+**Settled 2026-10-14, third pass. `Gloaming` is dead and `Cozy Azeroth` before it.**
 `AlwaysRain` is a feature name that caps the product at one weather type and already fights
 a roadmap containing snow, fog, ash and time-of-day.
 
 | Field | Value |
 |---|---|
-| Folder (**irreversible**) | `Gloaming` |
-| TOC `## Title` | `Gloaming` |
-| CurseForge title | `Gloaming: Rain, Weather and Cozy Ambience` |
-| Slash | `/gloam`, with `/rain` kept as a permanent alias |
-| SavedVariables | `GloamingDB`, migrating from `AlwaysRainDB` on first load |
+| Folder (**irreversible**) | `Duskfall` |
+| TOC `## Title` | `Duskfall` |
+| CurseForge title | `Duskfall: Rain, Weather and Cozy Ambience` |
+| Slash | `/dusk`, with `/rain` kept as a permanent alias |
+| SavedVariables | `DuskfallDB`, migrating from `AlwaysRainDB` on first load |
 
-**The clinching argument is a rendering constraint, and no outside adviser could have made
-it.** MOD blend over a 2D sheet is the only way an addon can touch the world's brightness,
-and it can only ever *darken*. This product will never render a bright sunny meadow; it is
-structurally the dim one. *Gloaming* is the twilight, the quality of dim light itself. It is
-therefore the only candidate considered that is honest about the technical ceiling rather
-than writing a cheque the renderer cannot cash.
+### Why Gloaming died after one day
 
-It also passes the test every rejected name failed: it caps nothing. It is not a weather
-type, so snow, fog and ash all live under it, and it is not an audio word, so the
-sequencing engine does too. It names the *feeling*, which is the thing the product actually
-sells.
+the author, on reading it: *"what the fuck is gloaming that isnt a word anyone knows its
+stupid"*. He is right, and the research round had already found the same thing from the
+other end without weighting it properly: every dictionary tags *gloaming* as **literary**
+(Merriam-Webster), **literary or Scottish** (Cambridge) or **poetic** (Collins), it is
+pronounced "GLOH-ming", and heard once in voice chat it is spelled *glowing*.
 
-And it is native WoW vocabulary, more strongly than *cozy* was. Wowhead, checked 2026-10-13:
-**Gloaming Reef** (zone 8017), **Gloaming Powder** (spell 290031), **Gloaming Veil** (spell
-1254722), **The Gloaming Blade** (item 88149), **Greatshield of the Gloaming** (item 94945),
-**Gloaming Alloy** (item 238202, a Midnight crafting reagent). The register is already the
-game's own.
+**The lesson, which is the reusable part.** The same research established that the brand
+name carries **no search load at all** - the subtitle does all of it, because users type
+"rain", "weather" and "ambience", never the brand. Once that is true, the only job left for
+the brand is to be *said, heard, spelled and remembered*. Picking a word that fails the
+first requirement of its only job was the error. Obscurity was being scored as distinctiveness.
 
-One small follow-on: the addon's own `/rain gloom` subcommand shares a root with the brand,
-and `/gloam gloom 0.5` reads badly. Rename that subcommand to `/gloam dim` during the rename
-pass, keeping `gloom` as a hidden alias.
+A name nobody can spell is not distinctive, it is unfindable the one time it matters: when
+somebody tells a friend about it out loud.
 
-Residual risk, stated rather than hidden: **Gloaming Alloy is a Midnight-expansion
-reagent.** Corrected 2026-10-14: this is not a future risk, Midnight has shipped and the
-reagent was added in 12.0.0, so *Gloaming* is **already** the dominant WoW meaning of the
-word in general web search. It still does not affect CurseForge addon search, which is the
-channel that matters, and the term lives on price trackers rather than on destination pages
-(TSM US avg 1,311 sold/day, 14 Oct 2026). Accepted, with the timing restated honestly.
+### Why Duskfall
+
+It keeps every property that made Gloaming right and drops the one that killed it.
+
+| Test | Gloaming | Duskfall |
+|---|---|---|
+| Honest about the renderer: MOD blend can only *darken* | Yes | Yes, dusk is the dim half of the day |
+| Caps nothing: not a weather type, not an audio word | Yes | Yes |
+| No `ever` substring (the Forever namespace rule) | Yes | Yes |
+| No WoW mechanic word (cast, rest, proc) | Yes | Yes |
+| Native WoW register | Gloaming Reef, Gloaming Powder | Duskwood, Duskwing, Duskhaven |
+| **Understood on hearing it once** | **No** | **Yes** |
+| Spelled right on hearing it once | No, lands on *glowing* | Yes, two common words |
+
+**CurseForge, checked 2026-10-14 with a positive control.** The instrument is
+`curseforge.com/wow/search?search=<term>`. Control: `CozyFire` returns **1 project, the
+known one**, so the method finds what exists. `duskfall` returns **0 projects**. (Bare
+`dusk` returns 21, but only Duskwatch at 120 downloads and Dusk Lure Tracker at 356 are
+actually named Dusk-anything; the rest are fuzzy hits on Tuskarr, Dust and Medusa.)
+
+**Why not bare `Dusk`:** DUSK is a well-known 2018 indie FPS by New Blood, which is a
+louder general-search collision than anything Duskfall has, and a four-letter word is
+harder to own.
+
+**Duskfall's own collisions, checked 2026-10-14, none in the channel that matters:** The
+Duskfall, a Swedish melodic death metal band formed 1999; *Duskfall*, a 2024 mobile
+Wizardry-like; *DUSKFALL*, a 2025 Steam village-defence game by KafkaStudio; and
+"duskfallcrew", a music and content creator. **No WoW addon, no WoW repo, nothing in
+CurseForge or an addon manager.** Same class of harmless cross-category noise that Gloaming
+had, and it does not reach a free addon.
+
+Follow-on: the addon's own `/rain gloom` subcommand becomes **`/dusk dim`**, keeping
+`gloom` as a hidden alias.
 
 The title changed on 2026-10-14 from "Weather, Ambience and Time of Day" to **"Rain,
 Weather and Cozy Ambience"**. Nobody searches for time of day; "rain" is the literal product
 today, "weather" is the category word every competitor is named with, and "cozy" has
-existing CurseForge supply. The folder and TOC title are unchanged.
+existing CurseForge supply.
 
 **Only the folder name is expensive to change** — renaming it orphans every user's
 SavedVariables, because the file is named after the folder. The displayed title, the
@@ -714,7 +737,8 @@ CurseForge's own fuzzy matcher, so it shows what a user's search would actually 
    the evidence above.
 
 **Gloaming**, by the same instrument: **1 project returned, unrelated** (a herb and mining
-tracker). No creator brand found. Clean.
+tracker). Clean on collisions, and killed the next day on comprehension instead. **Duskfall**
+returns **0 projects**, control `CozyFire` = 1.
 
 A note on method, so it is not repeated: **`curl` against a Twitch channel URL is not an
 existence check.** It returns HTTP 200 for a channel that cannot exist; a nonsense handle was
@@ -833,7 +857,7 @@ supplied per spec rather than defaulted, so no test result rests on a fabricated
 
 **Ships 4 November, because Phase 1 will have verified it:**
 
-- `AlwaysRain` → `Gloaming`, with the `AlwaysRainDB` → `GloamingDB` migration on first
+- `AlwaysRain` → `Duskfall`, with the `AlwaysRainDB` → `DuskfallDB` migration on first
   load and `/rain` kept as a permanent alias. Details in `## The name` above. **The whole
   migration goes in a `pcall`** — a malformed old DB must fall back to defaults with a
   printed warning, never brick the addon. This is the single most likely way to break a
