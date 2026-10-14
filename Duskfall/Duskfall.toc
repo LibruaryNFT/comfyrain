@@ -1,0 +1,9 @@
+## Interface: 16001
+## Title: Duskfall
+## Notes: Rain, weather and cozy ambience - scrolling rain layers, a dimmed world, a looping rain bed and distant thunder. |cff888888/dusk|r
+## Author: built for the author
+## Version: 2.0
+## SavedVariables: DuskfallDB
+## OptionalDeps: AlwaysRain
+
+Duskfall.lua

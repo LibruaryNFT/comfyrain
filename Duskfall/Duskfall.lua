@@ -1,4 +1,4 @@
--- AlwaysRain 2.0
+-- Duskfall 2.0
 --
 -- The client cannot be told to make it rain: C_Weather only reads, ApplyWeather
 -- belongs to server-driven scene scripts, and there is no weather console command.
@@ -9,8 +9,8 @@
 -- FileDataID. Only the tiling of the drops is ours, because the particle system
 -- that would normally place them is not reachable from an addon.
 
-local ADDON = "AlwaysRain"
-local MEDIA = "Interface\\AddOns\\AlwaysRain\\"
+local ADDON = "Duskfall"
+local MEDIA = "Interface\\AddOns\\Duskfall\\"
 
 local SLANT = 0.1317          -- tan(7.5 deg); must match SLANT_DEG in make_rain_tga.py
 local BED_OVERLAP = 0.12      -- seconds of overlap when relooping the bed
@@ -324,7 +324,7 @@ local function CalibRecord(source, parsed)
 
 	-- Loud on purpose. The whole session is worthless if he is looking away.
 	msg("|cffffd100>>> REAL WEATHER <<<|r " .. what)
-	msg(string.format("   %s - screenshot it now, then |cffffd100/rain off|r and screenshot again",
+	msg(string.format("   %s - screenshot it now, then |cffffd100/dusk off|r and screenshot again",
 		entry.subzone ~= "" and entry.subzone or entry.zone))
 	return entry
 end
@@ -371,7 +371,7 @@ local function CalibStop()
 		calibFrame:SetScript("OnEvent", nil)
 	end
 	calibOn = false
-	msg(string.format("stopped. |cff66ff66%d|r observations held in AlwaysRainDB.calib",
+	msg(string.format("stopped. |cff66ff66%d|r observations held in DuskfallDB.calib",
 		db.calib and #db.calib or 0))
 end
 
@@ -386,7 +386,7 @@ local function CalibReport()
 				tostring(e.console.intensity)) or ""))
 	end
 	if n > 0 then
-		msg("|cffffd100/rain calib off|r when done; the table survives a /reload")
+		msg("|cffffd100/dusk calib off|r when done; the table survives a /reload")
 	end
 end
 
@@ -413,7 +413,7 @@ local function PollIndoors()
 		if GetTime() - indoorsSince > 0.9 then
 			indoorsNow = inside
 			indoorsSince = nil
-			AlwaysRain_Refresh()
+			Duskfall_Refresh()
 		end
 	else
 		indoorsSince = nil
@@ -482,7 +482,7 @@ local function BuildOverlay()
 	-- The time grade is its own frame, underneath the rain, because it has to be
 	-- usable on its own: wanting your realm's night to match your own clock has
 	-- nothing to do with wanting rain.
-	tod = CreateFrame("Frame", "AlwaysRainTimeOfDay", WorldFrame)
+	tod = CreateFrame("Frame", "DuskfallTimeOfDay", WorldFrame)
 	tod:SetAllPoints(WorldFrame)
 	tod:SetFrameStrata("BACKGROUND")
 	tod:SetFrameLevel(1)
@@ -499,7 +499,7 @@ local function BuildOverlay()
 	todLift:SetBlendMode("ADD")
 	todLift:SetAlpha(0)
 
-	overlay = CreateFrame("Frame", "AlwaysRainOverlay", WorldFrame)
+	overlay = CreateFrame("Frame", "DuskfallOverlay", WorldFrame)
 	overlay:SetAllPoints(WorldFrame)
 	overlay:SetFrameStrata("BACKGROUND")
 	overlay:SetFrameLevel(5)
@@ -641,7 +641,7 @@ end
 -- State
 --------------------------------------------------------------------------------
 
-function AlwaysRain_Refresh()
+function Duskfall_Refresh()
 	if not overlay then return end
 	UpdateTimeOfDay()
 	local want = ShouldRain()
@@ -666,7 +666,7 @@ function AlwaysRain_Refresh()
 		lightningTimer = nil
 	end
 end
-local Refresh = AlwaysRain_Refresh
+local Refresh = Duskfall_Refresh
 
 --------------------------------------------------------------------------------
 -- Slash commands
@@ -682,7 +682,7 @@ local function Status()
 			want and ("%02d:%02d"):format(want % 24, (want % 1) * 60) or "?"))
 	end
 	msg(string.format(
-		"%s - %s, alpha x%.2f, speed x%.2f, gloom x%.2f, sound %s%s, thunder %s, indoors %s (channel %s)%s",
+		"%s - %s, alpha x%.2f, speed x%.2f, dim x%.2f, sound %s%s, thunder %s, indoors %s (channel %s)%s",
 		db.enabled and "|cff66ff66on|r" or "|cffff6666off|r",
 		db.intensity, db.scale, db.speed, db.gloom,
 		db.sound and "on" or "off",
@@ -699,19 +699,19 @@ end
 
 local function Help()
 	msg("commands:")
-	print("  |cffffd100/rain|r - toggle on/off")
-	print("  |cffffd100/rain light|normal|heavy|monsoon|r - intensity")
-	print("  |cffffd100/rain alpha <0-1.5>|r - how visible it is")
-	print("  |cffffd100/rain speed <0.2-3>|r - how fast it falls")
-	print("  |cffffd100/rain gloom <0-2>|r - how much it darkens the world (0 = off)")
-	print("  |cffffd100/rain time local|r - make it look like YOUR clock, not the realm's")
-	print("  |cffffd100/rain time +9|r, |cffffd100/rain time 21|r, |cffffd100/rain time off|r")
-	print("  |cffffd100/rain indoors on|off|r - rain inside buildings too")
-	print("  |cffffd100/rain sound on|off|r, |cffffd100/rain thunder on|off|r")
-	print("  |cffffd100/rain channel Ambience|SFX|Master|r - which volume slider owns it")
-	print("  |cffffd100/rain density|r - is the client even allowed to draw real weather?")
-	print("  |cffffd100/rain calib on|r - log real weather so the defaults stop being guesses")
-	print("  |cffffd100/rain status|r")
+	print("  |cffffd100/dusk|r - toggle on/off")
+	print("  |cffffd100/dusk light|normal|heavy|monsoon|r - intensity")
+	print("  |cffffd100/dusk alpha <0-1.5>|r - how visible it is")
+	print("  |cffffd100/dusk speed <0.2-3>|r - how fast it falls")
+	print("  |cffffd100/dusk dim <0-2>|r - how much it darkens the world (0 = off)")
+	print("  |cffffd100/dusk time local|r - make it look like YOUR clock, not the realm's")
+	print("  |cffffd100/dusk time +9|r, |cffffd100/dusk time 21|r, |cffffd100/dusk time off|r")
+	print("  |cffffd100/dusk indoors on|off|r - rain inside buildings too")
+	print("  |cffffd100/dusk sound on|off|r, |cffffd100/dusk thunder on|off|r")
+	print("  |cffffd100/dusk channel Ambience|SFX|Master|r - which volume slider owns it")
+	print("  |cffffd100/dusk density|r - is the client even allowed to draw real weather?")
+	print("  |cffffd100/dusk calib on|r - log real weather so the defaults stop being guesses")
+	print("  |cffffd100/dusk status|r")
 end
 
 local function HandleSlash(input)
@@ -727,11 +727,11 @@ local function HandleSlash(input)
 		db.enabled = (cmd == "on")
 	elseif cmd == "alpha" then
 		local v = tonumber(arg)
-		if not v then msg("usage: /rain alpha 0.75") return end
+		if not v then msg("usage: /dusk alpha 0.75") return end
 		db.scale = math.max(0, math.min(1.5, v))
 	elseif cmd == "speed" then
 		local v = tonumber(arg)
-		if not v then msg("usage: /rain speed 1.4") return end
+		if not v then msg("usage: /dusk speed 1.4") return end
 		db.speed = math.max(0.2, math.min(3, v))
 	elseif cmd == "time" then
 		local sub, rest = arg:match("^(%S*)%s*(.-)$")
@@ -741,23 +741,24 @@ local function HandleSlash(input)
 			db.timeMode = "local"
 		elseif sub == "strength" then
 			local v = tonumber(rest)
-			if not v then msg("usage: /rain time strength 0.7") return end
+			if not v then msg("usage: /dusk time strength 0.7") return end
 			db.timeStrength = math.max(0, math.min(1, v))
 		elseif sub:match("^[+-]%d+%.?%d*$") then
 			db.timeMode, db.timeOffset = "offset", tonumber(sub)
 		elseif tonumber(sub) then
 			db.timeMode, db.timeFixed = "fixed", tonumber(sub) % 24
 		else
-			msg("usage: |cffffd100/rain time local|r (match your own clock), " ..
+			msg("usage: |cffffd100/dusk time local|r (match your own clock), " ..
 			    "|cffffd100+9|r / |cffffd100-5|r (shift by hours), " ..
 			    "|cffffd10021|r (hold one hour), |cffffd100off|r, " ..
 			    "|cffffd100strength 0.7|r")
 			return
 		end
 		UpdateTimeOfDay()
-	elseif cmd == "gloom" then
+	-- "gloom" was the name until the rename; it still works and is not advertised.
+	elseif cmd == "dim" or cmd == "gloom" then
 		local v = tonumber(arg)
-		if not v then msg("usage: /rain gloom 0.5  (0 turns the darkening off)") return end
+		if not v then msg("usage: /dusk dim 0.5  (0 turns the darkening off)") return end
 		db.gloom = math.max(0, math.min(2, v))
 	elseif cmd == "sound" then
 		db.sound = (arg ~= "off")
@@ -784,7 +785,7 @@ local function HandleSlash(input)
 		-- and raising them turns on Blizzard's real weather everywhere, not ours.
 		if arg == "" then
 			DensityReport()
-			msg("|cffffd100/rain density on|r raises both so the realm's own weather renders")
+			msg("|cffffd100/dusk density on|r raises both so the realm's own weather renders")
 			return
 		end
 		for cvar, want in pairs(DENSITY_CVARS) do
@@ -834,17 +835,37 @@ end
 boot:SetScript("OnEvent", function(_, event, arg1)
 	if event == "ADDON_LOADED" then
 		if arg1 ~= ADDON then return end
-		AlwaysRainDB = AlwaysRainDB or {}
-		db = AlwaysRainDB
+		-- The addon was called AlwaysRain until 2026-10-14. Its settings live in a
+		-- global named after the old addon, which exists only if the old folder is
+		-- still installed and loaded first (## OptionalDeps). Strangers will never
+		-- have it, so this is a no-op for them.
+		--
+		-- Wrapped, because an old table that is malformed must cost the user their
+		-- settings and nothing else. Bricking the addon during a rename is the
+		-- stupidest available way to lose somebody on day one.
+		DuskfallDB = DuskfallDB or {}
+		if not DuskfallDB.migrated and type(AlwaysRainDB) == "table" then
+			local ok = pcall(function()
+				for k, v in pairs(AlwaysRainDB) do
+					if DuskfallDB[k] == nil then DuskfallDB[k] = v end
+				end
+			end)
+			DuskfallDB.migrated = true
+			msg(ok and "settings carried over from AlwaysRain."
+			       or "|cffff9900could not read the old AlwaysRain settings, starting fresh.|r")
+		end
+
+		db = DuskfallDB
 		for k, v in pairs(DEFAULTS) do
 			if db[k] == nil then db[k] = v end
 		end
 		BuildOverlay()
 
-		SLASH_ALWAYSRAIN1 = "/rain"
-		SLASH_ALWAYSRAIN2 = "/alwaysrain"
-		SlashCmdList.ALWAYSRAIN = HandleSlash
-		msg("loaded. |cffffd100/rain|r to toggle, |cffffd100/rain help|r for the rest.")
+		SLASH_DUSKFALL1 = "/dusk"
+		SLASH_DUSKFALL2 = "/duskfall"
+		SLASH_DUSKFALL3 = "/rain"          -- permanent alias, not deprecated
+		SlashCmdList.DUSKFALL = HandleSlash
+		msg("loaded. |cffffd100/dusk|r to toggle, |cffffd100/dusk help|r for the rest.")
 
 	elseif event == "CINEMATIC_START" or event == "PLAY_MOVIE" then
 		cinematic = true

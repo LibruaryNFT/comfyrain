@@ -1,4 +1,4 @@
-# AlwaysRain — permanent rain in World of Warcraft
+# Duskfall — rain, weather and cozy ambience in World of Warcraft
 
 **What this is:** a WoW addon that makes it look and sound like it is always raining,
 because the client cannot be told to actually change the weather.
@@ -91,7 +91,7 @@ FileDataIDs came from `listfile/verified-listfile.csv` (community listfile, tag 
 Assets are not checked in; they are deterministic output of the build scripts.
 - `build/make_rain_tga.py` — 512×512 32-bit **uncompressed** TGA (WoW rejects RLE TGA), drops
   scattered so the sheet wraps in both axes. `SLANT_DEG = 7.5` here **must match** `SLANT` in
-  `AlwaysRain.lua` as its tangent (0.1317). Each drop is rasterised from an optical model: a
+  `Duskfall.lua` as its tangent (0.1317). Each drop is rasterised from an optical model: a
   Gaussian across the width (the drop's own blur circle), an exponential falloff from the bright
   leading head up the tail, both ends windowed to zero so nothing terminates in a chopped edge,
   and the slant sheared in during rasterising so thin streaks are never resampled. Per-drop taper,
@@ -123,7 +123,7 @@ at launch. Later Lua edits need only `/reload`.
 `/rain calib on` raises the density CVars, registers `CONSOLE_MESSAGE` and
 `WEATHER_CHANGED` (each through `pcall`, because an unknown event name throws on this
 client and aborts the rest of the file with it), and from then on every real weather
-change is shouted in chat and appended to `AlwaysRainDB.calib` with the zone, uiMapID,
+change is shouted in chat and appended to `DuskfallDB.calib` with the zone, uiMapID,
 game time, indoor flag, both CVars, the `C_Weather` reading and the parsed console line.
 
 It is written to shout because real weather is server-driven and intermittent: it cannot
@@ -262,12 +262,12 @@ Delivered 2026-10-12, all three reading `dr-prompt.md` v2. Their disagreements, 
 | Collapse the MOD quads | **Yes**, exact and free | Unanimous |
 | Determinism | Hash **uiMapID** + time bucket, FNV-1a, no `SendAddonMessage` | Unanimous |
 | Schema before GUI? | **Yes.** R1 and R2 say schema first; R3 says GUI first and is outvoted | Binding sliders to hard-coded locals means rewiring every one later |
-| Keep permanent rain? | **Yes.** Vary *intensity* so it never flatlines, never to zero | R2 argued for 20% clear spells; the addon is called AlwaysRain |
+| Keep permanent rain? | **Yes.** Vary *intensity* so it never flatlines, never to zero | R2 argued for 20% clear spells; the addon was called AlwaysRain. **That half of the argument died with the name on 2026-10-14** - `Duskfall` does not promise permanence, so clear spells are now an open question rather than a contradiction. The default stays permanent until something says otherwise |
 
 Only report 1 flagged the **SavedVariables bug** — early Forever builds wrote them and
 never read them back. Reportedly fixed by build 69913, contested, and we are on 70338. A
 settings GUI is worthless if settings evaporate, so probe it before building one:
-`/run AlwaysRainDB.probe = time()` → `/reload` → `/dump AlwaysRainDB.probe`.
+`/run DuskfallDB.probe = time()` → `/reload` → `/dump DuskfallDB.probe`.
 
 Other traps worth keeping, all from report 1: registering an unknown event **throws and
 aborts the whole file**, so `pcall` the `WEATHER_CHANGED` registration; `select(4,
@@ -344,7 +344,7 @@ midnight at lunchtime. `/rain time local` grades the screen towards your own clo
 
 - `/rain time local` — match the machine's clock · `/rain time +9` / `-5` — shift by hours ·
   `/rain time 21` — hold one hour · `/rain time off` · `/rain time strength 0.7`
-- Its own frame (`AlwaysRainTimeOfDay`, frame level 1, under the rain at level 5) so it works
+- Its own frame (`DuskfallTimeOfDay`, frame level 1, under the rain at level 5) so it works
   with the rain off. Wanting your realm's night to match your clock has nothing to do with rain.
 - **Graded by the ratio between the wanted hour and the realm's hour, not by the wanted hour
   alone.** The world is already lit for the realm, so realm 22:00 wanting 22:00 must be a no-op;
@@ -605,9 +605,10 @@ brand's only remaining job.
   **re-run it in a browser and screenshot it next to `?search=CozyFire` as the control**
   before the folder name is committed.
 - The `AlwaysRainDB` migration has a dependency nobody had noticed: **the old SavedVariables
-  file only loads if an addon declares it.** Ship a stub `AlwaysRain` folder that declares
-  `AlwaysRainDB`, and list it in Duskfall's `## OptionalDeps` so it loads first. Unverified,
-  test it on the client before 21 October.
+  file is named after the **folder**, so it only loads if a folder of that name is still
+  installed. Resolved 2026-10-14: `## OptionalDeps: AlwaysRain` is in the TOC, and no stub
+  folder ships, because the addon has never been published and the only install that can
+  reach this path is the author's. Still untested on the client.
 
 ## The name: Duskfall
 
@@ -857,11 +858,25 @@ supplied per spec rather than defaulted, so no test result rests on a fabricated
 
 **Ships 4 November, because Phase 1 will have verified it:**
 
-- `AlwaysRain` → `Duskfall`, with the `AlwaysRainDB` → `DuskfallDB` migration on first
-  load and `/rain` kept as a permanent alias. Details in `## The name` above. **The whole
-  migration goes in a `pcall`** — a malformed old DB must fall back to defaults with a
-  printed warning, never brick the addon. This is the single most likely way to break a
-  stranger's install while never breaking the author's.
+- ~~`AlwaysRain` → `Duskfall`~~ **DONE 2026-10-14.** Folder, file, TOC, frame names,
+  globals and slash commands all renamed; `/dusk`, `/duskfall` and a permanent `/rain`;
+  `gloom` subcommand is now `dim` with `gloom` kept as an unadvertised alias. Suite 53/53.
+  Three specs added: the migration carries settings over exactly once, a non-table old
+  profile is ignored rather than fatal, and `dim` and `gloom` both set the same value.
+
+  **On the migration, and one thing the research round got right.** The old SavedVariables
+  file is named after the *folder*, so it only loads if an addon named `AlwaysRain` is still
+  installed. `## OptionalDeps: AlwaysRain` is in the TOC so that, where the old folder does
+  exist, it loads first and the global is readable. **No stub folder is shipped**: the addon
+  has never been published, so the only install in the world that can hit this path is
+  the author's own, and shipping strangers a second folder for a migration that can never fire
+  for them is noise on a CurseForge page.
+
+  The copy is wrapped in a `pcall` and the loop is marked done with a `migrated` flag, so a
+  stale `AlwaysRainDB` on disk cannot keep reverting later changes. **Stated honestly in the
+  spec itself: on Lua 5.1 a plain table cannot make `pairs()` raise, so no test can reach
+  that `pcall`.** It guards client-side weirdness the mock cannot reproduce. What is tested
+  is the `type(...) == "table"` guard.
 - **Ambience bed as a dumb zone-to-sound map**, with a **fallback FileDataID per track** in
   case a user's install lacks the file. The real scheduler is Phase 4; a user in week one
   cannot tell a zone-keyed loop from a sequenced one.

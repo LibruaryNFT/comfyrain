@@ -22,7 +22,7 @@ again until **4 November**. That is fourteen days in which code can be written
 and never once executed, and shipping unexecuted code to strangers on a launch
 day it cannot be hotfixed is the project's biggest risk.
 
-`wowmock.lua` is enough of the WoW API to run `AlwaysRain.lua` under a bare
+`wowmock.lua` is enough of the WoW API to run `Duskfall.lua` under a bare
 interpreter. It does not render anything and cannot tell you whether the rain
 looks right. It records what the addon asked the renderer and the sound engine
 for, which is the class of bug a human watching the screen will not catch: a

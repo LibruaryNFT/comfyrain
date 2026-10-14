@@ -14,7 +14,7 @@ local root = (...):match("^(.*)%.harness$") or ""
 local prefix = (root ~= "" and root .. "." or "")
 
 local DIR = debug.getinfo(1, "S").source:match("^@(.*)/[^/]*$") or "."
-local ADDON_FILE = DIR .. "/../AlwaysRain/AlwaysRain.lua"
+local ADDON_FILE = DIR .. "/../Duskfall/Duskfall.lua"
 
 --------------------------------------------------------------------------------
 -- Assertions
@@ -86,8 +86,8 @@ function H.world(opts)
 	local mock = require(prefix .. "wowmock")
 	mock.reset(opts)
 
-	-- Inherit the stdlib but keep every global the addon writes (AlwaysRainDB,
-	-- SLASH_ALWAYSRAIN1, AlwaysRain_Refresh) inside this world.
+	-- Inherit the stdlib but keep every global the addon writes (DuskfallDB,
+	-- SLASH_DUSKFALL1, Duskfall_Refresh) inside this world.
 	local env = setmetatable({}, { __index = _G })
 	env._G = env
 	mock.install(env)
@@ -100,18 +100,18 @@ function H.world(opts)
 
 	function w:load()
 		chunk()
-		mock.fire("ADDON_LOADED", "AlwaysRain")
+		mock.fire("ADDON_LOADED", "Duskfall")
 		mock.fire("PLAYER_ENTERING_WORLD")
 		return self
 	end
 
-	function w:slash(input) return mock.slash("ALWAYSRAIN", input) end
+	function w:slash(input) return mock.slash("DUSKFALL", input) end
 	function w:advance(s, step) mock.advance(s, step) return self end
-	function w:db() return env.AlwaysRainDB end
+	function w:db() return env.DuskfallDB end
 
 	-- The frames the addon builds, by the names it gives them.
-	function w:overlay() return mock.frameNamed("AlwaysRainOverlay") end
-	function w:tod() return mock.frameNamed("AlwaysRainTimeOfDay") end
+	function w:overlay() return mock.frameNamed("DuskfallOverlay") end
+	function w:tod() return mock.frameNamed("DuskfallTimeOfDay") end
 
 	-- The MOD quad under the rain: what the world is multiplied by. One per
 	-- frame, so asking by blend mode is unambiguous.

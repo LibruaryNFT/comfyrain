@@ -1,8 +1,0 @@
-## Interface: 16001
-## Title: AlwaysRain
-## Notes: Permanent rain over the world - scrolling rain layers, a looping rain bed, and distant thunder. |cff888888/rain|r
-## Author: built for the author
-## Version: 1.0
-## SavedVariables: AlwaysRainDB
-
-AlwaysRain.lua

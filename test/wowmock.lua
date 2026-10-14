@@ -1,4 +1,4 @@
--- A mock of the World of Warcraft addon API, enough to run AlwaysRain under
+-- A mock of the World of Warcraft addon API, enough to run Duskfall under
 -- stock Lua 5.1 with no client.
 --
 -- The beta client is withdrawn on 2026-10-21 and the game does not exist again
@@ -515,7 +515,7 @@ function M.install(env)
 	env.GetLocale = function() return "enUS" end
 	env.UnitName = function() return "Tester" end
 	env.GetAddOnMetadata = function(_, field)
-		return ({ Version = "2.0.0", Title = "AlwaysRain" })[field]
+		return ({ Version = "2.0.0", Title = "Duskfall" })[field]
 	end
 
 	-- Settings API. Present so a stub panel can be written, but registration is

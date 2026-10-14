@@ -5,9 +5,12 @@ local it, eq, ok, near = H.it, H.eq, H.ok, H.near
 
 it("loads and registers its slash command", function()
 	local w = H.world()
-	eq(w.env.SLASH_ALWAYSRAIN1, "/rain", "primary slash token")
-	eq(w.env.SLASH_ALWAYSRAIN2, "/alwaysrain", "secondary slash token")
-	eq(type(w.env.SlashCmdList.ALWAYSRAIN), "function", "slash handler")
+	eq(w.env.SLASH_DUSKFALL1, "/dusk", "primary slash token")
+	eq(w.env.SLASH_DUSKFALL2, "/duskfall", "secondary slash token")
+	-- /rain is permanent, not deprecated. Anyone who installed the addon under
+	-- its old name typed this for weeks and must never have to learn a new word.
+	eq(w.env.SLASH_DUSKFALL3, "/rain", "the old name still works")
+	eq(type(w.env.SlashCmdList.DUSKFALL), "function", "slash handler")
 	eq(#w.mock.errors, 0, "errors during boot")
 end)
 
@@ -25,13 +28,60 @@ end)
 
 it("fills defaults without overwriting a saved profile", function()
 	local w = H.world({ loaded = false })
-	w.env.AlwaysRainDB = { intensity = "monsoon", gloom = 0.25 }
+	w.env.DuskfallDB = { intensity = "monsoon", gloom = 0.25 }
 	w:load()
 	local db = w:db()
 	eq(db.intensity, "monsoon", "saved intensity survives")
 	near(db.gloom, 0.25, 1e-9, "saved gloom survives")
 	eq(db.enabled, true, "missing key filled from defaults")
 	eq(db.channel, "Ambience", "missing channel filled from defaults")
+end)
+
+it("carries settings over from the old AlwaysRain profile, once", function()
+	local w = H.world({ loaded = false })
+	w.env.AlwaysRainDB = { intensity = "monsoon", gloom = 0.25, channel = "SFX" }
+	w:load()
+	local db = w:db()
+	eq(db.intensity, "monsoon", "old intensity carried over")
+	near(db.gloom, 0.25, 1e-9, "old gloom carried over")
+	eq(db.channel, "SFX", "old channel carried over")
+	eq(db.migrated, true, "the migration marks itself done")
+	ok(#w.mock.printedMatching("carried over") > 0, "and says so once")
+
+	-- Second login: the old table is still on disk and must not be allowed to
+	-- undo anything the player changed since. This is the whole point of the flag.
+	local w2 = H.world({ loaded = false })
+	w2.env.AlwaysRainDB = { intensity = "monsoon" }
+	w2.env.DuskfallDB = { intensity = "light", migrated = true }
+	w2:load()
+	eq(w2:db().intensity, "light", "the new profile wins after the first migration")
+end)
+
+it("ignores an old profile that is not a table", function()
+	-- A SavedVariables file that was half-written when the client was killed can
+	-- read back as anything, and a restricted value is non-nil but explodes when
+	-- touched. Losing the old settings is acceptable here; failing to load is not.
+	--
+	-- Note on what this does NOT prove: the copy loop itself is wrapped in a
+	-- pcall, and on Lua 5.1 a plain table cannot make pairs() raise, so no test
+	-- here can reach that pcall. It guards client-side weirdness the mock cannot
+	-- reproduce. The type guard below is the part that is actually testable.
+	for _, bad in ipairs({ "a string", 7, true }) do
+		local w = H.world({ loaded = false })
+		w.env.AlwaysRainDB = bad
+		w:load()
+		eq(type(w:db()), "table", "the addon still has a database")
+		eq(w:db().enabled, true, "and fell back to defaults")
+		eq(#w.mock.errors, 0, "errors during boot")
+	end
+end)
+
+it("takes dim as the new name for gloom, and still answers to gloom", function()
+	local w = H.world()
+	w:slash("dim 0.4")
+	near(w:db().gloom, 0.4, 1e-9, "dim sets it")
+	w:slash("gloom 0.8")
+	near(w:db().gloom, 0.8, 1e-9, "the old subcommand is a permanent alias")
 end)
 
 it("survives a client that lacks the calibration events", function()
