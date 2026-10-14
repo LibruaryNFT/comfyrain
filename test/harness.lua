@@ -16,6 +16,7 @@ local prefix = (root ~= "" and root .. "." or "")
 local DIR = debug.getinfo(1, "S").source:match("^@(.*)/[^/]*$") or "."
 local ADDON_FILE = DIR .. "/../Duskfall/Duskfall.lua"
 local PROBE_FILE = DIR .. "/../Duskfall/Probe.lua"
+local UI_FILE = DIR .. "/../Duskfall/UI.lua"
 
 --------------------------------------------------------------------------------
 -- Assertions
@@ -109,11 +110,23 @@ function H.world(opts)
 		probe = pchunk
 	end
 
+	-- UI.lua is the third chunk, and separate for the same reason: the addon
+	-- has to work with the window missing, because a player can delete the file
+	-- and because every path through the settings panel must survive it.
+	local ui
+	if opts.ui ~= false then
+		local uchunk, uerr = loadfile(UI_FILE)
+		if not uchunk then error("could not load the UI: " .. tostring(uerr)) end
+		setfenv(uchunk, env)
+		ui = uchunk
+	end
+
 	local w = { mock = mock, env = env, chunk = chunk }
 
 	function w:load()
 		chunk()
 		if probe then probe() end
+		if ui then ui() end
 		mock.fire("ADDON_LOADED", "Duskfall")
 		mock.fire("PLAYER_ENTERING_WORLD")
 		return self
@@ -154,6 +167,32 @@ function H.world(opts)
 	function w:whiteout()
 		for _, t in ipairs(self:overlay()._textures) do
 			if t.layer == "ARTWORK" and t.blend == "ADD" and t.colour then return t end
+		end
+	end
+
+	-- The settings window, and the widgets inside it by the name the panel code
+	-- knows them by.
+	function w:panel() return mock.frameNamed("DuskfallPanel") end
+	function w:open() self.env.Duskfall_Panel("show") return self:panel() end
+
+	-- Controls are found by the text the player reads, not by an index into a
+	-- table the panel happens to keep. A spec that clicks "Snow" is clicking
+	-- what somebody with a mouse would click.
+	function w:button(text)
+		for _, f in ipairs(mock.frames) do
+			if (f._kind == "Button" or f._kind == "CheckButton") and f._text == text then
+				return f
+			end
+		end
+	end
+
+	function w:slider(label)
+		for _, f in ipairs(mock.frames) do
+			if f._kind == "Slider" and f._parent then
+				for _, fs in ipairs(f._parent._fontStrings or {}) do
+					if fs.text == label then return f end
+				end
+			end
 		end
 	end
 

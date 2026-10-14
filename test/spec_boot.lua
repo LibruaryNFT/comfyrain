@@ -6,11 +6,13 @@ local it, eq, ok, near = H.it, H.eq, H.ok, H.near
 it("loads and registers its slash command", function()
 	local w = H.world()
 	eq(w.env.SLASH_DUSKFALL1, "/dusk", "primary slash token")
-	eq(w.env.SLASH_DUSKFALL2, "/duskfall", "secondary slash token")
 	-- /rain is permanent, not deprecated. Anyone who installed the addon under
 	-- its old name typed this for weeks and must never have to learn a new word.
-	eq(w.env.SLASH_DUSKFALL3, "/rain", "the old name still works")
+	eq(w.env.SLASH_DUSKFALL2, "/rain", "the old name still works")
 	eq(type(w.env.SlashCmdList.DUSKFALL), "function", "slash handler")
+	-- The long name belongs to the window, not to the toggle.
+	eq(w.env.SLASH_DUSKFALLUI1, "/duskfall", "the settings window has its own token")
+	eq(type(w.env.SlashCmdList.DUSKFALLUI), "function", "window handler")
 	eq(#w.mock.errors, 0, "errors during boot")
 end)
 

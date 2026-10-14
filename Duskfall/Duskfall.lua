@@ -903,7 +903,10 @@ local function Help()
 	print("  |cffffd100/dusk status|r")
 end
 
-local function HandleSlash(input)
+-- source is "ui" when the settings window issued this rather than the player.
+-- The second argument a real slash handler receives is the chat edit box, a
+-- table, so the sentinel can never collide with it.
+local function HandleSlash(input, source)
 	input = (input or ""):lower():gsub("^%s+", ""):gsub("%s+$", "")
 	local cmd, arg = input:match("^(%S*)%s*(.-)$")
 
@@ -1039,6 +1042,19 @@ local function HandleSlash(input)
 			CalibReport()
 		end
 		return
+	elseif cmd == "ui" or cmd == "config" or cmd == "options" or cmd == "settings" then
+		if not Duskfall_Panel then
+			msg("UI.lua is not installed.")
+		elseif not pcall(Duskfall_Panel, "toggle") then
+			msg("|cffff6666the settings window would not open.|r")
+		end
+		return
+	elseif cmd == "reset" then
+		-- Only the settings the panel owns. The calibration log and the probe
+		-- results are evidence, not preferences, and a reset button that threw
+		-- away a week of weather observations would be a bug with a label on it.
+		for k, v in pairs(DEFAULTS) do db[k] = v end
+		msg("settings reset to defaults.")
 	elseif cmd == "status" then
 		Status()
 		return
@@ -1048,8 +1064,24 @@ local function HandleSlash(input)
 	end
 
 	Refresh()
-	Status()
+	-- An open panel has to follow a typed command, or the two disagree in front
+	-- of the player and the window is the thing they stop trusting.
+	-- pcall: the window is a separate file, and a broken window may not take
+	-- the command line down with it.
+	if DuskfallAPI.changed then pcall(DuskfallAPI.changed) end
+	if source ~= "ui" then Status() end
 end
+
+-- The panel drives the addon through exactly this and nothing else. Everything
+-- the window can do is therefore a command that can also be typed, the two can
+-- never drift apart, and the whole settings surface stays under the slash
+-- parser's existing tests.
+DuskfallAPI = {
+	Weather = WEATHER,
+	Command = function(input) HandleSlash(input, "ui") end,
+	DB      = function() return db end,
+	Status  = function() Status() end,
+}
 
 --------------------------------------------------------------------------------
 -- Boot
@@ -1092,10 +1124,38 @@ boot:SetScript("OnEvent", function(_, event, arg1)
 		BuildOverlay()
 
 		SLASH_DUSKFALL1 = "/dusk"
-		SLASH_DUSKFALL2 = "/duskfall"
-		SLASH_DUSKFALL3 = "/rain"          -- permanent alias, not deprecated
+		SLASH_DUSKFALL2 = "/rain"          -- permanent alias, not deprecated
 		SlashCmdList.DUSKFALL = HandleSlash
-		msg("loaded. |cffffd100/dusk|r to toggle, |cffffd100/dusk help|r for the rest.")
+
+		-- The long name opens the window rather than toggling the weather.
+		-- Nobody types eight letters to flip a switch, and a settings window
+		-- nobody can find is the single most common reason an atmosphere addon
+		-- is uninstalled in its first two minutes.
+		SLASH_DUSKFALLUI1 = "/duskfall"
+		SLASH_DUSKFALLUI2 = "/duskui"
+		-- The window is a separate file and is allowed to be missing or broken.
+		-- Neither may cost the player the addon, so every entry into it is
+		-- guarded and failure falls back to the thing that always works.
+		SlashCmdList.DUSKFALLUI = function()
+			if not Duskfall_Panel then return HandleSlash("help") end
+			local ok, err = pcall(Duskfall_Panel, "toggle")
+			if not ok then
+				msg("|cffff6666the settings window would not open|r: " .. tostring(err))
+				HandleSlash("help")
+			end
+		end
+
+		msg("loaded. |cffffd100/duskfall|r opens the settings window, " ..
+		    "|cffffd100/dusk|r toggles the weather.")
+
+		-- Onboarding, once ever. Someone who installs an atmosphere addon is
+		-- not a power user and will not go looking for a command list.
+		if not db.seenUI then
+			db.seenUI = true
+			if Duskfall_Panel then
+				C_Timer.After(4, function() pcall(Duskfall_Panel, "show") end)
+			end
+		end
 
 	elseif event == "CINEMATIC_START" or event == "PLAY_MOVIE" then
 		cinematic = true

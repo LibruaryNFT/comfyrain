@@ -64,6 +64,8 @@ function Region:SetPoint() end
 function Region:ClearAllPoints() self._anchor = nil end
 
 function Region:SetSize(w, h) self._width, self._height = w, h end
+function Region:SetWidth(w) self._width = w end
+function Region:SetHeight(h) self._height = h end
 function Region:GetWidth()
 	if self._width then return self._width end
 	if self._anchor then return self._anchor:GetWidth() end
@@ -90,6 +92,7 @@ function Region:IsVisible()
 	return true
 end
 function Region:GetName() return self._name end
+function Region:GetParent() return self._parent end
 
 --------------------------------------------------------------------------------
 -- Textures
@@ -126,6 +129,26 @@ end
 function Texture:SetDrawLayer(layer, sublevel) self.layer, self.sublevel = layer, sublevel end
 
 --------------------------------------------------------------------------------
+-- Font strings
+--------------------------------------------------------------------------------
+--
+-- Text is the whole readable surface of a settings panel, so the mock keeps it:
+-- a spec asserting that the window says "blizzard" is asserting the thing the
+-- player actually reads, which no amount of checking db.intensity does.
+
+local FontString = setmetatable({}, { __index = Region })
+FontString.__index = FontString
+
+function FontString:SetText(t) self.text = t end
+function FontString:GetText() return self.text end
+function FontString:SetFormattedText(fmt, ...) self.text = string.format(fmt, ...) end
+function FontString:SetTextColor(r, g, b, a) self.colour = { r, g, b, a or 1 } end
+function FontString:SetJustifyH(j) self.justifyH = j end
+function FontString:SetJustifyV(j) self.justifyV = j end
+function FontString:SetFontObject(o) self.fontObject = o end
+function FontString:SetFont(f, size) self.font, self.fontSize = f, size end
+
+--------------------------------------------------------------------------------
 -- Frames
 --------------------------------------------------------------------------------
 
@@ -139,6 +162,15 @@ function Frame:CreateTexture(name, layer, template, sublevel)
 	}, Texture)
 	self._textures[#self._textures + 1] = t
 	return t
+end
+
+function Frame:CreateFontString(name, layer, inherits)
+	local fs = setmetatable({
+		_name = name, _parent = self, _shown = true,
+		layer = layer, inherits = inherits,
+	}, FontString)
+	self._fontStrings[#self._fontStrings + 1] = fs
+	return fs
 end
 
 function Frame:SetScript(which, fn) self._scripts[which] = fn end
@@ -171,6 +203,13 @@ function Frame:EnableMouse(v) self.mouseEnabled = v and true or false end
 function Frame:SetMovable() end
 function Frame:RegisterForDrag() end
 function Frame:SetClampedToScreen() end
+function Frame:SetToplevel() end
+function Frame:EnableMouseWheel(v) self.mouseWheelEnabled = v and true or false end
+function Frame:StartMoving() self._moving = true end
+function Frame:StopMovingOrSizing() self._moving = false end
+function Frame:SetHitRectInsets() end
+function Frame:GetPoint() return self._point or "CENTER", nil, self._point or "CENTER",
+	self._x or 0, self._y or 0 end
 
 --------------------------------------------------------------------------------
 -- The world
@@ -259,7 +298,7 @@ end
 local function newFrame(kind, name, parent, template)
 	local f = setmetatable({
 		_name = name, _parent = parent, _kind = kind, _template = template,
-		_shown = true, _scripts = {}, _events = {}, _textures = {},
+		_shown = true, _scripts = {}, _events = {}, _textures = {}, _fontStrings = {},
 	}, Frame)
 	-- Only a Model frame has SetModel, so code that forgets to pass "Model"
 	-- fails here the way it would in the client.
@@ -267,6 +306,56 @@ local function newFrame(kind, name, parent, template)
 		f.SetModel = function(self, id) self._model = id end
 		f.GetModelFileID = function(self) return self._model end
 		f.SetCamDistanceScale = function() end
+	end
+
+	-- A Button is only a button because it can be clicked, and a spec that
+	-- cannot click one is testing the layout rather than the panel.
+	if kind == "Button" or kind == "CheckButton" then
+		f.SetText = function(self, t) self._text = t end
+		f.GetText = function(self) return self._text end
+		f.RegisterForClicks = function() end
+		f.SetFontString = function(self, fs) self._fontString = fs end
+		f.SetNormalTexture = function(self, t) self._normalTexture = t end
+		f.SetHighlightTexture = function(self, t) self._highlightTexture = t end
+		f.Enable = function(self) self._enabled = true end
+		f.Disable = function(self) self._enabled = false end
+		f.IsEnabled = function(self) return self._enabled ~= false end
+		f.Click = function(self, button)
+			if self._enabled == false then return end
+			local fn = self._scripts.OnClick
+			if fn then fn(self, button or "LeftButton", false) end
+		end
+	end
+
+	-- Sliders clamp and step in C, so the mock does too: a panel that writes
+	-- 1.7 into a 0-1.5 slider must read back 1.5 here as well, or the spec
+	-- proves something the client would not do.
+	if kind == "Slider" then
+		f._min, f._max, f._step, f._value = 0, 1, nil, 0
+		f.SetOrientation = function(self, o) self._orientation = o end
+		f.SetThumbTexture = function(self, t) self._thumb = t end
+		f.SetObeyStepOnDrag = function(self, v) self._obeyStep = v and true or false end
+		f.SetMinMaxValues = function(self, lo, hi) self._min, self._max = lo, hi end
+		f.GetMinMaxValues = function(self) return self._min, self._max end
+		f.SetValueStep = function(self, st) self._step = st end
+		f.GetValue = function(self) return self._value end
+		f.SetValue = function(self, v)
+			v = math.max(self._min, math.min(self._max, v or 0))
+			if self._step and self._step > 0 then
+				v = self._min + math.floor((v - self._min) / self._step + 0.5) * self._step
+			end
+			local changed = v ~= self._value
+			self._value = v
+			local fn = self._scripts.OnValueChanged
+			if fn and changed then fn(self, v, true) end
+		end
+		-- What a drag does: the user moved the thumb, so the handler runs even
+		-- if the value happens to land where it already was.
+		f.Drag = function(self, v)
+			self:SetValue(v)
+			local fn = self._scripts.OnValueChanged
+			if fn then fn(self, self._value, true) end
+		end
 	end
 	M.frames[#M.frames + 1] = f
 	if name then M.env[name] = f end
@@ -362,13 +451,14 @@ function M.install(env)
 
 	env.WorldFrame = setmetatable({
 		_name = "WorldFrame", _shown = true, _scripts = {}, _events = {}, _textures = {},
-		_width = M.screen.width, _height = M.screen.height,
+		_fontStrings = {}, _width = M.screen.width, _height = M.screen.height,
 	}, Frame)
 	M.frames[#M.frames + 1] = env.WorldFrame
 
 	env.UIParent = setmetatable({
 		_name = "UIParent", _shown = true, _scripts = {}, _events = {}, _textures = {},
 		_width = M.screen.width, _height = M.screen.height, _scale = 1,
+		_fontStrings = {},
 	}, Frame)
 	env.UIParent.GetScale = function(self) return self._scale end
 	env.UIParent.SetScale = function(self, s) self._scale = s end
@@ -377,6 +467,23 @@ function M.install(env)
 	env.CreateFrame = function(kind, name, parent, template)
 		return newFrame(kind, name, parent, template)
 	end
+
+	-- Escape-to-close is a list of frame NAMES, which is why the panel has to
+	-- have one. A spec can assert membership and that is the whole contract.
+	env.UISpecialFrames = {}
+
+	-- Tooltips are how a settings window teaches its own slash commands, so
+	-- what was put in one is recorded rather than thrown away.
+	env.GameTooltip = {
+		lines = {},
+		SetOwner = function(self, owner, anchor) self.owner, self.anchor = owner, anchor end,
+		SetText = function(self, text) self.lines = { text } end,
+		AddLine = function(self, text) self.lines[#self.lines + 1] = text end,
+		ClearLines = function(self) self.lines = {} end,
+		Show = function(self) self.shown = true end,
+		Hide = function(self) self.shown = false end,
+		IsShown = function(self) return self.shown and true or false end,
+	}
 
 	env.print = function(...)
 		local parts = {}
@@ -551,6 +658,20 @@ function M.install(env)
 	env.wipe = function(t)
 		for k in pairs(t) do t[k] = nil end
 		return t
+	end
+	-- WoW's own aliases for the table and string libraries. Present on every
+	-- client and used by every addon, so code that reaches for them is correct
+	-- and the mock has to supply them.
+	env.tinsert = table.insert
+	env.tremove = table.remove
+	env.tContains = function(t, v)
+		for _, x in ipairs(t) do if x == v then return true end end
+		return false
+	end
+	env.strsplit = function(sep, str)
+		local out = {}
+		for piece in tostring(str):gmatch("[^" .. sep .. "]+") do out[#out + 1] = piece end
+		return unpack(out)
 	end
 	env.SlashCmdList = {}
 	env.GetBuildInfo = function()

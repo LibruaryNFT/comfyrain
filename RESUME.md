@@ -140,13 +140,44 @@ Assets are not checked in; they are deterministic output of the build scripts.
 A **full client restart** is required for a first install — WoW only scans `Interface/AddOns`
 at launch. Later Lua edits need only `/reload`.
 
+## The settings window
+
+`/duskfall` (or `/duskui`, or `/dusk ui|config|options|settings`) opens it. `/dusk` on its own
+still toggles the weather, because nobody types eight letters to flip a switch. It opens itself
+**once, ever**, four seconds after a first install, and records `db.seenUI` so it never does it
+again — the onboarding hole both consult models flagged.
+
+Three things about it are deliberate and should not be "simplified" later:
+
+1. **It is a frame we draw ourselves, not a Blizzard Settings panel.** The Settings API is not
+   known to work on this client: `AddSearchTags` already throws `ADDON_ACTION_FORBIDDEN` here,
+   and Phase 1 item 7 (does a canvas category register at all on build 70338) is still open. The
+   settings window is what a non-power-user needs most, so it cannot be the one part of the addon
+   that depends on an API we have never seen work. It also uses **no template, no Backdrop and no
+   UIDropDownMenu** — every pixel is `CreateFrame` / `CreateTexture` / `CreateFontString`, which
+   the weather overlay has already proven on this client. The channel picker is a cycling button
+   for that reason, and the checkboxes draw their own lamp.
+2. **Every control issues a slash command** through `DuskfallAPI.Command`, and none of them writes
+   a setting directly. So the window can never do something the command line cannot, the two can
+   never disagree, and the entire settings surface stays behind the slash parser's existing tests.
+   `HandleSlash(input, "ui")` suppresses the chat status line; a typed command still reports.
+3. **Every tooltip names the command it runs.** The window is not a replacement for the commands,
+   it is how you learn them: drag the slider, read `/dusk alpha 0.75`, type it next time.
+
+There is no OK / Apply / Cancel. The weather is drawn live behind the window.
+
+`UI.lua` is a third TOC file and is **not load-bearing**: every entry point is `pcall`ed, a world
+without it falls back to printing the command list, and there is a spec for each.
+
 ## Commands
 
 `/dusk` toggle · `/dusk rain|snow` · `/dusk light|normal|heavy` · `/dusk monsoon` ·
 `/dusk blizzard` · `/dusk auto` · `/dusk alpha 0.75` · `/dusk speed 1.4` · `/dusk dim 0.5` ·
 `/dusk indoors on|off` · `/dusk sound on|off` · `/dusk thunder on|off` ·
 `/dusk channel Ambience|SFX|Master` · `/dusk density` · `/dusk status` ·
-`/dusk probe` · `/dusk calib on|off|wipe`   (`/rain` and `/duskfall` are permanent aliases)
+`/dusk probe` · `/dusk calib on|off|wipe` · `/dusk reset` (settings only, keeps the calib log)
+
+`/rain` is a permanent alias for `/dusk`. `/duskfall` and `/duskui` open the settings window.
 
 `monsoon` and `blizzard` each name a weather as well as an intensity, so they switch both:
 nobody typing `/dusk blizzard` wants rain. Switching weather at the top of one scale lands at
@@ -882,6 +913,9 @@ session to be measured after a `/reload`. It says so.
    stub panel through `Settings.RegisterCanvasLayoutCategory` and see whether it registers,
    opens, and survives being toggled in combat. Together with item 1 this decides whether a
    GUI is even possible, and it cannot be answered after the client is gone.
+   **Downgraded 2026-10-14:** the settings window was built without the Settings API, so this no
+   longer decides whether a GUI exists. It is now only worth knowing whether we could *also*
+   list ourselves in the client's own addon settings as a second way in.
 8. **Can a Model frame host a Blizzard weather M2?** Lowest value of the eight. Do it last,
    or drop it.
 
@@ -895,7 +929,7 @@ one-star comment on 5 November.
 ### Phase 2 — 21 October to 4 November. 14 days. No client exists.
 
 **The mock API is DONE, 2026-10-13.** It was the first thing and it is built: `test/`, run
-with `lua test/run.lua`, **96 specs, all passing**, under Lua 5.1.5 built to `~/.local`
+with `lua test/run.lua`, **116 specs, all passing**, under Lua 5.1.5 built to `~/.local`
 because that is WoW's own interpreter version and a 5.2+ construct that would fail in the
 client has to fail here too. `test/README.md` has the detail. What it covers: boot and
 SavedVariables defaults, the time-of-day grade, the three rain layers and their geometry,
@@ -949,8 +983,11 @@ supplied per spec rather than defaulted, so no test result rests on a fabricated
 
 **Ships ~11 November as v1.1, written in Phase 2 but not shipped untested:**
 
-- **Options panel.** Gated on Phase 1 items 1 and 7. Minimum viable and nothing more: a
-  preset dropdown, one master intensity slider, audio on/off, and the time-of-day mode.
+- ~~**Options panel.** Gated on Phase 1 items 1 and 7.~~ **Built 2026-10-14, ahead of plan, and
+  it is no longer gated on item 7** — it does not use the Settings API at all, which is what
+  removed the dependency. See "The settings window" above. Item 1 (do SavedVariables read back
+  on build 70338) still matters, but it now gates the whole addon equally rather than the panel
+  specifically.
 - **Preset sharing, downgraded.** A plain-text, human-readable config string, no compression
   and no base64. The sharing *mechanic* is what matters (the WeakAuras and wago.io precedent)
   and a readable `key=value;key=value` string gets nearly all of it for a fraction of the
@@ -1180,7 +1217,7 @@ is the main thing selling the curtain as having depth.
 ## Open / unverified
 
 - **v2 has not been seen running *in the client*.** It now runs green under the mock
-  (`lua test/run.lua`, 96 specs), which settles the logic but not the rendering: the Blizzard
+  (`lua test/run.lua`, 116 specs), which settles the logic but not the rendering: the Blizzard
   FileDataIDs, the mist texture, the blend modes and the horizon fade are all still
   unconfirmed against real hardware. `/rain status` reports `(bundled audio)` if the sound IDs
   were refused. **A green suite is not a working addon** — the mock records what was asked of
