@@ -314,13 +314,134 @@ local CHECKS = {
 	{ "ambience_musicoff",  CheckAmbienceWithMusicOff },
 }
 
-local function RunAll()
+local function RunAll(skip)
 	store()
-	msg("running " .. #CHECKS .. " checks. Answers land in DuskfallDB.probe.")
-	for _, c in ipairs(CHECKS) do try(c[1], c[2]) end
+	msg("running checks. Answers land in DuskfallDB.probe.")
+	for _, c in ipairs(CHECKS) do
+		if not (skip and skip[c[1]]) then try(c[1], c[2]) end
+	end
 	ArmMutePersistence()
 	ArmSavedVars()
 	msg("two checks need a |cffffd100/reload|r to finish. |cffffd100/dusk probe report|r afterwards.")
+end
+
+--------------------------------------------------------------------------------
+-- Unattended mode
+--
+-- Set DuskfallDB.probe.autorun on disk before the client starts and the probe
+-- drives itself: it runs the checks, reloads itself to answer the two that need
+-- a reload, plays a timed audio sequence, and reloads again to flush the file.
+-- Nothing is typed and nothing is transcribed.
+--
+-- The ambience question is the reason this exists. Asked by hand it ends in
+-- "ask", because Lua can only observe that the client AGREED to play. Here the
+-- probe instead plays known sounds inside windows it timestamps to the second,
+-- and the machine recording the speaker output decides what was audible. Same
+-- discipline as every other check: window 1 is silence, window 2 is the same
+-- file on Master with music ON (the positive control), window 3 is the actual
+-- question. A quiet window 3 next to a quiet window 2 proves nothing.
+--------------------------------------------------------------------------------
+
+local AUDIO_PLAN = {
+	{ name = "baseline",      secs = 5 },
+	{ name = "control_master", secs = 7, file = RAIN, channel = "Master", music = "1" },
+	{ name = "gap",           secs = 4 },
+	{ name = "ambience_nomusic", secs = 7, file = RAIN, channel = "Ambience", music = "0" },
+	{ name = "tail",          secs = 5 },
+}
+
+local function RunAudioSequence(done)
+	store()
+	P.audio = { windows = {}, startedAt = time and time() or 0 }
+	local restore = GetCVar("Sound_EnableMusic")
+	local at = 0
+
+	for _, step in ipairs(AUDIO_PLAN) do
+		local offset = at
+		C_Timer.After(offset, function()
+			pcall(function()
+				if step.music then SetCVar("Sound_EnableMusic", step.music) end
+				local willPlay, handle
+				if step.file then willPlay, handle = PlaySoundFile(step.file, step.channel) end
+				local w = {
+					name = step.name, t0 = time and time() or 0,
+					file = step.file, channel = step.channel,
+					music = step.music, willPlay = willPlay and true or false,
+					handle = handle,
+				}
+				P.audio.windows[#P.audio.windows + 1] = w
+				C_Timer.After(step.secs - 0.5, function()
+					pcall(function()
+						if handle then StopSound(handle, 200) end
+						w.t1 = time and time() or 0
+					end)
+				end)
+			end)
+		end)
+		at = at + step.secs
+	end
+
+	C_Timer.After(at + 1, function()
+		pcall(function()
+			SetCVar("Sound_EnableMusic", restore or "1")
+			P.audio.endedAt = time and time() or 0
+			record("audio_sequence", "ask",
+				"played " .. #AUDIO_PLAN .. " timed windows; the recording decides what was audible")
+			done()
+		end)
+	end)
+end
+
+-- ReloadUI is refused in combat and the probe must never fight the client for
+-- it. Three attempts, then it gives up and leaves the stage where it is, so a
+-- later login finishes the job instead of looping forever.
+local function SafeReload(stage)
+	store()
+	P.stage = stage
+	P.reloads = (P.reloads or 0) + 1
+	if P.reloads > 4 then
+		msg("|cffff6666too many reloads, stopping.|r Finish with /dusk probe report.")
+		P.autorun = nil
+		return
+	end
+	local tries = 0
+	local function go()
+		tries = tries + 1
+		if InCombatLockdown and InCombatLockdown() and tries < 30 then
+			C_Timer.After(2, go)
+			return
+		end
+		msg("reloading, unattended.")
+		ReloadUI()
+	end
+	go()
+end
+
+local function Unattended()
+	store()
+	if not P.autorun then return end
+
+	if P.stage == nil then
+		-- The ambience check is skipped here: the timed sequence below answers
+		-- the same question with an instrument better than a yes/no prompt.
+		RunAll({ ambience_musicoff = true })
+		C_Timer.After(20, function() SafeReload("audio") end)
+
+	elseif P.stage == "audio" then
+		-- savedvars and mute_reload already answered themselves on the way up.
+		RunAudioSequence(function() SafeReload("flush") end)
+
+	elseif P.stage == "flush" then
+		P.stage = "done"
+		P.autorun = nil
+		P.finishedAt = time and time() or 0
+		msg("|cff66ff66probe complete.|r Results are in DuskfallDB.probe.")
+		-- One more reload, purely to write that last line to disk.
+		C_Timer.After(2, function()
+			P.reloads = 0
+			SafeReload("done")
+		end)
+	end
 end
 
 local function Report()
@@ -382,4 +503,13 @@ boot:SetScript("OnEvent", function(self, _, name)
 	if type(DuskfallDB) ~= "table" or type(DuskfallDB.probe) ~= "table" then return end
 	try("savedvars", CheckSavedVarsOnLoad)
 	try("mute_reload", CheckMutePersistenceOnLoad)
+end)
+
+-- Unattended mode waits for the world, because sound needs it.
+local auto = CreateFrame("Frame")
+auto:RegisterEvent("PLAYER_ENTERING_WORLD")
+auto:SetScript("OnEvent", function()
+	if type(DuskfallDB) ~= "table" or type(DuskfallDB.probe) ~= "table" then return end
+	if not DuskfallDB.probe.autorun then return end
+	C_Timer.After(5, function() try("unattended", Unattended) end)
 end)

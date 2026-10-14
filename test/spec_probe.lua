@@ -245,3 +245,137 @@ it("warns that it leaves the rain muted on purpose", function()
 	ok(#w.mock.printedMatching("rain muted") > 0, "and said so")
 	ok(#w.mock.printedMatching("reload") > 0, "with the way to clear it")
 end)
+
+--------------------------------------------------------------------------------
+-- Unattended mode. The point of these is that nobody is watching: a probe that
+-- loops, reloads in combat, or leaves the music off has done real damage to a
+-- session nobody was looking at.
+--------------------------------------------------------------------------------
+
+-- The autorun flag is written into SavedVariables on disk before the client
+-- starts, so a world that models it starts with the flag already present.
+local function armed(opts)
+	opts = opts or {}
+	local w = H.world({ loaded = false, inCombat = opts.inCombat,
+	                    cvars = opts.cvars, muteAffectsOwnPlayback = true })
+	w.env.DuskfallDB = opts.db or { probe = { autorun = true, results = {}, order = {} } }
+	w:load()
+	return w
+end
+
+-- Carry the saved table into a new world, the way a real reload does.
+local function cycle(w, opts)
+	opts = opts or {}
+	local carried = w:db()
+	local w2 = H.world({ loaded = false, inCombat = opts.inCombat,
+	                     cvars = opts.cvars, muteAffectsOwnPlayback = true })
+	w2.env.DuskfallDB = carried
+	w2:load()
+	return w2
+end
+
+it("does nothing unattended unless the flag is on disk", function()
+	local w = H.world()
+	w:advance(60)
+	eq(w.mock.reloads, 0, "an ordinary login must never reload itself")
+	eq(w:db().probe, nil, "and must not write probe state")
+end)
+
+it("runs itself, reloads itself, and stops", function()
+	local w = armed()
+	w:advance(60)
+	eq(w.mock.reloads, 1, "first reload requested")
+	eq(w:db().probe.stage, "audio", "stage after the sync checks")
+	ok(#w:db().probe.order >= 5, "checks recorded before reloading")
+
+	local w2 = cycle(w)
+	w2:advance(60)
+	eq(w2:db().probe.stage, "flush", "stage after the audio sequence")
+
+	local w3 = cycle(w2)
+	w3:advance(60)
+	eq(w3:db().probe.stage, "done", "finished")
+	eq(w3:db().probe.autorun, nil, "and disarmed itself")
+
+	local w4 = cycle(w3)
+	w4:advance(120)
+	eq(w4.mock.reloads, 0, "a finished probe never reloads again")
+end)
+
+it("waits for combat to end before reloading", function()
+	-- ReloadUI during an encounter is the single most hostile thing an addon
+	-- can do unattended.
+	local w = armed({ inCombat = true })
+	w:advance(60)
+	eq(w.mock.reloads, 0, "no reload while in combat")
+	w.mock.inCombat = false
+	w:advance(10)
+	eq(w.mock.reloads, 1, "reloaded once combat ended")
+end)
+
+it("gives up rather than reloading forever", function()
+	-- A stage that never advances, because a check raised on every login, must
+	-- cost one wasted session and not an unbootable account.
+	local w = armed({ db = { probe = { autorun = true, results = {}, order = {},
+	                                   stage = "audio", reloads = 9 } } })
+	w:advance(90)
+	eq(w.mock.reloads, 0, "refused to reload again")
+	eq(w:db().probe.autorun, nil, "and disarmed itself")
+end)
+
+it("times three audio windows and marks which one is the control", function()
+	-- Lua cannot hear. These windows exist so the machine recording the speaker
+	-- output can be asked instead, and the control window is what makes a quiet
+	-- answer window mean anything.
+	local w = armed()
+	w:advance(60)
+	local w2 = cycle(w)
+	w2:advance(60)
+
+	local a = w2:db().probe.audio
+	ok(a ~= nil, "an audio plan was recorded")
+	local byName = {}
+	for _, win in ipairs(a.windows) do byName[win.name] = win end
+
+	ok(byName.baseline ~= nil, "a silence baseline")
+	eq(byName.baseline.file, nil, "which plays nothing")
+
+	eq(byName.control_master.channel, "Master", "control channel")
+	eq(byName.control_master.music, "1", "control runs with music on")
+
+	eq(byName.ambience_nomusic.channel, "Ambience", "the question's channel")
+	eq(byName.ambience_nomusic.music, "0", "with music off, which is the whole question")
+
+	for name, win in pairs(byName) do
+		ok(type(win.t0) == "number", name .. " has a start timestamp")
+		ok(type(win.t1) == "number", name .. " has an end timestamp")
+		ok(win.t1 >= win.t0, name .. " ends after it starts")
+	end
+	ok(byName.control_master.t1 <= byName.ambience_nomusic.t0,
+		"the control must finish before the question begins")
+end)
+
+it("puts the music setting back even though nobody is watching", function()
+	local w = armed({ cvars = { Sound_EnableMusic = "1" } })
+	w:advance(60)
+	local w2 = cycle(w, { cvars = { Sound_EnableMusic = "1" } })
+	w2:advance(60)
+	eq(w2.env.GetCVar("Sound_EnableMusic"), "1", "restored after the sequence")
+end)
+
+it("leaves no sound playing when it finishes unattended", function()
+	local w = armed()
+	w:advance(60)
+	local w2 = cycle(w)
+	w2:advance(90)
+	-- Only the sequence's own handles. Counting every live handle would count
+	-- the addon's rain bed, which is supposed to still be running.
+	local checked = 0
+	for _, win in ipairs(w2:db().probe.audio.windows) do
+		if win.handle then
+			eq(w2.mock.handles[win.handle], nil, win.name .. " was stopped")
+			checked = checked + 1
+		end
+	end
+	eq(checked, 2, "both playing windows were checked")
+end)

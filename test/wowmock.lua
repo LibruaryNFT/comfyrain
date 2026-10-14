@@ -247,6 +247,8 @@ function M.reset(opts)
 	-- and the addon appears to leak audio it has in fact finished with. Lengths
 	-- are the spec's to supply: the mock has no way to measure a file it does
 	-- not have, and inventing a default would be a fabricated number.
+	M.reloads = 0
+	M.inCombat = opts.inCombat or false
 	M.soundLengths = opts.soundLengths or {}
 	M.defaultSoundLength = opts.defaultSoundLength
 
@@ -395,6 +397,12 @@ function M.install(env)
 		return math.floor(s.gameHour), math.floor(s.gameMinute or 0)
 	end
 	env.GetServerTime = function() return math.floor(M.epoch) end
+
+	-- ReloadUI is recorded, not performed. A spec that wants the other side of
+	-- a reload builds a new world and carries DuskfallDB across, which is what
+	-- the client actually does and is the only way to test the write-read cycle.
+	env.ReloadUI = function() M.reloads = M.reloads + 1 end
+	env.InCombatLockdown = function() return M.inCombat end
 
 	env.C_Timer = {
 		After = function(delay, fn)
