@@ -512,6 +512,102 @@ It does **not** change the next nine days. Calibration expires with the beta cli
 Bank the finding, take the `volumeOverride` simplification when the audio ladder is next
 touched, and revisit the product shape after launch — not before the calibration session.
 
+## Round 3 research, 2026-10-14: the sequencing primitive is not what we thought
+
+Report 1 against `dr-prompt-name-and-scope.md`. It confirmed the name and attacked the audio
+plan, which is the right way round. Its two audio corrections were checked against the
+binary before being believed; one was partly wrong and the engineering consequence survives
+either way.
+
+### What the binary says, re-probed 2026-10-14 (control `PLAYER_LOGIN` = 1 hit)
+
+| String | Hits | Offset | Meaning |
+|---|---|---|---|
+| `SOUNDKIT_FINISHED` | 1 | 81230320 | **The finish signal is an event, not a Lua callback** |
+| `uiSoundSubType` / `forceNoDuplicates` / `runFinishCallback` / `overridePriority` / `volumeOverride` | 1 each | 81780880 to 81780968 | A contiguous field block, immediately before the two usage strings below |
+| `Usage: local success, soundHandle = C_Sound.PlaySound(params)` | 1 | 81781216 | Takes a **params table** on this build |
+| `Usage: local success, soundHandle = C_Sound.PlaySoundWithOptions(params)` | 1 | 81781280 | Same |
+| `Usage: StopSound(soundHandleID, [optional: fadeout time in ms])` | 1 | - | **The crossfade primitive, confirmed** |
+| `Usage: PlaySoundFile("soundFile" or soundFileID, optional["SFX","Music","Ambience" or "Master"])` | 1 | - | No volume argument, which is why `volumeOverride` matters |
+| `Usage: MuteSoundFile("soundFile" or fileDataID)` | 1 | - | Takes a FileDataID |
+
+Two things change. The 2026-10-12 note that `volumeOverride` and `runFinishCallback` are
+"adjacency, not a declared struct" is **superseded**: they sit in a field-name block four
+strings long that ends at the `PlaySound(params)` usage line, and `forceNoDuplicates` is a
+known param of the same call. `overridePriority` is a field we had not recorded. And the
+report's claim that `runFinishCallback` belongs to a positional `PlaySound(soundKitID, ...)`
+is **wrong for this build** - there is no such usage string; `C_Sound.PlaySound` takes
+params here too.
+
+**The substance of its correction stands anyway, and it is the part that matters.**
+`runFinishCallback` does not call anything. It arms the `SOUNDKIT_FINISHED` event, and
+whether that event fires for FileDataID playback is still unknown. So:
+
+**Decision: the sequencer is timer-driven.** Store each file's measured duration, schedule
+the next with `C_Timer`, and crossfade with `StopSound(handle, fadeoutTime)` on the outgoing
+handle. `SOUNDKIT_FINISHED` becomes an optional accuracy improvement if the client test
+proves it fires for files, never the mechanism. This is also what the mock already models,
+so no spec changes.
+
+### The second correction, unverifiable here and more dangerous
+
+Warcraft Wiki says `MuteSoundFile` "works on all internal game sounds, addon sounds and
+sounds played manually by PlaySoundFile()", and that mutes **do not survive a client
+restart**. If true, the "mute Blizzard's rain, play our own" plan silences our own playback
+of the same FileDataID, and every mute must be reapplied on `PLAYER_LOGIN`. Cannot be
+checked from strings. **Goes on the client test list.**
+
+### The three tests that must happen before 21 October
+
+The client is at `~/Games/battlenet/pfx/drive_c/Program Files (x86)/World of Warcraft/_classic_beta_/WowB.exe`.
+
+1. `/dump C_Sound` and `/api C_Sound` - the real field names of the params table.
+2. Play a FileDataID with `runFinishCallback` set, register `SOUNDKIT_FINISHED`, see whether
+   it fires.
+3. `MuteSoundFile(id)` then `PlaySoundFile(id)` - does our own playback survive the mute.
+
+### Discovery: the launch date is not the event we thought it was
+
+The Forever addon market opened during beta, not on 4 November. Observed 2026-10-14:
+GearQuest 445,258 downloads, Spoken 114,238, ClassicUI Forever 101,990, Overlord Forever
+66,887, Forever Guide 60,164, and **5,173 Forever-flavour projects already listed**.
+
+**The Spoken benchmark is deflated.** It is not Forever-only (flavours Forever, Classic and
+Classic TBC), it absorbed Voiceover Redux and ZoneLore so it inherited their users, several
+voice-pack meta-packages list it as a dependency, and about 20 releases in 25 days means
+existing users re-download. Its real lesson is mechanism, not velocity: daily downloads went
+from ~6.5k to 9.9k to 13.8k immediately after Team Overpowered published a video on
+11 October framed as **immersion**. That is the channel this product fits.
+
+**Schedule consequence:** submit the project as `Gloaming` on **27 October**, the day name
+reservation opens, so it clears moderation before launch. Ship 4 November. The window that
+sets the ceiling is days 7 to 30, while creators are making "Forever addons you need" lists.
+
+### The name survives
+
+No WoW addon, no WoWInterface addon, no GitHub WoW repo called Gloaming. The collisions
+found are a USPTO bedding mark (class 24), a cosmetics mark, an Android DND tool, a Google
+Play generative-sunsets app, three Steam titles, an Irish band on Real World Records, a
+Radiohead subtitle and an Australian TV series. **None is in the channel that matters.** Do
+not file a trademark: USD 350 per class buys nothing for a free addon.
+
+One real weakness: every dictionary tags *gloaming* as literary or poetic, it is pronounced
+"GLOH-ming", and heard once in voice chat it is spelled *glowing* - which on CurseForge
+lands on cursor-glow addons. Mitigations, cheap, do them during the rename: register
+`/gloaming` as an alias alongside `/gloam` and `/rain`, and caption the first screenshot
+**"Gloaming (GLOH-ming)"**.
+
+### Open items this round added
+
+- The report could not reproduce the CurseForge search check; its fetcher dropped the query
+  string and returned the unfiltered browse page. The 2026-10-13 browser result stands, but
+  **re-run it in a browser and screenshot it next to `?search=CozyFire` as the control**
+  before the folder name is committed.
+- The `AlwaysRainDB` migration has a dependency nobody had noticed: **the old SavedVariables
+  file only loads if an addon declares it.** Ship a stub `AlwaysRain` folder that declares
+  `AlwaysRainDB`, and list it in Gloaming's `## OptionalDeps` so it loads first. Unverified,
+  test it on the client before 21 October.
+
 ## The name: Gloaming
 
 **Revised 2026-10-13, second pass. `Cozy Azeroth` is dead; see the section below it for why.**
@@ -522,7 +618,7 @@ a roadmap containing snow, fog, ash and time-of-day.
 |---|---|
 | Folder (**irreversible**) | `Gloaming` |
 | TOC `## Title` | `Gloaming` |
-| CurseForge title | `Gloaming: Weather, Ambience and Time of Day` |
+| CurseForge title | `Gloaming: Rain, Weather and Cozy Ambience` |
 | Slash | `/gloam`, with `/rain` kept as a permanent alias |
 | SavedVariables | `GloamingDB`, migrating from `AlwaysRainDB` on first load |
 
@@ -549,9 +645,16 @@ and `/gloam gloom 0.5` reads badly. Rename that subcommand to `/gloam dim` durin
 pass, keeping `gloom` as a hidden alias.
 
 Residual risk, stated rather than hidden: **Gloaming Alloy is a Midnight-expansion
-reagent.** If *Gloaming* becomes a prominent retail-expansion term, general web search for
-the word could crowd later. It does not affect CurseForge addon search, which is the channel
-that matters, and a reagent is not a zone name. Accepted.
+reagent.** Corrected 2026-10-14: this is not a future risk, Midnight has shipped and the
+reagent was added in 12.0.0, so *Gloaming* is **already** the dominant WoW meaning of the
+word in general web search. It still does not affect CurseForge addon search, which is the
+channel that matters, and the term lives on price trackers rather than on destination pages
+(TSM US avg 1,311 sold/day, 14 Oct 2026). Accepted, with the timing restated honestly.
+
+The title changed on 2026-10-14 from "Weather, Ambience and Time of Day" to **"Rain,
+Weather and Cozy Ambience"**. Nobody searches for time of day; "rain" is the literal product
+today, "weather" is the category word every competitor is named with, and "cozy" has
+existing CurseForge supply. The folder and TOC title are unchanged.
 
 **Only the folder name is expensive to change** — renaming it orphans every user's
 SavedVariables, because the file is named after the folder. The displayed title, the
