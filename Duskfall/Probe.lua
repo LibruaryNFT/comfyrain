@@ -531,6 +531,108 @@ end
 -- Entry point. Duskfall.lua calls this if the file is installed.
 --------------------------------------------------------------------------------
 
+--------------------------------------------------------------------------------
+-- The screenshot sweep.
+--
+-- "Go and look at /dusk snow in daylight and at night" is the one Phase 1 item
+-- that reads like it needs a human, and it does not. Screenshot() is callable
+-- from Lua, the files land in the Screenshots folder with the client's own
+-- timestamps, and a manifest written next to them in SavedVariables says which
+-- state each one was. Nobody has to describe a picture in words.
+--
+-- Positive control first, same as everywhere else in this file: one shot is
+-- taken with the weather OFF. If that file never appears, Screenshot() is
+-- blocked on this build and every later "nothing wrong with the snow" would be
+-- an artifact of an empty folder rather than an observation.
+--------------------------------------------------------------------------------
+
+local SHOTS = {
+	{ "control-off",          { "off" } },
+	{ "rain-normal-day",      { "rain", "normal", "time 12" } },
+	{ "rain-monsoon-day",     { "monsoon" } },
+	{ "snow-normal-day",      { "snow", "normal" } },
+	{ "snow-heavy-day",       { "heavy" } },
+	{ "snow-blizzard-day",    { "blizzard" } },
+	{ "snow-blizzard-dusk",   { "time 19" } },
+	{ "snow-blizzard-night",  { "time 23" } },
+	{ "rain-monsoon-night",   { "rain", "monsoon" } },
+	{ "rain-normal-noon",     { "normal", "time off" } },
+}
+
+local function RunShots(done)
+	store()
+	if type(Screenshot) ~= "function" then
+		record("screenshots", "no", "Screenshot() does not exist on this build")
+		if done then done() end
+		return
+	end
+
+	-- Settings are restored at the end. A probe that silently leaves the
+	-- player's client reconfigured is a bug with a clipboard.
+	local before = {
+		format  = GetCVar("screenshotFormat"),
+		quality = GetCVar("screenshotQuality"),
+		db      = {},
+	}
+	local liveDB = DuskfallAPI and DuskfallAPI.DB and DuskfallAPI.DB()
+	if liveDB then
+		for _, k in ipairs({ "enabled", "weather", "intensity", "timeMode", "timeFixed" }) do
+			before.db[k] = liveDB[k]
+		end
+	end
+	pcall(SetCVar, "screenshotFormat", "jpeg")
+	pcall(SetCVar, "screenshotQuality", "10")
+
+	P.shots = { startedAt = time and time() or 0, order = {}, taken = {} }
+	msg(string.format("taking %d screenshots, about %d seconds. Leave the camera alone.",
+		#SHOTS, #SHOTS * 5))
+
+	local at = 0
+	for i, shot in ipairs(SHOTS) do
+		local name, commands = shot[1], shot[2]
+		at = at + 1.0
+		C_Timer.After(at, function()
+			pcall(function()
+				for _, c in ipairs(commands) do
+					if DuskfallAPI and DuskfallAPI.Command then DuskfallAPI.Command(c) end
+				end
+			end)
+		end)
+		-- 3.5s between the command and the shutter: the overlay cross-fades and
+		-- the time-of-day grade lerps, so a shot taken immediately photographs
+		-- the transition rather than the state being asked about.
+		at = at + 3.5
+		C_Timer.After(at, function()
+			P.shots.order[#P.shots.order + 1] = name
+			P.shots.taken[name] = {
+				index = i,
+				at = (date and date("%Y-%m-%d %H:%M:%S")) or tostring(time and time() or 0),
+			}
+			pcall(Screenshot)
+		end)
+		at = at + 0.5
+	end
+
+	C_Timer.After(at + 2, function()
+		pcall(function()
+			-- Only put back what was actually there. Inventing "jpeg" for a
+			-- client that had no value set is a change, not a restore.
+			if before.format then pcall(SetCVar, "screenshotFormat", before.format) end
+			if before.quality then pcall(SetCVar, "screenshotQuality", before.quality) end
+			if liveDB then
+				for k, v in pairs(before.db) do liveDB[k] = v end
+				if DuskfallAPI and DuskfallAPI.Command then DuskfallAPI.Command("") end
+			end
+			record("screenshots", "ask",
+				string.format("%d shots requested, manifest in DuskfallDB.probe.shots. " ..
+					"The control is index 1, weather off - if that file is missing, " ..
+					"Screenshot() is blocked and the rest prove nothing.", #SHOTS))
+			store()
+		end)
+		if done then done() end
+	end)
+end
+
 function Duskfall_Probe(arg)
 	arg = (arg or ""):lower()
 	local sub, rest = arg:match("^(%S*)%s*(.-)$")
@@ -548,12 +650,17 @@ function Duskfall_Probe(arg)
 		record(id, heard and "yes" or "no",
 			(r and r.detail or "") .. " |cffffffff[player heard it: " .. tostring(heard) .. "]|r")
 		P.pendingEars = nil
+	elseif sub == "shots" then
+		RunShots(function()
+			msg("shots done. |cffffd100/reload|r to write the manifest to disk.")
+		end)
 	elseif sub == "wipe" then
 		DuskfallDB.probe = nil
 		P = nil
 		msg("probe results wiped.")
 	else
 		msg("|cffffd100/dusk probe|r, |cffffd100/dusk probe report|r, " ..
+		    "|cffffd100/dusk probe shots|r, " ..
 		    "|cffffd100/dusk probe heard yes|no|r, |cffffd100/dusk probe wipe|r")
 	end
 end

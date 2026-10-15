@@ -250,6 +250,10 @@ function M.reset(opts)
 		Sound_EnableMusic = "1",
 		Sound_EnableAmbience = "1",
 		Sound_EnableSFX = "1",
+		-- The client ships defaults for these, so a spec about restoring them
+		-- has to start from a value rather than from nil.
+		screenshotFormat = "jpeg",
+		screenshotQuality = "7",
 	}
 	for k, v in pairs(opts.cvars or {}) do M.cvars[k] = tostring(v) end
 
@@ -282,6 +286,8 @@ function M.reset(opts)
 	-- probe discovers it by trying each candidate. Specs set this to whichever
 	-- name they want the client to be pretending to accept.
 	M.soundParamsKey         = pick(opts.soundParamsKey, "soundKitID")
+	M.screenshotBlocked      = pick(opts.screenshotBlocked, false)
+	M.screenshots = {}
 	M.soundKits = {}
 	for _, id in ipairs(opts.soundKits or { 567 }) do M.soundKits[id] = true end
 
@@ -570,6 +576,21 @@ function M.install(env)
 	env.GetCVar = function(name) return M.cvars[name] end
 	env.SetCVar = function(name, value) M.cvars[name] = tostring(value) return true end
 	env.GetCVarBool = function(name) return M.cvars[name] == "1" end
+	-- Screenshot() writes a file and returns nothing, so the only thing a test
+	-- can see is that it was called and what the world looked like at the time.
+	-- Set screenshotBlocked to reproduce a client that refuses.
+	env.Screenshot = nil
+	if not M.screenshotBlocked then
+	env.Screenshot = function()
+		M.screenshots[#M.screenshots + 1] = {
+			weather   = env.DuskfallDB and env.DuskfallDB.weather,
+			intensity = env.DuskfallDB and env.DuskfallDB.intensity,
+			enabled   = env.DuskfallDB and env.DuskfallDB.enabled,
+			timeMode  = env.DuskfallDB and env.DuskfallDB.timeMode,
+			timeFixed = env.DuskfallDB and env.DuskfallDB.timeFixed,
+		}
+	end
+	end
 
 	-- Sound. Every call is logged with the channel, because which channel a bed
 	-- lands on decides whether a player who muted the music hears it at all, and

@@ -406,3 +406,58 @@ it("refuses to answer the finish question when no key is accepted", function()
 	eq(w:db().probe.results.finish_event.verdict, "unknown",
 		"so the finish event is unknown, not no")
 end)
+
+it("photographs every weather state instead of asking somebody to describe one", function()
+	-- "Eyeball /dusk snow in daylight and at night" was the last Phase 1 item
+	-- that looked like it needed a person. Screenshot() is callable from Lua,
+	-- so the only human left in the loop is the one who looks at the files.
+	local w = H.world()
+	w:slash("probe shots")
+	w:advance(90)
+
+	local shots = w.mock.screenshots
+	eq(#shots, 10, "one file per state in the sweep")
+	eq(w:db().probe.shots.order[1], "control-off", "the control is taken first")
+	eq(shots[1].enabled, false, "and it really is the weather turned off")
+
+	-- The manifest is the whole point: the files are timestamps on disk and
+	-- carry no record of what they are pictures of.
+	eq(#w:db().probe.shots.order, 10, "every shot is named in the manifest")
+	eq(w:db().probe.shots.taken["snow-blizzard-night"].index, 8, "in sweep order")
+end)
+
+it("photographs the state it claims to, not the fade into it", function()
+	-- The overlay cross-fades and the time grade lerps. A shot taken on the
+	-- same frame as the command is a picture of the transition, which is the
+	-- one thing nobody needs to see.
+	local w = H.world()
+	w:slash("probe shots")
+	w:advance(90)
+	local by = {}
+	for i, name in ipairs(w:db().probe.shots.order) do by[name] = w.mock.screenshots[i] end
+
+	eq(by["snow-blizzard-day"].weather, "snow", "blizzard shot is snow")
+	eq(by["snow-blizzard-day"].intensity, "blizzard", "and actually blizzard")
+	eq(by["snow-blizzard-night"].timeFixed, 23, "the night shot is held at 23:00")
+	eq(by["rain-monsoon-night"].weather, "rain", "and the sweep got back to rain")
+end)
+
+it("puts the client back the way it found it", function()
+	local w = H.world()
+	w:slash("snow")
+	w:slash("heavy")
+	local fmt = w.mock.cvars.screenshotFormat
+	w:slash("probe shots")
+	w:advance(90)
+	eq(w:db().weather, "snow", "the weather it was on is restored")
+	eq(w:db().intensity, "heavy", "including the intensity")
+	eq(w.mock.cvars.screenshotFormat, fmt, "and the screenshot format it changed")
+end)
+
+it("says so rather than lying when the client will not take a screenshot", function()
+	local w = H.world({ screenshotBlocked = true })
+	w:slash("probe shots")
+	w:advance(90)
+	eq(w:db().probe.results.screenshots.verdict, "no", "recorded as no, with a reason")
+	eq(#w.mock.errors, 0, "and nothing was thrown at the client")
+end)
