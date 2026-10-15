@@ -69,10 +69,10 @@ local WEATHER = {
 		fallbackOneShot = MEDIA .. "thunder.ogg",
 		fallbackBed = { file = MEDIA .. "rain.ogg", len = 24.0 },
 		presets = {
-			light   = { mist = 0.05, far = 0.40, near = 0.35, density = 1.35, speed = 0.80, gloom = 0.10, bed = { id = 538983, len = 20.0 } },
-			normal  = { mist = 0.10, far = 0.70, near = 0.65, density = 1.00, speed = 1.00, gloom = 0.20, bed = { id = 538981, len = 30.0 } },
-			heavy   = { mist = 0.17, far = 0.95, near = 0.90, density = 0.78, speed = 1.25, gloom = 0.32, bed = { id = 538982, len = 25.0 } },
-			monsoon = { mist = 0.26, far = 1.00, near = 1.00, density = 0.58, speed = 1.60, gloom = 0.45, bed = { id = 538982, len = 25.0 } },
+			light   = { mist = 0.05, far = 0.40, near = 0.35, density = 1.35, speed = 0.80, gloom = 0.18, bed = { id = 538983, len = 20.0 } },
+			normal  = { mist = 0.10, far = 0.70, near = 0.65, density = 1.00, speed = 1.00, gloom = 0.38, bed = { id = 538981, len = 30.0 } },
+			heavy   = { mist = 0.17, far = 0.95, near = 0.90, density = 0.78, speed = 1.25, gloom = 0.52, bed = { id = 538982, len = 25.0 } },
+			monsoon = { mist = 0.26, far = 1.00, near = 1.00, density = 0.58, speed = 1.60, gloom = 0.64, bed = { id = 538982, len = 25.0 } },
 		},
 	},
 	snow = {
@@ -88,17 +88,17 @@ local WEATHER = {
 		-- then the other over several seconds. Without it this is just slow rain.
 		sway    = 0.22,
 		swayRate = 0.055,       -- Hz; one full drift every ~18 s
-		tint    = { 0.72, 0.78, 0.90 },
+		tint    = { 0.62, 0.69, 0.84 },
 		flash   = false,        -- a snowstorm has no lightning
 		oneShots = GUSTS,
 		fallbackOneShot = nil,  -- nothing bundled; a missing gust costs nothing
 		fallbackBed = { file = MEDIA .. "rain.ogg", len = 24.0 },
 		presets = {
-			light    = { mist = 0.06, far = 0.34, near = 0.30, density = 1.20, speed = 0.26, gloom = 0.06, bed = { id = 538985, len = 29.951 } },
-			normal   = { mist = 0.12, far = 0.62, near = 0.58, density = 1.00, speed = 0.36, gloom = 0.14, bed = { id = 538989, len = 50.0 } },
-			heavy    = { mist = 0.20, far = 0.88, near = 0.84, density = 0.82, speed = 0.52, gloom = 0.24, bed = { id = 538984, len = 40.0 } },
+			light    = { mist = 0.06, far = 0.34, near = 0.30, density = 1.20, speed = 0.26, gloom = 0.18, bed = { id = 538985, len = 29.951 } },
+			normal   = { mist = 0.12, far = 0.62, near = 0.58, density = 1.00, speed = 0.36, gloom = 0.40, bed = { id = 538989, len = 50.0 } },
+			heavy    = { mist = 0.20, far = 0.88, near = 0.84, density = 0.82, speed = 0.52, gloom = 0.56, bed = { id = 538984, len = 40.0 } },
 			blizzard = {
-				mist = 0.30, far = 1.00, near = 1.00, density = 0.66, speed = 1.70, gloom = 0.12,
+				mist = 0.30, far = 1.00, near = 1.00, density = 0.66, speed = 1.70, gloom = 0.55,
 				bed = { id = 538984, len = 40.0 },
 				-- The gale sheet replaces the near layer: wind-driven snow is
 				-- near-horizontal streaks, which is a different sprite, not a
@@ -108,7 +108,7 @@ local WEATHER = {
 				-- A whiteout brightens. Capped hard: this is the one effect in
 				-- the addon that can make the world harder to play in, and an
 				-- addon that hides a mob is an addon that gets uninstalled.
-				whiteout = 0.16,
+				whiteout = 0.05,
 				-- Wind over the snow bed. Two loops at once, which nothing else
 				-- in the addon needs, because this is what a blizzard sounds like.
 				wind = { id = 918050, len = 110.713 },
@@ -348,7 +348,7 @@ local function ApplyAlphas()
 	-- only way a 2D overlay can brighten anything. Capped well below the point
 	-- where it could hide a mob, because an addon that does that gets deleted.
 	if whiteout then
-		whiteout:SetAlpha(math.min((p.whiteout or 0) * s, 0.22))
+		whiteout:SetAlpha(math.min((p.whiteout or 0) * s, 0.10))
 	end
 end
 

@@ -50,11 +50,15 @@ end)
 it("tints gloom cool, and clamps it before it becomes a blackout", function()
 	local w = H.world()
 	w:slash("normal")
+	-- 0.38, raised from 0.20 on 2026-10-15 after a screenshot sweep measured
+	-- normal rain darkening the scene by 0.7% against a weather-off control.
+	-- The rain sheets add back almost exactly what the old gloom removed.
 	local c = w:gloom().colour
-	near(c[1], 0.91, 1e-6, "gloom red at normal")
-	near(c[2], 0.924, 1e-6, "gloom green at normal")
-	near(c[3], 0.956, 1e-6, "gloom blue at normal")
+	near(c[1], 1 - 0.38 * (1 - 0.55), 1e-6, "gloom red at normal")
+	near(c[2], 1 - 0.38 * (1 - 0.62), 1e-6, "gloom green at normal")
+	near(c[3], 1 - 0.38 * (1 - 0.78), 1e-6, "gloom blue at normal")
 	gt(c[3], c[1], "rain cools the scene as well as darkening it")
+	lt(c[1], 0.87, "and normal rain is actually visible as a darkening")
 
 	w:slash("monsoon")
 	w:slash("gloom 2")
