@@ -278,6 +278,10 @@ function M.reset(opts)
 	M.muteAffectsOwnPlayback = pick(opts.muteAffectsOwnPlayback, true)
 	M.finishEventForKits     = pick(opts.finishEventForKits, true)   -- documented since 7.0.3
 	M.finishEventForFiles    = pick(opts.finishEventForFiles, false) -- unknown, assumed hostile
+	-- Which params key carries the sound id. Unknown on the real client; the
+	-- probe discovers it by trying each candidate. Specs set this to whichever
+	-- name they want the client to be pretending to accept.
+	M.soundParamsKey         = pick(opts.soundParamsKey, "soundKitID")
 	M.soundKits = {}
 	for _, id in ipairs(opts.soundKits or { 567 }) do M.soundKits[id] = true end
 
@@ -623,8 +627,22 @@ function M.install(env)
 	-- real check is /dump C_Sound on a live client before 21 October.
 	env.C_Sound = {
 		PlaySound = function(kit, channel) return play(kit, channel, "kit") end,
-		PlaySoundWithOptions = function(id, params)
-			params = params or {}
+		-- ONE argument, a params table. Confirmed on build 70374, which answered
+		-- a two-argument call with its own usage string:
+		--   local success, soundHandle = C_Sound.PlaySoundWithOptions(params)
+		-- Which key inside it holds the sound id is still unknown, so the mock
+		-- accepts exactly one (M.soundParamsKey) and raises on anything else,
+		-- the way the client does. A spec that guesses wrong has to fail here.
+		PlaySoundWithOptions = function(params)
+			if type(params) ~= "table" then
+				error("bad argument #1 to '?' (Usage: local success, soundHandle = " ..
+					"C_Sound.PlaySoundWithOptions(params))", 2)
+			end
+			local id = params[M.soundParamsKey or "soundKitID"]
+			if id == nil then
+				error("bad argument #1 to '?' (Usage: local success, soundHandle = " ..
+					"C_Sound.PlaySoundWithOptions(params))", 2)
+			end
 			local ok, handle = play(id, params.channel, "options")
 			local entry = M.sounds[#M.sounds]
 			entry.volumeOverride = params.volumeOverride

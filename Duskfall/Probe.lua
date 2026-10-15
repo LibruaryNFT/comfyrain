@@ -16,7 +16,13 @@
 local ADDON = "Duskfall"
 local RAIN = 538981          -- Sound/ambience/Weather/RainMediumLoop.ogg
 local THUNDER = 838830       -- Sound/DOODAD/FX_TKIsle_MWThunderRumble01.ogg
-local WEATHER_M2 = 165487    -- a Blizzard weather effect model, for check 8
+-- SPELLS/Goblin_Weather_Machine_Rain.M2. The first attempt at this check asked
+-- for 165487, which the listfile says is GH_GeneralWalk_A_Day04.mp3 - an audio
+-- file, so the client was right to call it an invalid model. The control below
+-- is a model that is loaded during every login, so a build where IT fails to
+-- load is a build where the method is broken rather than the answer being no.
+local WEATHER_M2 = 166249
+local CONTROL_M2 = 165433    -- Particles/LoginFX.m2
 
 local function msg(text)
 	print("|cff7fb8ff" .. ADDON .. " probe|r: " .. text)
@@ -208,10 +214,56 @@ local function CheckFinishEvent()
 	listener:SetScript("OnEvent", function(_, _, handle) seen[handle] = true end)
 
 	local kit = (SOUNDKIT and SOUNDKIT.IG_MAINMENU_OPEN) or 567
-	local kitOk, kitHandle = C_Sound.PlaySoundWithOptions(kit,
-		{ channel = "SFX", runFinishCallback = true })
-	local fileOk, fileHandle = C_Sound.PlaySoundWithOptions(THUNDER,
-		{ channel = "Ambience", runFinishCallback = true })
+
+	-- The first attempt called this as PlaySoundWithOptions(id, options) and the
+	-- client answered with its own usage string:
+	--   local success, soundHandle = C_Sound.PlaySoundWithOptions(params)
+	-- So it takes ONE table and the sound id lives inside it. Which key holds
+	-- the id is not documented anywhere we can read, so rather than guess once
+	-- and record another "unknown", every plausible shape is tried and the
+	-- client's own error for each is written down. One run returns the schema.
+	local shapes = {
+		{ name = "soundKitID",   build = function(id) return { soundKitID = id } end },
+		{ name = "soundKitId",   build = function(id) return { soundKitId = id } end },
+		{ name = "soundkitID",   build = function(id) return { soundkitID = id } end },
+		{ name = "soundFileID",  build = function(id) return { soundFileID = id } end },
+		{ name = "soundID",      build = function(id) return { soundID = id } end },
+		{ name = "id",           build = function(id) return { id = id } end },
+	}
+
+	local keyFor, notes = nil, {}
+	for _, shape in ipairs(shapes) do
+		local params = shape.build(kit)
+		params.channel = "SFX"
+		local callOk, a, b = pcall(C_Sound.PlaySoundWithOptions, params)
+		if callOk and a then
+			keyFor = shape.name
+			if b then pcall(StopSound, b) end
+			notes[#notes + 1] = shape.name .. "=accepted"
+			break
+		end
+		notes[#notes + 1] = shape.name .. "=" ..
+			(callOk and ("returned " .. tostring(a)) or tostring(a):gsub("^.*:%d+: ", ""))
+	end
+
+	if not keyFor then
+		record("sound_params", "no", table.concat(notes, "; "))
+		record("finish_event", "unknown",
+			"no accepted key for the sound id, so runFinishCallback was never reached")
+		return
+	end
+	record("sound_params", "yes", "the id key is " .. keyFor .. ". " .. table.concat(notes, "; "))
+
+	local function play(id, channel)
+		local params = { channel = channel, runFinishCallback = true }
+		params[keyFor] = id
+		local callOk, a, b = pcall(C_Sound.PlaySoundWithOptions, params)
+		if not callOk then return nil, tostring(a) end
+		return b, tostring(a)
+	end
+
+	local kitHandle, kitOk = play(kit, "SFX")
+	local fileHandle, fileOk = play(THUNDER, "Ambience")
 
 	C_Timer.After(15, function()
 		pcall(function()
@@ -273,7 +325,26 @@ local function CheckWeatherModel()
 		record("weather_model", "no", "Model frames have no SetModel on this build")
 		return
 	end
-	m:SetModel(WEATHER_M2)
+	-- Positive control first. SetModel RAISES on a bad file rather than
+	-- returning false, so without this a raise is indistinguishable from
+	-- "Model frames cannot host anything here".
+	local controlOk = pcall(m.SetModel, m, CONTROL_M2)
+	if not controlOk then
+		record("weather_model", "unknown",
+			string.format("control model %d would not load either, so the method is unproven",
+				CONTROL_M2))
+		m:Hide()
+		return
+	end
+
+	local ok, err = pcall(m.SetModel, m, WEATHER_M2)
+	if not ok then
+		record("weather_model", "no",
+			string.format("control %d loaded, weather %d raised: %s",
+				CONTROL_M2, WEATHER_M2, tostring(err)))
+		m:Hide()
+		return
+	end
 	local got = m.GetModelFileID and m:GetModelFileID() or nil
 	record("weather_model", got and "yes" or "unknown",
 		string.format("asked for %d, GetModelFileID=%s (a loaded model is not a visible one)",

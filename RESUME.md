@@ -863,6 +863,45 @@ be recovered, and no amount of agent time substitutes for it.
 | 3 — launch | Agent tags, the author posts | 4 Nov |
 | 4 — after | Agent | never |
 
+### Probe results, build 70374, 2026-10-14
+
+Read off `DuskfallDB.probe` on disk, not transcribed from chat. **Build is 70374, not the
+70338 the earlier notes assumed.**
+
+| Check | Verdict | What it means |
+|---|---|---|
+| `savedvars` | **yes** | token `1792022831-8399` survived a reload. Both launch blockers are unblocked |
+| `ambience_musicoff` | **yes** | `willPlay=true` with `Sound_EnableMusic` forced to 0, **and the player heard it**. The entire ambience-led product thesis holds |
+| `settings_panel` | **yes** | category ID 23, `RegisterAddOnCategory=true`. `AddSearchTags` still raises, as expected |
+| `c_sound` | **yes** | `GetSoundScaledVolume, IsPlaying, PlayItemSound, PlaySound, PlaySoundWithOptions, PlayVocalErrorSound` |
+| `mute_reload` | **yes** | the mute survived the reload, so it must be reapplied deliberately, not assumed gone |
+| `geometry` | **yes** | 2127x1080, aspect 1.969, `UIParent` scale 0.711, interface 16001 |
+| `mute_self` | **yes, and it is bad news** | control `willPlay=true`, muted `willPlay=nil`. `MuteSoundFile` silences OUR playback of the same file too |
+| `weather_model` | unknown | asked for FDID 165487, which the listfile says is `GH_GeneralWalk_A_Day04.mp3`. An audio file. The client was right to refuse it |
+| `finish_event` | unknown | called as `(id, options)`; the client replied `Usage: local success, soundHandle = C_Sound.PlaySoundWithOptions(params)`. One table, id inside it |
+
+**Three consequences.**
+
+1. **The suppression plan needs rebuilding.** `mute_self` was supposed to let us silence
+   Blizzard's rain and play our own bed over the silence. It does not: the mute is keyed on
+   the file, not the caller, so muting `RainMediumLoop.ogg` mutes us playing it too. The bed
+   has to use a *different* file from the one being suppressed. Cheap to fix, but it would
+   have been found by a user, not by us, if this check had not run.
+2. **`settings_panel` passing retires Phase 1 item 7 as a blocker and adds a feature.** The
+   self-drawn window already removed the dependency; this says we can *also* register in the
+   client's own Settings list as a second way in, which is where a non-power-user looks first.
+3. **`finish_event` is reachable, and the error handed us the signature.** It takes one
+   `params` table. The key holding the sound id is still unknown, so the probe no longer
+   guesses: it tries `soundKitID`, `soundKitId`, `soundkitID`, `soundFileID`, `soundID` and
+   `id`, records the client's reply to each, and only then asks the finish question. A run
+   that accepts none records `sound_params = no` and `finish_event = unknown`, because a call
+   that never reached the client cannot retire a Phase 4 feature.
+
+Both unknowns are fixed in `Probe.lua` and **need one more run before 21 October**:
+`/dusk probe` then `/reload`. `weather_model` now loads `Particles/LoginFX.m2` (165433) as a
+positive control before asking for `Goblin_Weather_Machine_Rain.M2` (166249), because
+`SetModel` raises rather than returning false and a raise without a control is not an answer.
+
 ### Phase 1 — by 21 October. 8 days. Client-gated and unrepeatable.
 
 In priority order, because there may not be time for all seven. Mechanics are in
@@ -929,7 +968,7 @@ one-star comment on 5 November.
 ### Phase 2 — 21 October to 4 November. 14 days. No client exists.
 
 **The mock API is DONE, 2026-10-13.** It was the first thing and it is built: `test/`, run
-with `lua test/run.lua`, **116 specs, all passing**, under Lua 5.1.5 built to `~/.local`
+with `lua test/run.lua`, **120 specs, all passing**, under Lua 5.1.5 built to `~/.local`
 because that is WoW's own interpreter version and a 5.2+ construct that would fail in the
 client has to fail here too. `test/README.md` has the detail. What it covers: boot and
 SavedVariables defaults, the time-of-day grade, the three rain layers and their geometry,

@@ -379,3 +379,30 @@ it("leaves no sound playing when it finishes unattended", function()
 	end
 	eq(checked, 2, "both playing windows were checked")
 end)
+
+it("finds which params key carries the sound id, instead of guessing once", function()
+	-- Build 70374 answered a two-argument call with its own usage string, so
+	-- PlaySoundWithOptions takes one table and the id lives inside it under a
+	-- name nothing we can read documents. Guessing once and recording "unknown"
+	-- wastes the only week the client exists, so the probe tries every
+	-- candidate and writes down what the client said to each.
+	local w = H.world({ soundParamsKey = "soundFileID", soundKits = { 567 } })
+	w:slash("probe")
+	local r = w:db().probe.results.sound_params
+	ok(r, "the schema is recorded as its own result")
+	eq(r.verdict, "yes", "a key was accepted")
+	contains(r.detail, "soundFileID", "and it names the one that worked")
+	contains(r.detail, "soundKitID", "while keeping what the rejected ones said")
+end)
+
+it("refuses to answer the finish question when no key is accepted", function()
+	-- The failure that matters: if none of the candidate shapes work, the
+	-- sequencing question was never actually asked. Reporting "no finish event"
+	-- there would retire a Phase 4 feature on the strength of a call that never
+	-- reached the client.
+	local w = H.world({ soundParamsKey = "somethingElseEntirely" })
+	w:slash("probe")
+	eq(w:db().probe.results.sound_params.verdict, "no", "no shape was accepted")
+	eq(w:db().probe.results.finish_event.verdict, "unknown",
+		"so the finish event is unknown, not no")
+end)

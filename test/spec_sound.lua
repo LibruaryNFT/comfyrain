@@ -179,8 +179,8 @@ it("arms SOUNDKIT_FINISHED for a SoundKit, which is the positive control", funct
 	f:RegisterEvent("SOUNDKIT_FINISHED")
 	f:SetScript("OnEvent", function(_, _, h) heard[#heard + 1] = h end)
 
-	local ok_, handle = w.env.C_Sound.PlaySoundWithOptions(567, {
-		channel = "Master", length = 5.0, runFinishCallback = true,
+	local ok_, handle = w.env.C_Sound.PlaySoundWithOptions({
+		soundKitID = 567, channel = "Master", length = 5.0, runFinishCallback = true,
 	})
 	eq(ok_, true, "played")
 	eq(w.env.C_Sound.IsPlaying(handle), true, "handle is live")
@@ -201,8 +201,8 @@ it("cannot assume SOUNDKIT_FINISHED fires for a FileDataID", function()
 	f:RegisterEvent("SOUNDKIT_FINISHED")
 	f:SetScript("OnEvent", function() heard = heard + 1 end)
 
-	local ok_ = w.env.C_Sound.PlaySoundWithOptions(538981, {
-		channel = "Ambience", volumeOverride = 0.4,
+	local ok_ = w.env.C_Sound.PlaySoundWithOptions({
+		soundKitID = 538981, channel = "Ambience", volumeOverride = 0.4,
 		length = 5.0, runFinishCallback = true,
 	})
 	eq(ok_, true, "played")
@@ -213,8 +213,9 @@ end)
 it("records volumeOverride and runFinishCallback as the params struct fields they are", function()
 	local w = H.world()
 	local before = #w.mock.sounds
-	w.env.C_Sound.PlaySoundWithOptions(538981, {
-		channel = "Ambience", volumeOverride = 0.4, runFinishCallback = true,
+	w.env.C_Sound.PlaySoundWithOptions({
+		soundKitID = 538981, channel = "Ambience", volumeOverride = 0.4,
+		runFinishCallback = true,
 	})
 	local s = w.mock.sounds[before + 1]
 	eq(s.channel, "Ambience", "channel")
