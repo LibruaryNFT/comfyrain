@@ -1145,16 +1145,20 @@ boot:SetScript("OnEvent", function(_, event, arg1)
 			end
 		end
 
-		msg("loaded. |cffffd100/duskfall|r opens the settings window, " ..
-		    "|cffffd100/dusk|r toggles the weather.")
-
-		-- Onboarding, once ever. Someone who installs an atmosphere addon is
-		-- not a power user and will not go looking for a command list.
+		-- Onboarding, once ever, and SILENT after that. An addon that greets the
+		-- player at every login is a line of chat spam 300 times a year in
+		-- exchange for information they needed once. The window itself is the
+		-- introduction; the printed line is only there for the case where the
+		-- window could not be built.
 		if not db.seenUI then
 			db.seenUI = true
-			if Duskfall_Panel then
-				C_Timer.After(4, function() pcall(Duskfall_Panel, "show") end)
-			end
+			-- Delayed, because the window should land after the world has
+			-- drawn rather than on top of a loading screen.
+			C_Timer.After(4, function()
+				if Duskfall_Panel and pcall(Duskfall_Panel, "show") then return end
+				msg("loaded. |cffffd100/duskfall|r opens the settings window, " ..
+				    "|cffffd100/dusk|r toggles the weather.")
+			end)
 		end
 
 	elseif event == "CINEMATIC_START" or event == "PLAY_MOVIE" then

@@ -56,6 +56,31 @@ it("shows itself once on a first install and never again", function()
 	ok(not (two:panel() and two:panel():IsShown()), "second login is left alone")
 end)
 
+it("says nothing at all on an ordinary login", function()
+	-- An addon that greets you every login spends 300 lines of chat a year on
+	-- information you needed once. The window is the introduction; after it has
+	-- been seen, loading is silent.
+	local w = H.world()
+	w:advance(10)
+	local saved = w:db()
+
+	local two = H.world({ loaded = false })
+	two.env.DuskfallDB = saved
+	two:load()
+	local before = #two.mock.printed
+	two:advance(10)
+	eq(#two.mock.printed - before, 0, "nothing was printed on the second login")
+end)
+
+it("falls back to printing the commands when there is no window to show", function()
+	-- The greeting is not decoration, it is the only onboarding a player gets
+	-- if UI.lua is missing. It has to survive that case and only that case.
+	local w = H.world({ ui = false })
+	w:advance(10)
+	local joined = table.concat(w.mock.printed, " | ")
+	contains(joined, "/duskfall", "a first install with no window still learns the command")
+end)
+
 it("drives the addon through the commands, not around them", function()
 	local w = H.world()
 	w:open()
