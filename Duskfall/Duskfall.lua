@@ -71,8 +71,8 @@ local WEATHER = {
 		presets = {
 			light   = { mist = 0.05, far = 0.40, near = 0.35, density = 1.35, speed = 0.80, gloom = 0.18, bed = { id = 538983, len = 20.0 } },
 			normal  = { mist = 0.10, far = 0.70, near = 0.65, density = 1.00, speed = 1.00, gloom = 0.38, bed = { id = 538981, len = 30.0 } },
-			heavy   = { mist = 0.17, far = 0.95, near = 0.90, density = 0.78, speed = 1.25, gloom = 0.52, bed = { id = 538982, len = 25.0 } },
-			monsoon = { mist = 0.26, far = 1.00, near = 1.00, density = 0.58, speed = 1.60, gloom = 0.64, bed = { id = 538982, len = 25.0 } },
+			heavy   = { mist = 0.17, far = 0.95, near = 0.90, density = 0.78, speed = 1.25, gloom = 0.75, bed = { id = 538982, len = 25.0 } },
+			monsoon = { mist = 0.26, far = 1.00, near = 1.00, density = 0.58, speed = 1.60, gloom = 0.95, bed = { id = 538982, len = 25.0 } },
 		},
 	},
 	snow = {
@@ -96,7 +96,7 @@ local WEATHER = {
 		presets = {
 			light    = { mist = 0.06, far = 0.34, near = 0.30, density = 1.20, speed = 0.26, gloom = 0.18, bed = { id = 538985, len = 29.951 } },
 			normal   = { mist = 0.12, far = 0.62, near = 0.58, density = 1.00, speed = 0.36, gloom = 0.40, bed = { id = 538989, len = 50.0 } },
-			heavy    = { mist = 0.20, far = 0.88, near = 0.84, density = 0.82, speed = 0.52, gloom = 0.56, bed = { id = 538984, len = 40.0 } },
+			heavy    = { mist = 0.20, far = 0.88, near = 0.84, density = 0.82, speed = 0.52, gloom = 0.78, bed = { id = 538984, len = 40.0 } },
 			blizzard = {
 				mist = 0.30, far = 1.00, near = 1.00, density = 0.66, speed = 1.70, gloom = 0.55,
 				bed = { id = 538984, len = 40.0 },
@@ -338,7 +338,7 @@ local function ApplyAlphas()
 
 	-- MOD multiplies the frame by this colour, so strength lives in the colour
 	-- itself: 1 is untouched, and we lerp towards the tint from there.
-	local g = math.min(p.gloom * db.gloom, 0.75)
+	local g = math.min(p.gloom * db.gloom, 1.0)
 	gloom:SetColorTexture(
 		1 - g * (1 - w.tint[1]),
 		1 - g * (1 - w.tint[2]),

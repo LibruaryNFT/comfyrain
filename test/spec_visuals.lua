@@ -62,9 +62,30 @@ it("tints gloom cool, and clamps it before it becomes a blackout", function()
 
 	w:slash("monsoon")
 	w:slash("gloom 2")
-	-- 0.45 * 2 would be 0.9; the clamp holds it at 0.75 so the screen never
-	-- goes past a storm into unplayable.
-	near(w:gloom().colour[1], 1 - 0.75 * (1 - 0.55), 1e-6, "gloom is clamped at 0.75")
+	-- 0.95 * 2 would be 1.9; the clamp holds it at 1.0, which multiplies the
+	-- world by the tint itself and is dark without being a blackout.
+	near(w:gloom().colour[1], 1 - 1.0 * (1 - 0.55), 1e-6, "gloom is clamped at 1.0")
+end)
+
+it("darkens monotonically as the weather gets worse", function()
+	-- A screenshot sweep on 2026-10-15 found heavy snow BRIGHTER than normal
+	-- snow and monsoon only 1.3 points darker than normal rain: the sheets are
+	-- light-coloured, so raising their alpha adds back more than the old gloom
+	-- curve removed. Gloom now has to outrun the sheets, and this is the test
+	-- that says so without needing the client.
+	for _, weather in ipairs({ "rain", "snow" }) do
+		local w = H.world()
+		w:slash(weather)
+		local last = nil
+		for _, step in ipairs({ "light", "normal", "heavy" }) do
+			w:slash(step)
+			local red = w:gloom().colour[1]
+			if last then
+				lt(red, last, weather .. " at " .. step .. " is darker than the step below")
+			end
+			last = red
+		end
+	end
 end)
 
 it("derives horizontal tiling from the real aspect ratio", function()
