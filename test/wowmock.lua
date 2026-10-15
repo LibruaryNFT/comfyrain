@@ -60,7 +60,22 @@ local Region = {}
 Region.__index = Region
 
 function Region:SetAllPoints(target) self._anchor = target or self._parent end
-function Region:SetPoint() end
+-- Anchoring is not simulated, but the offsets are kept: a button placed on a
+-- radius the addon worked out itself can only be checked by reading them back.
+-- SetPoint has five legal shapes and the offsets are always the trailing pair
+-- of numbers, so they are picked out positionally rather than by signature.
+function Region:SetPoint(point, ...)
+	local nums = {}
+	for i = 1, select("#", ...) do
+		local v = select(i, ...)
+		if type(v) == "number" then nums[#nums + 1] = v end
+	end
+	self._lastPoint = {
+		point = point,
+		x = nums[#nums - 1] or 0,
+		y = nums[#nums] or 0,
+	}
+end
 function Region:ClearAllPoints() self._anchor = nil end
 
 function Region:SetSize(w, h) self._width, self._height = w, h end

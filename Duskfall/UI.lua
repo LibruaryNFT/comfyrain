@@ -550,10 +550,13 @@ local function MinimapPlace()
 	local db = DuskfallAPI and DuskfallAPI.DB()
 	if not minimap or not db then return end
 	local a = math.rad(db.minimapAngle or 196)
-	-- 80 is the radius every addon uses for the default round minimap. Square
-	-- minimaps exist on some UI replacements and will put this slightly off the
-	-- edge; that is cosmetic and not worth probing MinimapShape for.
-	minimap:SetPoint("CENTER", Minimap, "CENTER", 80 * math.cos(a), 80 * math.sin(a))
+	-- Measured, not the usual hard-coded 80. That constant is the radius of a
+	-- 140px default minimap, and anyone who has scaled theirs up gets the button
+	-- parked inside the map over the terrain. Read the real width every time it
+	-- is placed, so a resize mid-session lands correctly on the next drag.
+	local w = Minimap and Minimap.GetWidth and Minimap:GetWidth() or 0
+	local r = (w and w > 0) and (w / 2 + 10) or 80
+	minimap:SetPoint("CENTER", Minimap, "CENTER", r * math.cos(a), r * math.sin(a))
 end
 
 local function BuildMinimap()
@@ -612,6 +615,12 @@ local function BuildMinimap()
 		GameTooltip:Show()
 	end)
 	minimap:SetScript("OnLeave", function() GameTooltip:Hide() end)
+
+	-- A player who drags the minimap's resize handle would otherwise leave the
+	-- button orbiting the old radius until the next login.
+	if Minimap.HookScript then
+		pcall(Minimap.HookScript, Minimap, "OnSizeChanged", function() MinimapPlace() end)
+	end
 
 	MinimapPlace()
 end

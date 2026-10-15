@@ -312,6 +312,37 @@ it("puts a button on the minimap, because a slash command nobody knows is not a 
 	ok(b:IsShown(), "and back")
 end)
 
+it("orbits the minimap the player actually has, not a 140px one", function()
+	-- Reported from a live client 2026-10-15: on an enlarged minimap the button
+	-- sat inside the map, on top of the terrain, because the radius was the
+	-- hard-coded 80 that every addon copies from a default-sized minimap.
+	local function radiusOn(size)
+		local w = H.world()
+		w.env.Minimap:SetSize(size, size)
+		w.env.Duskfall_Minimap()
+		local b = w.env.DuskfallMinimapButton
+		local p = b._lastPoint
+		return math.sqrt(p.x * p.x + p.y * p.y), w
+	end
+
+	local small = radiusOn(140)
+	near(small, 80, 0.5, "a default minimap still gets the familiar 80")
+
+	local big = radiusOn(240)
+	ok(big > 240 / 2, "a doubled minimap puts the button outside its edge")
+
+	-- And it keeps up if the minimap is resized after the button was built.
+	local w = H.world()
+	w.env.Duskfall_Minimap()
+	local b = w.env.DuskfallMinimapButton
+	w.env.Minimap:SetSize(300, 300)
+	local resize = w.env.Minimap:GetScript("OnSizeChanged")
+	ok(resize, "the button watches the minimap for a resize")
+	resize(w.env.Minimap, 300, 300)
+	local p = b._lastPoint
+	ok(math.sqrt(p.x * p.x + p.y * p.y) > 150, "and moved back out to the new edge")
+end)
+
 it("remembers where the minimap button was dragged to", function()
 	local w = H.world()
 	w.env.Duskfall_Minimap()
