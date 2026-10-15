@@ -294,6 +294,7 @@ local function Refresh()
 	controls.alpha:Set(db.scale)
 	controls.speed:Set(db.speed)
 	controls.dim:Set(db.gloom)
+	controls.gust:Set(db.gust)
 
 	controls.sound:SetOn(db.sound)
 	controls.thunder:SetOn(db.thunder)
@@ -407,6 +408,11 @@ local function Build()
 		function(v) Run(string.format("dim %.2f", v)) end))
 	Teach(controls.dim.slider, "How dark it gets", "/dusk dim 0.5",
 		"0 leaves the world's own light alone.")
+
+	controls.gust = add(Slider(panel, "How much it gusts", 0, 2, 0.05, "%.2f",
+		function(v) Run(string.format("gust %.2f", v)) end))
+	Teach(controls.gust.slider, "How much it gusts", "/dusk gust 0.5",
+		"0 is dead calm: one fixed rate, no wind.")
 
 	add(Heading(panel, "Sound"), { gap = 4 })
 

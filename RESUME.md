@@ -986,7 +986,7 @@ one-star comment on 5 November.
 ### Phase 2 — 21 October to 4 November. 14 days. No client exists.
 
 **The mock API is DONE, 2026-10-13.** It was the first thing and it is built: `test/`, run
-with `lua test/run.lua`, **120 specs, all passing**, under Lua 5.1.5 built to `~/.local`
+with `lua test/run.lua`, **127 specs, all passing**, under Lua 5.1.5 built to `~/.local`
 because that is WoW's own interpreter version and a 5.2+ construct that would fail in the
 client has to fail here too. `test/README.md` has the detail. What it covers: boot and
 SavedVariables defaults, the time-of-day grade, the three rain layers and their geometry,
@@ -1080,6 +1080,36 @@ with the GIF. This is the one day the addon can be found without search ranking.
 **~11 November:** tag `v1.1.0` with the panel and preset sharing, after a week of running
 them on a live client. A second release a week after launch is also a second appearance in
 the addon managers' "recently updated" lists, which is not nothing.
+
+### Visual entropy — DONE 2026-10-15 (commit 2b9839e)
+
+A constant scroll rate is the biggest tell that this is a 2D overlay: the eye finds the
+loop inside a minute. Shipped: ONE Ornstein-Uhlenbeck gust signal (tau 7s, sigma 0.35)
+with per-layer one-pole followers (near 6.0, far 2.2, mist 1.0 /s), driving scroll rate,
+layer alpha, slant shear and gloom, scaled 0.45x at light to 2.0x at monsoon. `/dusk gust
+0..2` plus a panel slider; 0 is exactly calm.
+
+Design confirmed by two independent LLM consults (Gemini 2.5 Pro, GPT-OSS-120B), saved to
+`~/code/eco/operator/reviews/review-{gemini,groq}-2026-10-15.md`. Both said: share one
+signal rather than per-layer noise, lag the layers, keep modulation above a ~2% perceptual
+floor, and do NOT modulate tiling density (reads as the camera zooming).
+
+**Audio entropy is the matching item and is NOT done** — see Phase 4 item 1. Both consults
+converged on co-prime bed lengths (e.g. 23s + 31s, which do not re-align for 713s) layered
+2-3 deep, 10-15% crossfade overlap, per-play `volumeOverride` jitter of 5-8%, and
+log-normal rather than Poisson intervals for one-shots so gusts cluster. 4+ simultaneous
+beds turns to mush.
+
+### Screenshot sweeps are a within-sweep ranking, not a calibration
+
+Three sweeps on build 70374. Rain at normal measured -19.3% against its control at 12:13
+and -7.6% at 12:23 with an **unchanged preset**, because the control scene itself differed
+(mean luminance 69.9 vs 64.4). Only the ordering inside one sweep carries information.
+Never compare a percentage across two sweeps, and never tune a preset off one.
+
+The near layer is **ADD blend**, so a white snow sheet literally adds luminance and the
+gloom underneath has to pay for it before it can darken anything. That is why snow kept
+coming out brighter than no weather at all.
 
 ### Phase 4 — after launch, in this order.
 

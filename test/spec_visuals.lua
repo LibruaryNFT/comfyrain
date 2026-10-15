@@ -202,3 +202,78 @@ it("keeps raining indoors when the player asks it to", function()
 	w:advance(2.0)
 	eq(w:overlay():IsShown(), true, "overlay with indoors on")
 end)
+
+it("gusts: one shared signal, lagged per layer, and switchable off", function()
+	-- The single biggest tell that this is a scrolling texture is that it
+	-- scrolls at exactly one rate forever. These assert the three properties
+	-- that make the gust read as wind rather than as a rendering fault.
+	local function rates(w, frames)
+		local l, out, last = w:layers(), {}, nil
+		for _ = 1, frames do
+			w:advance(1 / 30, 1 / 30)
+			local y = l.far.texCoord[3]
+			if last then
+				local d = last - y
+				if d < -0.5 then d = d + 1 elseif d > 0.5 then d = d - 1 end
+				out[#out + 1] = d
+			end
+			last = y
+		end
+		return out
+	end
+	local function spread(t)
+		local lo, hi = math.huge, -math.huge
+		for _, v in ipairs(t) do lo = math.min(lo, v); hi = math.max(hi, v) end
+		return hi - lo
+	end
+
+	-- 1. Dead calm is still available, and it is exactly calm.
+	local calm = H.world()
+	calm:slash("gust 0")
+	lt(spread(rates(calm, 120)), 1e-9, "gust 0 scrolls at one unvarying rate")
+
+	-- 2. With gusts on, the rate actually moves, and by enough to see. The
+	--    consults put the perceptual floor near 2% of the base rate.
+	local windy = H.world()
+	local r = rates(windy, 400)
+	local mean = 0
+	for _, v in ipairs(r) do mean = mean + v end
+	mean = mean / #r
+	gt(spread(r) / mean, 0.02, "the scroll rate varies by more than the visible floor")
+
+	-- 3. A monsoon gusts harder than a drizzle. Same seed both times, so the
+	--    only difference is the intensity scale.
+	local function spreadAt(step)
+		math.randomseed(1234)
+		local x = H.world()
+		x:slash(step)
+		local v = rates(x, 400)
+		local m = 0
+		for _, q in ipairs(v) do m = m + q end
+		return spread(v) / (m / #v)
+	end
+	gt(spreadAt("monsoon"), spreadAt("light"), "a monsoon gusts harder than light rain")
+end)
+
+it("gusts do not drag a layer past its own limits", function()
+	-- Alpha is clamped into 0..1 and gloom into 0..1 every frame. A gust that
+	-- pushed either out of range would throw in the client, where the spec
+	-- suite is not watching.
+	local w = H.world()
+	w:slash("monsoon")
+	w:slash("gust 2")
+	w:slash("dim 2")
+	for _ = 1, 600 do w:advance(1 / 30, 1 / 30) end
+	local l = w:layers()
+	for _, key in ipairs({ "mist", "far", "near" }) do
+		local a = l[key]:GetAlpha()
+		gt(a, -1e-9, key .. " alpha is not negative")
+		lt(a, 1 + 1e-9, key .. " alpha is not above one")
+	end
+	for i = 1, 3 do
+		local c = w:gloom().colour[i]
+		gt(c, -1e-9, "gloom channel " .. i .. " is not negative")
+		lt(c, 1 + 1e-9, "gloom channel " .. i .. " is not above one")
+	end
+	eq(#w.mock.errors, 0, "errors")
+end)

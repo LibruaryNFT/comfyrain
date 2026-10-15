@@ -94,8 +94,8 @@ local WEATHER = {
 		fallbackOneShot = nil,  -- nothing bundled; a missing gust costs nothing
 		fallbackBed = { file = MEDIA .. "rain.ogg", len = 24.0 },
 		presets = {
-			light    = { mist = 0.06, far = 0.34, near = 0.30, density = 1.20, speed = 0.26, gloom = 0.18, bed = { id = 538985, len = 29.951 } },
-			normal   = { mist = 0.12, far = 0.62, near = 0.58, density = 1.00, speed = 0.36, gloom = 0.40, bed = { id = 538989, len = 50.0 } },
+			light    = { mist = 0.06, far = 0.34, near = 0.30, density = 1.20, speed = 0.26, gloom = 0.26, bed = { id = 538985, len = 29.951 } },
+			normal   = { mist = 0.12, far = 0.62, near = 0.58, density = 1.00, speed = 0.36, gloom = 0.54, bed = { id = 538989, len = 50.0 } },
 			heavy    = { mist = 0.20, far = 0.88, near = 0.84, density = 0.82, speed = 0.52, gloom = 0.78, bed = { id = 538984, len = 40.0 } },
 			blizzard = {
 				mist = 0.30, far = 1.00, near = 1.00, density = 0.66, speed = 1.70, gloom = 0.55,
@@ -124,6 +124,42 @@ local WEATHER = {
 -- (no camera-yaw API is exposed) over roughly the horizontal field of view.
 local FOV_H = math.pi * 0.52
 local PARALLAX = { mist = 0.25, far = 0.9, near = 1.0 }
+
+-- Gusts. A constant scroll rate reads as a conveyor belt inside a minute: the
+-- eye finds the loop and the illusion is over. Real weather arrives in gusts,
+-- and - this is the part that matters - the whole sky gusts at once. So this is
+-- ONE signal shared by every parameter, not independent jitter per layer.
+-- Independent noise reads as broken rendering; a shared signal reads as wind.
+--
+-- The signal is an Ornstein-Uhlenbeck process: a random walk with a spring
+-- pulling it back towards zero. Summed sines repeat and a plain random walk can
+-- wander off and leave the storm permanently stuck at double speed; this does
+-- neither. GUST_TAU is roughly how long it takes to forget where it was, and
+-- the stationary spread is GUST_SIGMA * sqrt(GUST_TAU / 2), about 0.65 here.
+local GUST_TAU   = 7.0
+local GUST_SIGMA = 0.35
+local GUST_CLAMP = 1.6
+
+-- Each layer follows the master with its own one-pole lag. A gust hits the near
+-- sheet first and the mist last, because the distant layer stands in for a
+-- larger body of air that takes longer to get moving. Units are 1/seconds, so
+-- mist is about a second behind. The lag is what sells it as depth rather than
+-- as three sheets being scaled by the same number.
+local GUST_FOLLOW = { near = 6.0, far = 2.2, mist = 1.0 }
+
+-- How much a gust is allowed to move each parameter, at normal intensity. Two
+-- LLM consults independently put the perceptual floor near 2% and said a 20-30%
+-- change in scroll rate is what actually reads as "a gust"; below those numbers
+-- the work is invisible and therefore wasted.
+local GUST_RATE_AMP  = 0.18
+local GUST_ALPHA_AMP = 0.10
+local GUST_SLANT_AMP = 0.14
+local GUST_GLOOM_AMP = 0.12
+
+-- Light drizzle does not gust; a monsoon does little else.
+local GUST_BY_INTENSITY = {
+	light = 0.45, normal = 1.0, heavy = 1.5, monsoon = 2.0, blizzard = 2.0,
+}
 
 -- Time of day. WoW's day/night runs on the realm's clock, so anyone playing far
 -- from their realm gets night at lunchtime. This grades the screen towards the
@@ -155,6 +191,7 @@ local DEFAULTS = {
 	scale     = 1.0,       -- multiplies every layer's alpha
 	speed     = 1.0,       -- multiplies fall speed
 	gloom     = 1.0,       -- multiplies the darkening; 0 disables it
+	gust      = 1.0,       -- multiplies how hard the wind gusts; 0 is dead calm
 	sound     = true,
 	thunder   = true,
 	indoors   = false,     -- draw it indoors too
@@ -187,6 +224,13 @@ local lightningTimer
 local appliedTextures
 local drift = 0
 local cinematic, indoorsNow, indoorsSince = false, false, nil
+-- The master gust and its three lagged followers. baseAlpha and baseGloom are
+-- what ApplyAlphas decided; the gust modulates around them every frame without
+-- destroying the setting, so changing a slider still lands where it should.
+local gust = 0
+local layerGust = { near = 0, far = 0, mist = 0 }
+local baseAlpha = { near = 0, far = 0, mist = 0 }
+local baseGloom = 0
 local fade, fadeTarget = 1, 1
 local indoorTicker
 
@@ -332,13 +376,17 @@ end
 local function ApplyAlphas()
 	ApplyTextures()
 	local w, p, s = W(), Preset(), db.scale
-	textures.mist:SetAlpha(math.min(p.mist * s, 0.6))
-	textures.far:SetAlpha(math.min(p.far * s, 1))
-	textures.near:SetAlpha(math.min(p.near * s, 1))
+	baseAlpha.mist = math.min(p.mist * s, 0.6)
+	baseAlpha.far  = math.min(p.far * s, 1)
+	baseAlpha.near = math.min(p.near * s, 1)
+	textures.mist:SetAlpha(baseAlpha.mist)
+	textures.far:SetAlpha(baseAlpha.far)
+	textures.near:SetAlpha(baseAlpha.near)
 
 	-- MOD multiplies the frame by this colour, so strength lives in the colour
 	-- itself: 1 is untouched, and we lerp towards the tint from there.
 	local g = math.min(p.gloom * db.gloom, 1.0)
+	baseGloom = g
 	gloom:SetColorTexture(
 		1 - g * (1 - w.tint[1]),
 		1 - g * (1 - w.tint[2]),
@@ -596,6 +644,37 @@ local function OnUpdate(self, elapsed)
 	local density = p.density
 	local slant = p.slant or weather.slant
 
+	-- Step the gust, then let each layer chase it at its own pace. The noise is
+	-- the sum of two uniforms rather than a real Gaussian: it is within a few
+	-- percent of normal, costs two calls, and nobody is ever going to plot it.
+	local gustAmp = (GUST_BY_INTENSITY[db.intensity] or 1) * db.gust
+	if gustAmp > 0 then
+		local n = (math.random() + math.random() - 1) * 1.732
+		gust = gust + (-gust / GUST_TAU) * elapsed + GUST_SIGMA * math.sqrt(elapsed) * n
+		if gust > GUST_CLAMP then gust = GUST_CLAMP
+		elseif gust < -GUST_CLAMP then gust = -GUST_CLAMP end
+		for key, k in pairs(GUST_FOLLOW) do
+			layerGust[key] = layerGust[key] + (gust - layerGust[key]) * math.min(1, elapsed * k)
+		end
+
+		-- Slant is the second most visible parameter after rate: a gust that
+		-- only changes speed looks like a framerate change, one that also
+		-- shears the fall looks like wind.
+		slant = slant + gust * GUST_SLANT_AMP * gustAmp
+
+		-- Gloom rides the mist follower, the slowest of the three, so the light
+		-- changes a beat after the rain does. Leading with the light would read
+		-- as a flicker; trailing reads as a cloud passing.
+		if baseGloom > 0 then
+			local g = baseGloom * (1 + layerGust.mist * GUST_GLOOM_AMP * gustAmp)
+			if g < 0 then g = 0 elseif g > 1 then g = 1 end
+			gloom:SetColorTexture(
+				1 - g * (1 - weather.tint[1]),
+				1 - g * (1 - weather.tint[2]),
+				1 - g * (1 - weather.tint[3]), 1)
+		end
+	end
+
 	-- Snow has almost no terminal velocity to resist a breeze, so the whole
 	-- field drifts one way and then back over several seconds. Rain's sway is
 	-- zero and this collapses to nothing; without it, snow is just slow rain.
@@ -610,7 +689,15 @@ local function OnUpdate(self, elapsed)
 		local tilesY = l.tilesY * (l.key == "mist" and 1 or density)
 		local tilesX = tilesY * aspect
 		local o = offsets[l.key]
-		local dy = l.speed * rate * elapsed
+		local lg = gustAmp > 0 and layerGust[l.key] or 0
+		-- Rate and density both move with the gust. Density is carried by alpha
+		-- rather than by tiling: changing tilesY mid-gust reads as the camera
+		-- zooming, which is the one artefact that gives the whole thing away.
+		local dy = l.speed * rate * (1 + lg * GUST_RATE_AMP * gustAmp) * elapsed
+		if lg ~= 0 then
+			local a = baseAlpha[l.key] * (1 + lg * GUST_ALPHA_AMP * gustAmp)
+			textures[l.key]:SetAlpha(a < 0 and 0 or (a > 1 and 1 or a))
+		end
 		-- The sampling window moves up the sheet so the image falls down the screen.
 		o.y = (o.y - dy) % 1
 		-- Slant drift, plus the camera swing scaled into this layer's tiling so
@@ -983,6 +1070,10 @@ local function HandleSlash(input, source)
 		local v = tonumber(arg)
 		if not v then msg("usage: /dusk dim 0.5  (0 turns the darkening off)") return end
 		db.gloom = math.max(0, math.min(2, v))
+	elseif cmd == "gust" or cmd == "wind" then
+		local v = tonumber(arg)
+		if not v then msg("usage: /dusk gust 0.5  (0 is dead calm)") return end
+		db.gust = math.max(0, math.min(2, v))
 	elseif cmd == "sound" then
 		db.sound = (arg ~= "off")
 	elseif cmd == "thunder" then

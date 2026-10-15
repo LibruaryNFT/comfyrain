@@ -145,9 +145,15 @@ it("drifts sideways in snow and does not in rain", function()
 		return minx, maxx
 	end
 
-	local rainMin, rainMax = horizontalTravel(H.world())
+	-- Gusts off for both. Since 2026-10-15 the wind shears the slant on every
+	-- weather, so a gusting rain would pass this test for the wrong reason and
+	-- a collapsed sway would hide inside the noise. This spec is about sway.
+	local rain = H.world()
+	rain:slash("gust 0")
+	local rainMin, rainMax = horizontalTravel(rain)
 	local snow = H.world()
 	snow:slash("snow")
+	snow:slash("gust 0")
 	local snowMin, snowMax = horizontalTravel(snow)
 
 	-- Rain's drift is one constant slant, so the per-frame step barely varies.
