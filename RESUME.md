@@ -877,8 +877,10 @@ Read off `DuskfallDB.probe` on disk, not transcribed from chat. **Build is 70374
 | `mute_reload` | **yes** | the mute survived the reload, so it must be reapplied deliberately, not assumed gone |
 | `geometry` | **yes** | 2127x1080, aspect 1.969, `UIParent` scale 0.711, interface 16001 |
 | `mute_self` | **yes, and it is bad news** | control `willPlay=true`, muted `willPlay=nil`. `MuteSoundFile` silences OUR playback of the same file too |
-| `weather_model` | unknown | asked for FDID 165487, which the listfile says is `GH_GeneralWalk_A_Day04.mp3`. An audio file. The client was right to refuse it |
-| `finish_event` | unknown | called as `(id, options)`; the client replied `Usage: local success, soundHandle = C_Sound.PlaySoundWithOptions(params)`. One table, id inside it |
+| `weather_model` | **yes** | 166249 loaded, `GetModelFileID=166249`. A loaded model is still not a visible one |
+| `sound_params` | **yes** | the id key is **`soundKitID`**, accepted first try once the call passed one table |
+| `finish_event` | **no** | SoundKit fired, FileDataID did **not** (`fileOk=nil`). Answered with its positive control, so this is a result, not a gap |
+| `screenshots` | **yes** | 10 shots, control included, so `Screenshot()` is not blocked and an empty folder would have meant something |
 
 **Three consequences.**
 
@@ -897,10 +899,26 @@ Read off `DuskfallDB.probe` on disk, not transcribed from chat. **Build is 70374
    that accepts none records `sound_params = no` and `finish_event = unknown`, because a call
    that never reached the client cannot retire a Phase 4 feature.
 
-Both unknowns are fixed in `Probe.lua` and **need one more run before 21 October**:
-`/dusk probe` then `/reload`. `weather_model` now loads `Particles/LoginFX.m2` (165433) as a
-positive control before asking for `Goblin_Weather_Machine_Rain.M2` (166249), because
-`SetModel` raises rather than returning false and a raise without a control is not an answer.
+**Re-run 2026-10-15 closed both unknowns, and one of them is a design decision.**
+
+`finish_event = no` is the expensive answer. `SOUNDKIT_FINISHED` fires for a SoundKit and does
+not fire for a FileDataID, and **every sound this addon owns is a FileDataID**. Phase 4's
+micro-sequencing engine therefore cannot be event-driven off `runFinishCallback`; it has to be
+a timer holding a measured clip length. That is already the design the mock assumes
+(`finishEventForFiles = false`, "unknown, assumed hostile"), so nothing built so far rests on
+the answer that did not come - but the Phase 4 entry that calls `runFinishCallback` "the whole
+sequencing engine" is now wrong and is corrected below.
+
+`weather_model = yes` means a Model frame will load `Goblin_Weather_Machine_Rain.M2`. It does
+NOT mean anything is visible: the check deliberately records that a loaded model is not a
+rendered one, and nothing has been seen on screen.
+
+**Still unanswered, and it needs a full client restart rather than a `/reload`:** which TOC
+suffix this client loads. `build/make_flavour_probe.py` writes a `DuskfallFlavour` folder with
+ten TOCs, each loading a different one-line Lua, so whichever line appears in
+`DuskfallFlavourDB` names the suffix. It was installed while the client was running and WoW
+only scans `Interface/AddOns` at launch, so it has not loaded yet. **Exit the client fully and
+relaunch; no command needed.**
 
 ### Phase 1 — by 21 October. 8 days. Client-gated and unrepeatable.
 
@@ -1065,10 +1083,13 @@ the addon managers' "recently updated" lists, which is not nothing.
 
 ### Phase 4 — after launch, in this order.
 
-1. **Micro-sequencing beds through `runFinishCallback`** instead of looping one file. All
-   three product reports independently named this as the one world-class feature, and it is
-   where fifteen years of commercial ambient audio converged (myNoise's Animate, Noisli's
-   oscillation). Gated on Phase 1 item 3.
+1. **Micro-sequencing beds**, instead of looping one file. All three product reports
+   independently named this as the one world-class feature, and it is where fifteen years of
+   commercial ambient audio converged (myNoise's Animate, Noisli's oscillation).
+   **Corrected 2026-10-15: it cannot be driven by `runFinishCallback`.** The live probe found
+   `SOUNDKIT_FINISHED` fires for a SoundKit and not for a FileDataID, and every sound we own
+   is a FileDataID. The sequencer is a `C_Timer` holding a measured clip length, which is what
+   the test harness has assumed from the start. No longer gated on anything.
 2. **Snow**, which is the same engine with a different sprite and a slower scroll with sine
    drift. First new weather type because it is nearly free once effects are data.
 3. **Music as an opt-in mode**, routed so a `Sound_EnableMusic = 0` user is unaffected.
