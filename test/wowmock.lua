@@ -198,8 +198,9 @@ function Frame:IsEventRegistered(event) return self._events[event] and true or f
 function Frame:SetFrameStrata(s) self.strata = s end
 function Frame:GetFrameStrata() return self.strata end
 function Frame:SetFrameLevel(l) self.level = l end
-function Frame:GetFrameLevel() return self.level end
+function Frame:GetFrameLevel() return self.level or 1 end
 function Frame:EnableMouse(v) self.mouseEnabled = v and true or false end
+function Frame:GetEffectiveScale() return self.scale or 1 end
 function Frame:SetMovable() end
 function Frame:RegisterForDrag() end
 function Frame:SetClampedToScreen() end
@@ -481,6 +482,16 @@ function M.install(env)
 	-- Escape-to-close is a list of frame NAMES, which is why the panel has to
 	-- have one. A spec can assert membership and that is the whole contract.
 	env.UISpecialFrames = {}
+
+	-- The minimap. Real enough to parent a button to and to compute a position
+	-- against: the addon reads GetCenter, GetEffectiveScale and GetFrameLevel
+	-- off it and nothing else.
+	env.Minimap = newFrame("Frame")
+	env.Minimap.GetCenter = function() return 1000, 700 end
+	env.Minimap:SetSize(140, 140)
+	-- Cursor position in screen pixels, which is what the real one returns.
+	M.cursor = { x = 1080, y = 700 }
+	env.GetCursorPosition = function() return M.cursor.x, M.cursor.y end
 
 	-- Tooltips are how a settings window teaches its own slash commands, so
 	-- what was put in one is recorded rather than thrown away.

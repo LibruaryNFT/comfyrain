@@ -64,12 +64,21 @@ it("plays the snow bed, and relooks it on the snow clip length", function()
 	eq(played[#played].file, SNOW_MEDIUM, "the medium snow loop at the default intensity")
 
 	-- SnowMedium is 50 s, not rain's 30. A loop timed on the wrong clip either
-	-- gaps or doubles, and 20 seconds of silence is the louder failure.
+	-- gaps or doubles, and 20 seconds of silence is the louder failure. Counted
+	-- on the primary file only: a quieter under-bed of a different length runs
+	-- beneath it on purpose, and it is allowed to reloop whenever it likes.
+	local function primary(from)
+		local out = 0
+		for i = from + 1, #w.mock.sounds do
+			if w.mock.sounds[i].file == SNOW_MEDIUM then out = out + 1 end
+		end
+		return out
+	end
 	local n = #w.mock.sounds
 	w:advance(45, 0.5)
-	eq(#playsOf(w.mock, n), 0, "nothing relooped before the clip could have ended")
+	eq(primary(n), 0, "nothing relooped before the clip could have ended")
 	w:advance(10, 0.5)
-	gt(#playsOf(w.mock, n), 0, "the bed relooped once the clip was ending")
+	gt(primary(n), 0, "the bed relooped once the clip was ending")
 end)
 
 it("layers wind under the snow in a blizzard, which nothing else does", function()

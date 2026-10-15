@@ -13,6 +13,16 @@ local ADDON = "Duskfall"
 local MEDIA = "Interface\\AddOns\\Duskfall\\"
 
 local BED_OVERLAP = 0.12      -- seconds of overlap when relooping the bed
+-- The seam is relaunched up to this much EARLIER than the minimum overlap, never
+-- later. A fixed interval turns the bed into a metronome: the same seam lands on
+-- the same second forever and the ear finds it within two or three passes. Only
+-- ever early, because overshooting would open a silent gap, which is worse than
+-- a seam. Overlap therefore ranges BED_OVERLAP to BED_OVERLAP + BED_JITTER.
+local BED_JITTER  = 0.8
+-- Per-launch gain wobble. volumeOverride is the only gain control this client
+-- exposes and it only applies at play time, so this is the whole dynamic range
+-- available to us. Both consults put a useful wobble at 5-8%.
+local BED_VOL_JITTER = 0.07
 
 -- Blizzard weather ambience, Sound/ambience/Weather/*. Durations measured from
 -- the shipped files; they are exact, so the loop never gaps or doubles.
@@ -34,6 +44,21 @@ local THUNDER = { 838830, 838832, 838834, 839725, 839727, 839729, 839731, 839733
 -- sound/ambience/zoneambience/FX_WindGust_OneShot_01-07.ogg. Snow's answer to
 -- thunder: a snowstorm has no lightning, it has gusts.
 local GUSTS = { 982361, 982363, 982365, 982367, 982369, 982371, 982373 }
+
+-- Every Blizzard ambience loop this addon knows about. Suppression works by
+-- muting the ones we are NOT currently using, which is the whole trick: the
+-- probe on build 70374 confirmed `MuteSoundFile` is keyed on the FILE and not
+-- on the caller, so muting the loop we ourselves play silences us too. Using a
+-- different file from the one being suppressed is the only way through, and
+-- these loops are close enough in character that swapping one for another
+-- costs the player nothing. It also confirmed the mute SURVIVES a reload, so
+-- every mute has to be undone explicitly; a crash mid-session is the one case
+-- this cannot cover, and `/dusk suppress off` repairs it.
+local AMBIENCE_LOOPS = {
+	538981, 538982, 538983,            -- rain: medium, heavy, light
+	538984, 538985, 538989,            -- snow: heavy, light, medium
+	918050,                            -- blizzard wind
+}
 
 local MIST_TEXTURE = 396498   -- Textures/WEATHER/WeatherMistGrainy01.blp
 local SNOWMIST_TEXTURE = 186229   -- Textures/WEATHER/SNOWMIST01.BLP
@@ -69,10 +94,10 @@ local WEATHER = {
 		fallbackOneShot = MEDIA .. "thunder.ogg",
 		fallbackBed = { file = MEDIA .. "rain.ogg", len = 24.0 },
 		presets = {
-			light   = { mist = 0.05, far = 0.40, near = 0.35, density = 1.35, speed = 0.80, gloom = 0.18, bed = { id = 538983, len = 20.0 } },
-			normal  = { mist = 0.10, far = 0.70, near = 0.65, density = 1.00, speed = 1.00, gloom = 0.38, bed = { id = 538981, len = 30.0 } },
-			heavy   = { mist = 0.17, far = 0.95, near = 0.90, density = 0.78, speed = 1.25, gloom = 0.75, bed = { id = 538982, len = 25.0 } },
-			monsoon = { mist = 0.26, far = 1.00, near = 1.00, density = 0.58, speed = 1.60, gloom = 0.95, bed = { id = 538982, len = 25.0 } },
+			light   = { mist = 0.05, far = 0.40, near = 0.35, density = 1.35, speed = 0.80, gloom = 0.18, bed = { id = 538983, len = 20.0 }, under = { id = 538981, len = 30.0, volume = 0.35 } },
+			normal  = { mist = 0.10, far = 0.70, near = 0.65, density = 1.00, speed = 1.00, gloom = 0.38, bed = { id = 538981, len = 30.0 }, under = { id = 538983, len = 20.0, volume = 0.40 } },
+			heavy   = { mist = 0.17, far = 0.95, near = 0.90, density = 0.78, speed = 1.25, gloom = 0.75, bed = { id = 538982, len = 25.0 }, under = { id = 538981, len = 30.0, volume = 0.45 } },
+			monsoon = { mist = 0.26, far = 1.00, near = 1.00, density = 0.58, speed = 1.60, gloom = 0.95, bed = { id = 538982, len = 25.0 }, under = { id = 538983, len = 20.0, volume = 0.55 } },
 		},
 	},
 	snow = {
@@ -94,12 +119,13 @@ local WEATHER = {
 		fallbackOneShot = nil,  -- nothing bundled; a missing gust costs nothing
 		fallbackBed = { file = MEDIA .. "rain.ogg", len = 24.0 },
 		presets = {
-			light    = { mist = 0.06, far = 0.34, near = 0.30, density = 1.20, speed = 0.26, gloom = 0.26, bed = { id = 538985, len = 29.951 } },
-			normal   = { mist = 0.12, far = 0.62, near = 0.58, density = 1.00, speed = 0.36, gloom = 0.54, bed = { id = 538989, len = 50.0 } },
-			heavy    = { mist = 0.20, far = 0.88, near = 0.84, density = 0.82, speed = 0.52, gloom = 0.78, bed = { id = 538984, len = 40.0 } },
+			light    = { mist = 0.06, far = 0.34, near = 0.30, density = 1.20, speed = 0.26, gloom = 0.26, bed = { id = 538985, len = 29.951 }, under = { id = 538989, len = 50.0, volume = 0.30 } },
+			normal   = { mist = 0.12, far = 0.62, near = 0.58, density = 1.00, speed = 0.36, gloom = 0.54, bed = { id = 538989, len = 50.0 }, under = { id = 538985, len = 29.951, volume = 0.35 } },
+			heavy    = { mist = 0.20, far = 0.88, near = 0.84, density = 0.82, speed = 0.52, gloom = 0.78, bed = { id = 538984, len = 40.0 }, under = { id = 538989, len = 50.0, volume = 0.40 } },
 			blizzard = {
 				mist = 0.30, far = 1.00, near = 1.00, density = 0.66, speed = 1.70, gloom = 0.55,
 				bed = { id = 538984, len = 40.0 },
+				under = { id = 538989, len = 50.0, volume = 0.35 },
 				-- The gale sheet replaces the near layer: wind-driven snow is
 				-- near-horizontal streaks, which is a different sprite, not a
 				-- faster scroll of the same one.
@@ -193,8 +219,12 @@ local DEFAULTS = {
 	gloom     = 1.0,       -- multiplies the darkening; 0 disables it
 	gust      = 1.0,       -- multiplies how hard the wind gusts; 0 is dead calm
 	sound     = true,
+	volume    = 1.0,       -- 0..1 over the weather bed only; 0 is silent
+	minimap   = true,      -- show the minimap button
+	minimapAngle = 196,    -- degrees around the minimap ring
+	suppress  = false,    -- mute the realm's own weather loop; see AMBIENCE_LOOPS
 	thunder   = true,
-	indoors   = false,     -- draw it indoors too
+	indoors   = "dim",     -- off | dim | on; see IndoorMode
 	channel   = "Ambience",
 	timeMode  = "off",     -- off | local | offset | fixed
 	timeOffset = 0,        -- hours from realm time, for "offset"
@@ -217,13 +247,17 @@ local textures, offsets = {}, {}
 local lastFacing, turnDelta, runSpeed = nil, 0, 0
 -- Two loop slots. A blizzard is a snow bed with a wind loop running under it,
 -- and one slot would mean choosing between them when the point is the mix.
-local bedSlot  = { handles = {} }
-local windSlot = { handles = {} }
+local bedSlot   = { handles = {} }
+local underSlot = { handles = {} }
+local windSlot  = { handles = {} }
 local bedFallback, loopedKey = false, nil
 local lightningTimer
 local appliedTextures
 local drift = 0
 local cinematic, indoorsNow, indoorsSince = false, false, nil
+-- Forward-declared: ApplyAlphas is defined above where these are, and a
+-- function body that names a local declared later resolves to a global.
+local IndoorMode, IndoorFactor
 -- The master gust and its three lagged followers. baseAlpha and baseGloom are
 -- what ApplyAlphas decided; the gust modulates around them every frame without
 -- destroying the setting, so changing a slider still lands where it should.
@@ -375,7 +409,7 @@ end
 
 local function ApplyAlphas()
 	ApplyTextures()
-	local w, p, s = W(), Preset(), db.scale
+	local w, p, s = W(), Preset(), db.scale * IndoorFactor()
 	baseAlpha.mist = math.min(p.mist * s, 0.6)
 	baseAlpha.far  = math.min(p.far * s, 1)
 	baseAlpha.near = math.min(p.near * s, 1)
@@ -385,7 +419,7 @@ local function ApplyAlphas()
 
 	-- MOD multiplies the frame by this colour, so strength lives in the colour
 	-- itself: 1 is untouched, and we lerp towards the tint from there.
-	local g = math.min(p.gloom * db.gloom, 1.0)
+	local g = math.min(p.gloom * db.gloom * IndoorFactor(), 1.0)
 	baseGloom = g
 	gloom:SetColorTexture(
 		1 - g * (1 - w.tint[1]),
@@ -572,9 +606,38 @@ end
 
 -- Rain is wanted right now: on, not in a cinematic, and either outdoors or
 -- the player has asked for it indoors too.
+-- Indoors has three settings, not two. "off" hides everything, "on" draws it
+-- at full strength, and "dim" - the default - keeps it running quietly. The
+-- middle one exists because the honest answer to "I went inside and the rain
+-- stopped dead" is that silence is wrong: you can hear rain from indoors.
+--
+-- What CANNOT be fixed: seeing the rain through a window. The overlay is one
+-- full-screen quad and the addon has no depth buffer, no camera matrix and no
+-- way to ask which pixels are sky, so there is nothing to mask it against.
+-- Drawing it only over the window is not a hard problem, it is an unavailable
+-- one. "dim" is the closest reachable thing: a faint wash over the whole view
+-- that reads as weather outside rather than as rain falling in the tavern.
+function IndoorMode()
+	local v = db.indoors
+	if v == true then return "on" end
+	if v == false or v == nil then return "dim" end
+	return v
+end
+
+-- How much of the effect survives being indoors.
+local INDOOR_SCALE = 0.25
+
+function IndoorFactor()
+	if not indoorsNow then return 1 end
+	local m = IndoorMode()
+	if m == "on" then return 1 end
+	if m == "off" then return 0 end
+	return INDOOR_SCALE
+end
+
 local function ShouldRain()
 	if not db.enabled or cinematic then return false end
-	if indoorsNow and not db.indoors then return false end
+	if indoorsNow and IndoorMode() == "off" then return false end
 	return true
 end
 
@@ -792,12 +855,63 @@ local function SlotStop(slot)
 	if slot.ticker then slot.ticker:Cancel() slot.ticker = nil end
 end
 
-local function SlotPlay(slot, file)
-	local ok, handle = PlaySoundFile(file, db.channel)
+-- volumeOverride is the only gain control this client exposes and it exists
+-- only at play time, so a clip's level is fixed the moment it starts. The probe
+-- on build 70374 confirmed `soundKitID` is the id key but tested it with a
+-- SoundKit; every id this addon owns is a FileDataID, so the options call may
+-- refuse them. It is wrapped and falls back to the plain call, which costs the
+-- volume wobble and nothing else.
+-- Resolved once and cached, and the LOOKUP is pcall'd, not just the call. A
+-- table whose __index raises is a shape this client can present, and reading a
+-- field off one throws before any pcall around the call itself would help. The
+-- bed must never be the thing that takes the addon down.
+local optionsPlay, optionsResolved
+local function OptionsPlay()
+	if not optionsResolved then
+		optionsResolved = true
+		local ok, fn = pcall(function() return C_Sound and C_Sound.PlaySoundWithOptions end)
+		if ok and type(fn) == "function" then optionsPlay = fn end
+	end
+	return optionsPlay
+end
+
+local function SlotPlay(slot, file, volume)
+	local ok, handle
+	local opts = volume and OptionsPlay()
+	if opts then
+		local called, a, b = pcall(opts, {
+			soundKitID = file, channel = db.channel, volumeOverride = volume })
+		if called and a then ok, handle = a, b end
+	end
+	if not ok then ok, handle = PlaySoundFile(file, db.channel) end
 	if not ok then return false end
 	slot.handles[#slot.handles + 1] = handle
 	while #slot.handles > 2 do table.remove(slot.handles, 1) end
 	return true
+end
+
+-- How long to wait before relaunching a clip of this length. See BED_JITTER.
+local function BedInterval(len)
+	return math.max(0.5, len - BED_OVERLAP - math.random() * BED_JITTER)
+end
+
+-- A gain for this launch: the layer's nominal level, the player's volume
+-- slider, and the per-launch wobble. volumeOverride is set once at play time
+-- and cannot be changed afterwards, so moving the slider only affects clips
+-- that start after it moves - StartBed is re-run on change to make it immediate.
+local function BedVolume(base)
+	local v = (base or 1) * (db.volume or 1) * IndoorFactor()
+	return math.max(0, v * (1 + (math.random() * 2 - 1) * BED_VOL_JITTER))
+end
+
+-- Re-arm a one-shot timer rather than running a fixed-period ticker, because
+-- the whole point is that the period is never twice the same.
+local function SlotLoop(slot, len, fn)
+	if slot.ticker then slot.ticker:Cancel() end
+	slot.ticker = C_Timer.NewTimer(BedInterval(len), function()
+		slot.ticker = nil
+		fn()
+	end)
 end
 
 local function CurrentBed()
@@ -809,49 +923,115 @@ end
 
 local function PlayBedClip()
 	if not ShouldRain() or not db.sound then return end
-	local file = CurrentBed()
-	if not SlotPlay(bedSlot, file) then
+	local file, len = CurrentBed()
+	if not SlotPlay(bedSlot, file, BedVolume(1)) then
 		if not bedFallback then
 			bedFallback = true
 			msg("the client would not play Blizzard's " .. W().label ..
 			    " loop; using the bundled one.")
 			return PlayBedClip()
 		end
+		return
 	end
+	SlotLoop(bedSlot, len, PlayBedClip)
 end
 
--- The blizzard's second loop. Nothing else in the addon has one, and nothing
+-- A second bed under the first, at a lower level and a DIFFERENT length. One
+-- loop is recognisable as a loop within two or three passes; two of unequal
+-- length only re-align on their common multiple, and because each relaunch is
+-- independently jittered they never truly re-align at all. This is the cheapest
+-- large win in the audio layer and both consults named it first.
+local function PlayUnderClip()
+	local u = Preset().under
+	if not u or not ShouldRain() or not db.sound or bedFallback then return end
+	SlotPlay(underSlot, u.id, BedVolume(u.volume))
+	SlotLoop(underSlot, u.len, PlayUnderClip)
+end
+
+-- The blizzard's third loop. Nothing else in the addon has one, and nothing
 -- falls back if it will not play: wind under snow is a bonus, not the bed.
 local function PlayWindClip()
 	local wind = Preset().wind
 	if not wind or not ShouldRain() or not db.sound then return end
-	SlotPlay(windSlot, wind.id)
+	SlotPlay(windSlot, wind.id, BedVolume(wind.volume or 1))
+	SlotLoop(windSlot, wind.len, PlayWindClip)
+end
+
+-- Which loops we are using right now, and so must never mute.
+local function LoopsInUse()
+	local p, keep = Preset(), {}
+	if p.bed then keep[p.bed.id] = true end
+	if p.under then keep[p.under.id] = true end
+	if p.wind then keep[p.wind.id] = true end
+	return keep
+end
+
+-- Re-mute from scratch: unmute everything, then mute what we are not using.
+-- Done wholesale on every change rather than by diffing, because a diff that
+-- drifts leaves a file muted forever and the player has no way to know why
+-- their rain went quiet.
+local function ApplySuppression()
+	if not MuteSoundFile or not UnmuteSoundFile then return end
+	local keep = db.suppress and db.enabled and LoopsInUse() or {}
+	for _, id in ipairs(AMBIENCE_LOOPS) do
+		pcall(UnmuteSoundFile, id)
+		if db.suppress and db.enabled and not keep[id] then
+			pcall(MuteSoundFile, id)
+		end
+	end
 end
 
 local function StopBed()
 	SlotStop(bedSlot)
+	SlotStop(underSlot)
 	SlotStop(windSlot)
+	if underSlot.start then underSlot.start:Cancel() underSlot.start = nil end
 	loopedKey = nil
 end
 
 local function StartBed()
 	StopBed()
+	ApplySuppression()
 	if not ShouldRain() or not db.sound then return end
 	PlayBedClip()
-	local _, len = CurrentBed()
-	bedSlot.ticker = C_Timer.NewTicker(len - BED_OVERLAP, PlayBedClip)
 
-	local wind = Preset().wind
-	if wind then
-		PlayWindClip()
-		windSlot.ticker = C_Timer.NewTicker(wind.len - BED_OVERLAP, PlayWindClip)
+	-- The under-bed starts somewhere random inside its own first cycle. There
+	-- is no way to seek into a file, so this is the only way to decorrelate the
+	-- two layers' phase, and it makes every session sound different from the
+	-- last rather than every session starting from the same aligned downbeat.
+	local u = Preset().under
+	if u then
+		underSlot.start = C_Timer.NewTimer(math.random() * u.len * 0.6, function()
+			underSlot.start = nil
+			PlayUnderClip()
+		end)
 	end
+
+	if Preset().wind then PlayWindClip() end
 	loopedKey = db.weather .. "/" .. db.intensity
 end
 
 --------------------------------------------------------------------------------
 -- Lightning
 --------------------------------------------------------------------------------
+
+-- Thunder does not arrive on a timer, and it does not arrive on a coin flip
+-- either. Real storms CLUSTER: two or three claps close together, then a long
+-- quiet. A uniform draw gives neither; an exponential (Poisson) gives the
+-- memorylessness but still no clustering. A log-normal gives both, because the
+-- mass sits below the median - producing the bursts - while the long right tail
+-- produces the lulls. Both consults named Poisson as the one that sounds wrong.
+--
+-- Returned as a multiple of `median`, clamped, so a freak draw can never leave
+-- the player in silence for an hour or fire four claps in four seconds.
+local function LogNormal(median, sigma, lo, hi)
+	local u1 = math.random()
+	if u1 < 1e-9 then u1 = 1e-9 end
+	local n = math.sqrt(-2 * math.log(u1)) * math.cos(2 * math.pi * math.random())
+	local m = math.exp(sigma * n)
+	if m < lo then m = lo elseif m > hi then m = hi end
+	return median * m
+end
 
 local function FlashOnce(peak, duration)
 	local elapsed = 0
@@ -899,7 +1079,7 @@ local function ScheduleLightning()
 	if not db.enabled or not db.thunder then return end
 	-- A blizzard gusts far more often than a storm thunders.
 	local base = Preset().gustEvery or (70 - (Preset().speed - 0.8) * 28)
-	lightningTimer = C_Timer.NewTimer(base * (0.55 + math.random() * 0.9), function()
+	lightningTimer = C_Timer.NewTimer(LogNormal(base, 0.62, 0.3, 3.2), function()
 		lightningTimer = nil
 		Strike()
 		ScheduleLightning()
@@ -928,6 +1108,9 @@ function Duskfall_Refresh()
 		end
 	else
 		StopBed()
+		-- Turning the weather off has to hand the realm its own loops back, or
+		-- a player who tried Duskfall once is left with silent rain forever.
+		ApplySuppression()
 	end
 
 	if want and db.thunder then
@@ -960,7 +1143,7 @@ local function Status()
 		bedFallback and " |cffff9900(bundled audio)|r" or "",
 		W().flash and "thunder" or "gusts",
 		db.thunder and "on" or "off",
-		db.indoors and "on" or "off",
+		IndoorMode(),
 		db.channel,
 		indoorsNow and " |cff888888[indoors]|r" or ""))
 	local real, grade = RealWeather()
@@ -1074,13 +1257,41 @@ local function HandleSlash(input, source)
 		local v = tonumber(arg)
 		if not v then msg("usage: /dusk gust 0.5  (0 is dead calm)") return end
 		db.gust = math.max(0, math.min(2, v))
+	elseif cmd == "suppress" then
+		-- Silence the realm's own weather loop so ours is the only one playing.
+		-- Off by default: it mutes files for the whole client, and an addon that
+		-- quietly changes sounds outside its own feature is an addon people
+		-- distrust. See AMBIENCE_LOOPS for why it cannot simply mute everything.
+		db.suppress = (arg == "on")
+		StartBed()
+		msg(db.suppress
+			and "suppressing the realm's own weather loops while Duskfall is on."
+			or  "the realm's own weather loops are audible again.")
+	elseif cmd == "volume" or cmd == "vol" then
+		local v = tonumber(arg)
+		if not v then msg("usage: /dusk volume 0.5  (0 is silent)") return end
+		db.volume = math.max(0, math.min(1, v))
+		-- Gain is baked in at play time, so the running clips keep their old
+		-- level until they reloop. Restart the bed so the slider feels live.
+		StartBed()
+	elseif cmd == "minimap" then
+		db.minimap = (arg ~= "off")
+		if Duskfall_Minimap then pcall(Duskfall_Minimap) end
+		msg(db.minimap and "minimap button shown." or
+			"minimap button hidden. |cffffd100/duskfall|r still opens the window.")
 	elseif cmd == "sound" then
 		db.sound = (arg ~= "off")
 	elseif cmd == "thunder" then
 		db.thunder = (arg ~= "off")
 		ScheduleLightning()
 	elseif cmd == "indoors" then
-		db.indoors = (arg == "on")
+		if arg == "on" or arg == "off" or arg == "dim" then
+			db.indoors = arg
+		else
+			msg("usage: /dusk indoors off | dim | on  (dim is the default: " ..
+			    "quiet and faint, the way weather is from inside)")
+			return
+		end
 	elseif cmd == "channel" then
 		local valid = { ambience = "Ambience", sfx = "SFX", master = "Master",
 		                music = "Music", dialog = "Dialog" }
@@ -1241,6 +1452,10 @@ boot:SetScript("OnEvent", function(_, event, arg1)
 		-- exchange for information they needed once. The window itself is the
 		-- introduction; the printed line is only there for the case where the
 		-- window could not be built.
+		-- The minimap button is the only way in that does not require knowing a
+		-- slash command exists, which is the whole problem with slash commands.
+		if Duskfall_Minimap then pcall(Duskfall_Minimap) end
+
 		if not db.seenUI then
 			db.seenUI = true
 			-- Delayed, because the window should land after the world has

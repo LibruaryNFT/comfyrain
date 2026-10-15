@@ -158,20 +158,44 @@ it("fades out rather than snapping when it is turned off", function()
 	eq(w:overlay():IsShown(), false, "hidden once the fade completes")
 end)
 
-it("stops drawing indoors, after a debounce", function()
-	-- Walking under an arch should not restart the whole effect, so the indoor
+it("fades the weather down indoors rather than cutting it dead", function()
+	-- Changed 2026-10-15: the default used to hide everything the moment the
+	-- player stepped inside, and walking into an inn killed the rain mid-note.
+	-- You can see and hear weather from indoors, so the default is now "dim".
+	-- Walking under an arch should still not restart the whole effect, so the
 	-- poll has to hold for most of a second before it believes itself.
 	local w = H.world()
+	w:slash("gust 0")   -- or the gust's own alpha wobble masks the comparison
 	w:advance(0.5)
+	local outside = w:layers().far:GetAlpha()
 	w.mock.state.indoors = true
 	w:advance(0.5)
-	eq(w:overlay():IsShown(), true, "still raining inside the debounce window")
+	near(w:layers().far:GetAlpha(), outside, 1e-9, "unchanged inside the debounce window")
 	w:advance(1.5)
-	eq(w:overlay():IsShown(), false, "stopped once the debounce clears")
+	eq(w:overlay():IsShown(), true, "still drawing once the debounce clears")
+	lt(w:layers().far:GetAlpha(), outside * 0.5, "but much fainter")
+	gt(w:layers().far:GetAlpha(), 0, "and not gone")
 
 	w.mock.state.indoors = false
 	w:advance(2.0)
-	eq(w:overlay():IsShown(), true, "resumes outdoors")
+	near(w:layers().far:GetAlpha(), outside, 1e-9, "back to full outdoors")
+end)
+
+it("indoors off still means off, and indoors on still means full", function()
+	-- The middle setting is the new default, not the only one. Someone who
+	-- genuinely wants a dry tavern must still be able to say so.
+	local w = H.world()
+	w:slash("gust 0")
+	local outside = w:layers().far:GetAlpha()
+	w:slash("indoors off")
+	w.mock.state.indoors = true
+	w:advance(3.0, 0.1)
+	eq(w:overlay():IsShown(), false, "off hides it completely")
+
+	w:slash("indoors on")
+	w:advance(3.0, 0.1)
+	eq(w:overlay():IsShown(), true, "on draws it")
+	near(w:layers().far:GetAlpha(), outside, 1e-9, "at full strength")
 end)
 
 it("keeps polling the indoor flag while the overlay is hidden", function()

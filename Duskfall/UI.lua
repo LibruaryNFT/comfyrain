@@ -133,6 +133,13 @@ local function Pill(parent, label, onClick)
 end
 
 -- A row of pills that share a width and act as one choice.
+-- The saved value may be a boolean from before indoors became three-state.
+local function INDOORS(db)
+	if db.indoors == true then return "on" end
+	if db.indoors == false or db.indoors == nil then return "dim" end
+	return db.indoors
+end
+
 local function PillRow(parent, n)
 	local row = CreateFrame("Frame", nil, parent)
 	row:SetHeight(ROW)
@@ -295,12 +302,13 @@ local function Refresh()
 	controls.speed:Set(db.speed)
 	controls.dim:Set(db.gloom)
 	controls.gust:Set(db.gust)
+	controls.volume:Set(db.volume)
 
 	controls.sound:SetOn(db.sound)
 	controls.thunder:SetOn(db.thunder)
 	-- Rain has lightning, snow has gusts, and the button must say which.
 	controls.thunder:SetLabel(weather.flash and "Thunder" or "Gusts")
-	controls.indoors:SetOn(db.indoors)
+	controls.indoors:SetLabel("Indoors: " .. INDOORS(db))
 	controls.channel:SetLabel("Volume: " .. db.channel)
 
 	for _, pill in ipairs(controls.timeMode.pills) do
@@ -416,6 +424,11 @@ local function Build()
 
 	add(Heading(panel, "Sound"), { gap = 4 })
 
+	controls.volume = add(Slider(panel, "How loud it is", 0, 1, 0.05, "%.2f",
+		function(v) Run(string.format("volume %.2f", v)) end))
+	Teach(controls.volume.slider, "How loud it is", "/dusk volume 0.5",
+		"Only Duskfall's own weather. Your game volume is untouched.")
+
 	local audio = add(CreateFrame("Frame", nil, panel))
 	audio:SetHeight(ROW)
 	controls.sound = Toggle(audio, "Sound", "/dusk sound off",
@@ -428,8 +441,13 @@ local function Build()
 	controls.thunder:SetPoint("TOPLEFT", audio, "TOPLEFT", third, 0)
 	controls.thunder:SetWidth(third - 3)
 
-	controls.indoors = Toggle(audio, "Indoors", "/dusk indoors on",
-		function() Run(DB().indoors and "indoors off" or "indoors on") end)
+	-- Three states, so a cycling pill rather than a lamp. "Dim" is the default
+	-- and the one most people want: weather you can still hear and faintly see
+	-- from inside, instead of it vanishing the moment you cross a threshold.
+	controls.indoors = Pill(audio, "Indoors: dim", function()
+		local order = { off = "dim", dim = "on", on = "off" }
+		Run("indoors " .. (order[INDOORS(DB())] or "dim"))
+	end)
 	controls.indoors:SetPoint("TOPLEFT", audio, "TOPLEFT", third * 2, 0)
 	controls.indoors:SetWidth(third)
 
@@ -516,4 +534,98 @@ function Duskfall_Panel(mode)
 	end
 	panel:Show()
 	Refresh()
+end
+
+--------------------------------------------------------------------------------
+-- Minimap button
+--------------------------------------------------------------------------------
+
+-- Hand-rolled rather than LibDBIcon. The library is the right answer in a repo
+-- that already embeds Ace; pulling in an embed chain for one draggable circle
+-- is not. Position is one number - the angle around the minimap - which is all
+-- LibDBIcon persists either.
+local minimap
+
+local function MinimapPlace()
+	local db = DuskfallAPI and DuskfallAPI.DB()
+	if not minimap or not db then return end
+	local a = math.rad(db.minimapAngle or 196)
+	-- 80 is the radius every addon uses for the default round minimap. Square
+	-- minimaps exist on some UI replacements and will put this slightly off the
+	-- edge; that is cosmetic and not worth probing MinimapShape for.
+	minimap:SetPoint("CENTER", Minimap, "CENTER", 80 * math.cos(a), 80 * math.sin(a))
+end
+
+local function BuildMinimap()
+	if minimap or not Minimap then return end
+	minimap = CreateFrame("Button", "DuskfallMinimapButton", Minimap)
+	minimap:SetSize(31, 31)
+	minimap:SetFrameStrata("MEDIUM")
+	minimap:SetFrameLevel(Minimap:GetFrameLevel() + 8)
+
+	local border = minimap:CreateTexture(nil, "OVERLAY")
+	border:SetTexture("Interface\\Minimap\\MiniMap-TrackingBorder")
+	border:SetSize(53, 53)
+	border:SetPoint("TOPLEFT")
+
+	local icon = minimap:CreateTexture(nil, "ARTWORK")
+	icon:SetTexture("Interface\\Icons\\Spell_Frost_IceStorm")
+	icon:SetSize(19, 19)
+	icon:SetPoint("CENTER", -1, 1)
+	-- Round it off so the square icon does not poke out of the round border.
+	icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+	minimap:SetHighlightTexture("Interface\\Minimap\\UI-Minimap-ZoomButton-Highlight")
+
+	minimap:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+	minimap:SetScript("OnClick", function(_, button)
+		if button == "RightButton" then
+			-- The bare command is the weather toggle; "toggle" is not a command.
+			DuskfallAPI.Command("")
+		else
+			Duskfall_Panel()
+		end
+	end)
+
+	-- Dragged around the ring, not across the screen: a free-floating button
+	-- gets lost behind other frames and there is nowhere better for it to be.
+	minimap:RegisterForDrag("LeftButton")
+	minimap:SetMovable(true)
+	minimap:SetScript("OnDragStart", function(self) self.dragging = true end)
+	minimap:SetScript("OnDragStop", function(self) self.dragging = nil end)
+	minimap:SetScript("OnUpdate", function(self)
+		if not self.dragging then return end
+		local mx, my = Minimap:GetCenter()
+		local cx, cy = GetCursorPosition()
+		local scale = Minimap:GetEffectiveScale()
+		local db = DuskfallAPI.DB()
+		if not mx or not db then return end
+		db.minimapAngle = math.deg(math.atan2(cy / scale - my, cx / scale - mx))
+		MinimapPlace()
+	end)
+
+	minimap:SetScript("OnEnter", function(self)
+		GameTooltip:SetOwner(self, "ANCHOR_LEFT")
+		GameTooltip:AddLine("Duskfall")
+		GameTooltip:AddLine("Left-click: settings", 1, 1, 1)
+		GameTooltip:AddLine("Right-click: weather on or off", 1, 1, 1)
+		GameTooltip:AddLine("Drag: move around the minimap", 0.6, 0.6, 0.6)
+		GameTooltip:Show()
+	end)
+	minimap:SetScript("OnLeave", function() GameTooltip:Hide() end)
+
+	MinimapPlace()
+end
+
+-- Called by Duskfall.lua once the DB exists, and again whenever the player
+-- toggles the button off and on.
+function Duskfall_Minimap(mode)
+	local db = DuskfallAPI and DuskfallAPI.DB()
+	if not db then return end
+	if mode == "toggle" then db.minimap = not db.minimap end
+	if db.minimap == false then
+		if minimap then minimap:Hide() end
+		return
+	end
+	BuildMinimap()
+	if minimap then minimap:Show() MinimapPlace() end
 end

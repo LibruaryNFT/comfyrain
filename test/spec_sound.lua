@@ -7,11 +7,11 @@ local it, eq, ok, near, gt, lt = H.it, H.eq, H.ok, H.near, H.gt, H.lt
 local RAIN_MEDIUM = 538981   -- Sound/ambience/Weather/RainMediumLoop.ogg
 local RAIN_HEAVY  = 538982
 
-local function playsOf(mock, from)
+local function playsOf(mock, from, only)
 	local out = {}
 	for i = (from or 0) + 1, #mock.sounds do
 		local s = mock.sounds[i]
-		if s.file then out[#out + 1] = s end
+		if s.file and (not only or s.file == only) then out[#out + 1] = s end
 	end
 	return out
 end
@@ -31,13 +31,19 @@ it("reloops the bed just before it ends, so the loop never gaps", function()
 	-- The durations are measured from the shipped files. A ticker that is even
 	-- slightly long leaves a hole in the rain once every half minute, which is
 	-- far more noticeable than a slight overlap.
+	-- Filtered to the primary bed file: since 2026-10-15 a second, quieter bed
+	-- of a different length runs underneath, and counting both would measure
+	-- the layering rather than the reloop.
 	local w = H.world()
 	local before = #w.mock.sounds
 	w:advance(31, 0.05)
-	local played = playsOf(w.mock, before)
+	local played = playsOf(w.mock, before, RAIN_MEDIUM)
 	eq(#played, 1, "one reloop within the first 31 seconds")
-	-- 30.0 second file, 0.12 of overlap.
-	near(played[1].at - w.mock.sounds[1].at, 29.88, 0.1, "reloop interval")
+	-- 30.0 second file, 0.12 of overlap and up to 0.8 of jitter, so the seam
+	-- lands somewhere in 29.08..29.88 and never after the clip has ended.
+	local gap = played[1].at - w.mock.sounds[1].at
+	gt(gap, 29.0, "the reloop is not so early that it doubles the bed")
+	lt(gap, 29.89, "the reloop always lands before the clip ends")
 end)
 
 it("switches the bed when the intensity changes", function()
@@ -98,19 +104,50 @@ it("stops everything when sound is turned off, and resumes on", function()
 	ok(#playsOf(w.mock, before) > 0, "resumes on request")
 end)
 
-it("silences the bed indoors and brings it back outside", function()
+it("muffles the bed indoors instead of killing it, and restores it outside", function()
+	-- Changed 2026-10-15. Stopping the bed dead on the doorstep was the single
+	-- most unrealistic thing the addon did: you can hear rain from inside. The
+	-- client exposes no filters, so "muffled" is volume and nothing else, but
+	-- a quiet bed is far closer to right than silence.
 	local w = H.world()
 	w:advance(0.5)
 	w.mock.state.indoors = true
-	w:advance(2.0)
+	w:advance(3.0)
 	local live = 0
-	for h in pairs(w.mock.handles) do live = live + 1 end
-	eq(live, 0, "live handles indoors")
+	for _ in pairs(w.mock.handles) do live = live + 1 end
+	gt(live, 0, "the bed is still running indoors")
+
+	local from = #w.mock.sounds
+	w:slash("heavy")    -- forces a relaunch so a new gain is computed
+	local quiet = nil
+	for i = from + 1, #w.mock.sounds do
+		local v = w.mock.sounds[i].volumeOverride
+		if v and (not quiet or v > quiet) then quiet = v end
+	end
+	ok(quiet, "something played indoors")
+	lt(quiet, 0.4, "and it played quietly")
 
 	local before = #w.mock.sounds
 	w.mock.state.indoors = false
 	w:advance(2.0)
-	ok(#playsOf(w.mock, before) > 0, "the bed returns outdoors")
+	w:slash("normal")
+	local loud = 0
+	for i = before + 1, #w.mock.sounds do
+		local v = w.mock.sounds[i].volumeOverride
+		if v and v > loud then loud = v end
+	end
+	gt(loud, 0.8, "and comes back up outdoors")
+end)
+
+it("indoors off still silences the bed completely", function()
+	local w = H.world()
+	w:slash("indoors off")
+	w:advance(0.5)
+	w.mock.state.indoors = true
+	w:advance(3.0)
+	local live = 0
+	for _ in pairs(w.mock.handles) do live = live + 1 end
+	eq(live, 0, "no live handles with indoors off")
 end)
 
 it("moves the bed to whichever channel the player names", function()

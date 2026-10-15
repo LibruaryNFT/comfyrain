@@ -127,8 +127,15 @@ it("toggles sound, gusts and indoors from the window", function()
 	w:button("Sound"):Click()
 	eq(w:db().sound, true, "and on again")
 
-	w:button("Indoors"):Click()
-	eq(w:db().indoors, true, "indoors follows the same path")
+	-- Indoors cycles three ways rather than toggling two, because the useful
+	-- setting is the middle one.
+	eq(w:db().indoors, "dim", "starts dimmed")
+	w:button("Indoors: dim"):Click()
+	eq(w:db().indoors, "on", "dim then on")
+	w:button("Indoors: on"):Click()
+	eq(w:db().indoors, "off", "on then off")
+	w:button("Indoors: off"):Click()
+	eq(w:db().indoors, "dim", "and back round")
 end)
 
 it("cycles the volume channel rather than opening a menu", function()
@@ -280,4 +287,66 @@ it("survives a window that cannot be built at all", function()
 	w:slash("heavy")
 	eq(w:db().intensity, "heavy", "the addon still answers afterwards")
 	eq(#w.mock.errors, 0, "and the failure was caught, not thrown at the client")
+end)
+
+it("puts a button on the minimap, because a slash command nobody knows is not a UI", function()
+	-- The whole discoverability problem: a player who installs an atmosphere
+	-- addon and is never told a window exists will never find the sliders.
+	local w = H.world()
+	w.env.Duskfall_Minimap()
+	local b = w.env.DuskfallMinimapButton
+	ok(b, "the button exists")
+	ok(b:IsShown(), "and it is shown by default")
+
+	-- Left-click opens the window, right-click toggles the weather.
+	b:GetScript("OnClick")(b, "LeftButton")
+	ok(w.env.DuskfallPanel and w.env.DuskfallPanel:IsShown(), "left-click opened the panel")
+	local on = w:db().enabled
+	b:GetScript("OnClick")(b, "RightButton")
+	eq(w:db().enabled, not on, "right-click toggled the weather")
+
+	-- And it can be turned off by someone whose minimap is already full.
+	w:slash("minimap off")
+	eq(b:IsShown(), false, "hidden on request")
+	w:slash("minimap on")
+	ok(b:IsShown(), "and back")
+end)
+
+it("remembers where the minimap button was dragged to", function()
+	local w = H.world()
+	w.env.Duskfall_Minimap()
+	local b = w.env.DuskfallMinimapButton
+	local before = w:db().minimapAngle
+	b:GetScript("OnDragStart")(b)
+	-- Cursor directly above the minimap centre is 90 degrees.
+	w.mock.cursor.x, w.mock.cursor.y = 1000, 800
+	b:GetScript("OnUpdate")(b, 0.1)
+	b:GetScript("OnDragStop")(b)
+	near(w:db().minimapAngle, 90, 1, "the angle followed the cursor")
+	ok(w:db().minimapAngle ~= before, "and it is not the default any more")
+end)
+
+it("has a volume slider that only touches our own weather", function()
+	-- Asked for directly: sliders for the audio, the snow, the rain and the
+	-- darkness. The other three already existed; this is the audio one.
+	local w = H.world()
+	w:slash("volume 0.25")
+	near(w:db().volume, 0.25, 1e-9, "the command set it")
+	w:slash("volume 9")
+	near(w:db().volume, 1, 1e-9, "clamped at the top")
+	w:slash("volume -3")
+	near(w:db().volume, 0, 1e-9, "and at the bottom")
+
+	-- It reaches the actual playback, not just the saved variable. Counted from
+	-- after the change: gain is baked in at play time, so clips that started
+	-- before the slider moved legitimately keep their old level.
+	local from = #w.mock.sounds
+	w:slash("volume 0.5")
+	local loudest = 0
+	for i = from + 1, #w.mock.sounds do
+		local s = w.mock.sounds[i]
+		if s.volumeOverride and s.volumeOverride > loudest then loudest = s.volumeOverride end
+	end
+	lt(loudest, 0.6, "nothing played above the slider, allowing for the wobble")
+	gt(loudest, 0, "and something played")
 end)
