@@ -94,10 +94,10 @@ local WEATHER = {
 		fallbackOneShot = MEDIA .. "thunder.ogg",
 		fallbackBed = { file = MEDIA .. "rain.ogg", len = 24.0 },
 		presets = {
-			light   = { mist = 0.05, far = 0.40, near = 0.35, density = 1.35, speed = 0.80, gloom = 0.18, bed = { id = 538983, len = 20.0 }, under = { id = 538981, len = 30.0, volume = 0.35 } },
-			normal  = { mist = 0.10, far = 0.70, near = 0.65, density = 1.00, speed = 1.00, gloom = 0.38, bed = { id = 538981, len = 30.0 }, under = { id = 538983, len = 20.0, volume = 0.40 } },
-			heavy   = { mist = 0.17, far = 0.95, near = 0.90, density = 0.78, speed = 1.25, gloom = 0.75, bed = { id = 538982, len = 25.0 }, under = { id = 538981, len = 30.0, volume = 0.45 } },
-			monsoon = { mist = 0.26, far = 1.00, near = 1.00, density = 0.58, speed = 1.60, gloom = 0.95, bed = { id = 538982, len = 25.0 }, under = { id = 538983, len = 20.0, volume = 0.55 } },
+			light   = { mist = 0.05, far = 0.40, near = 0.35, density = 1.35, speed = 0.59, gloom = 0.18, strikeEvery = 70, bed = { id = 538983, len = 20.0 }, under = { id = 538981, len = 30.0, volume = 0.35 } },
+			normal  = { mist = 0.10, far = 0.70, near = 0.65, density = 1.00, speed = 1.00, gloom = 0.38, strikeEvery = 64, bed = { id = 538981, len = 30.0 }, under = { id = 538983, len = 20.0, volume = 0.40 } },
+			heavy   = { mist = 0.17, far = 0.95, near = 0.90, density = 0.78, speed = 1.60, gloom = 0.75, strikeEvery = 57, bed = { id = 538982, len = 25.0 }, under = { id = 538981, len = 30.0, volume = 0.45 } },
+			monsoon = { mist = 0.26, far = 1.00, near = 1.00, density = 0.58, speed = 2.76, gloom = 0.95, strikeEvery = 48, bed = { id = 538982, len = 25.0 }, under = { id = 538983, len = 20.0, volume = 0.55 } },
 		},
 	},
 	snow = {
@@ -119,11 +119,11 @@ local WEATHER = {
 		fallbackOneShot = nil,  -- nothing bundled; a missing gust costs nothing
 		fallbackBed = { file = MEDIA .. "rain.ogg", len = 24.0 },
 		presets = {
-			light    = { mist = 0.06, far = 0.34, near = 0.30, density = 1.20, speed = 0.26, gloom = 0.26, bed = { id = 538985, len = 29.951 }, under = { id = 538989, len = 50.0, volume = 0.30 } },
-			normal   = { mist = 0.12, far = 0.62, near = 0.58, density = 1.00, speed = 0.36, gloom = 0.54, bed = { id = 538989, len = 50.0 }, under = { id = 538985, len = 29.951, volume = 0.35 } },
-			heavy    = { mist = 0.20, far = 0.88, near = 0.84, density = 0.82, speed = 0.52, gloom = 0.78, bed = { id = 538984, len = 40.0 }, under = { id = 538989, len = 50.0, volume = 0.40 } },
+			light    = { mist = 0.06, far = 0.34, near = 0.30, density = 1.20, speed = 0.22, gloom = 0.26, strikeEvery = 85, bed = { id = 538985, len = 29.951 }, under = { id = 538989, len = 50.0, volume = 0.30 } },
+			normal   = { mist = 0.12, far = 0.62, near = 0.58, density = 1.00, speed = 0.36, gloom = 0.54, strikeEvery = 82, bed = { id = 538989, len = 50.0 }, under = { id = 538985, len = 29.951, volume = 0.35 } },
+			heavy    = { mist = 0.20, far = 0.88, near = 0.84, density = 0.82, speed = 0.63, gloom = 0.78, strikeEvery = 78, bed = { id = 538984, len = 40.0 }, under = { id = 538989, len = 50.0, volume = 0.40 } },
 			blizzard = {
-				mist = 0.30, far = 1.00, near = 1.00, density = 0.66, speed = 1.70, gloom = 0.55,
+				mist = 0.30, far = 1.00, near = 1.00, density = 0.66, speed = 2.58, gloom = 0.55,
 				bed = { id = 538984, len = 40.0 },
 				under = { id = 538989, len = 50.0, volume = 0.35 },
 				-- The gale sheet replaces the near layer: wind-driven snow is
@@ -138,7 +138,7 @@ local WEATHER = {
 				-- Wind over the snow bed. Two loops at once, which nothing else
 				-- in the addon needs, because this is what a blizzard sounds like.
 				wind = { id = 918050, len = 110.713 },
-				gustEvery = 14,
+				strikeEvery = 14,
 			},
 		},
 	},
@@ -165,6 +165,14 @@ local PARALLAX = { mist = 0.25, far = 0.9, near = 1.0 }
 local GUST_TAU   = 7.0
 local GUST_SIGMA = 0.35
 local GUST_CLAMP = 1.6
+
+-- The driving noise is the sum of two uniforms, which is triangular and close
+-- enough to Gaussian for this, but it has to be scaled to unit variance or
+-- GUST_SIGMA does not mean what the line above says it means. u1+u2-1 has
+-- variance 2/12, so the scale is sqrt(6), not the sqrt(3) that belongs to a
+-- SINGLE uniform. With sqrt(3) the whole gust ran at 71% of its stated
+-- amplitude and the stationary spread was 0.46 rather than the documented 0.65.
+local NOISE_SCALE = math.sqrt(6)
 
 -- Each layer follows the master with its own one-pole lag. A gust hits the near
 -- sheet first and the mist last, because the distant layer stands in for a
@@ -712,7 +720,7 @@ local function OnUpdate(self, elapsed)
 	-- percent of normal, costs two calls, and nobody is ever going to plot it.
 	local gustAmp = (GUST_BY_INTENSITY[db.intensity] or 1) * db.gust
 	if gustAmp > 0 then
-		local n = (math.random() + math.random() - 1) * 1.732
+		local n = (math.random() + math.random() - 1) * NOISE_SCALE
 		gust = gust + (-gust / GUST_TAU) * elapsed + GUST_SIGMA * math.sqrt(elapsed) * n
 		if gust > GUST_CLAMP then gust = GUST_CLAMP
 		elseif gust < -GUST_CLAMP then gust = -GUST_CLAMP end
@@ -749,14 +757,24 @@ local function OnUpdate(self, elapsed)
 	end
 
 	for _, l in ipairs(LAYERS) do
-		local tilesY = l.tilesY * (l.key == "mist" and 1 or density)
+		local tiling = (l.key == "mist") and 1 or density
+		local tilesY = l.tilesY * tiling
 		local tilesX = tilesY * aspect
 		local o = offsets[l.key]
 		local lg = gustAmp > 0 and layerGust[l.key] or 0
 		-- Rate and density both move with the gust. Density is carried by alpha
 		-- rather than by tiling: changing tilesY mid-gust reads as the camera
 		-- zooming, which is the one artefact that gives the whole thing away.
-		local dy = l.speed * rate * (1 + lg * GUST_RATE_AMP * gustAmp) * elapsed
+		--
+		-- `* tiling` is the correction. Offsets are texture coordinates, and the
+		-- screen shows tilesY copies of the sheet, so a fixed step in texture
+		-- space moves the image 1/tilesY of a screen. Without this term a denser
+		-- preset silently fell SLOWER in the same proportion, and `speed` meant
+		-- anything from 0.6x to 2.8x what the number said. Multiplying it back
+		-- out makes p.speed mean screen-heights per second and nothing else; the
+		-- preset numbers were divided through by their own density at the same
+		-- time, so what is on screen is unchanged.
+		local dy = l.speed * rate * tiling * (1 + lg * GUST_RATE_AMP * gustAmp) * elapsed
 		if lg ~= 0 then
 			local a = baseAlpha[l.key] * (1 + lg * GUST_ALPHA_AMP * gustAmp)
 			textures[l.key]:SetAlpha(a < 0 and 0 or (a > 1 and 1 or a))
@@ -875,7 +893,7 @@ local function OptionsPlay()
 	return optionsPlay
 end
 
-local function SlotPlay(slot, file, volume)
+local function Play(file, volume)
 	local ok, handle
 	local opts = volume and OptionsPlay()
 	if opts then
@@ -884,6 +902,11 @@ local function SlotPlay(slot, file, volume)
 		if called and a then ok, handle = a, b end
 	end
 	if not ok then ok, handle = PlaySoundFile(file, db.channel) end
+	return ok, handle
+end
+
+local function SlotPlay(slot, file, volume)
+	local ok, handle = Play(file, volume)
 	if not ok then return false end
 	slot.handles[#slot.handles + 1] = handle
 	while #slot.handles > 2 do table.remove(slot.handles, 1) end
@@ -901,7 +924,11 @@ end
 -- that start after it moves - StartBed is re-run on change to make it immediate.
 local function BedVolume(base)
 	local v = (base or 1) * (db.volume or 1) * IndoorFactor()
-	return math.max(0, v * (1 + (math.random() * 2 - 1) * BED_VOL_JITTER))
+	v = v * (1 + (math.random() * 2 - 1) * BED_VOL_JITTER)
+	-- Held inside 0..1. The wobble can lift a full-volume bed to 1.07, and what
+	-- an out-of-range volumeOverride does on this client is not something we
+	-- have probed; clipping it is free and guessing is not.
+	return math.max(0, math.min(1, v))
 end
 
 -- Re-arm a one-shot timer rather than running a fixed-period ticker, because
@@ -972,10 +999,16 @@ end
 -- their rain went quiet.
 local function ApplySuppression()
 	if not MuteSoundFile or not UnmuteSoundFile then return end
-	local keep = db.suppress and db.enabled and LoopsInUse() or {}
+	-- Keyed on whether we are actually playing, not merely on db.enabled. The
+	-- two come apart in three ordinary cases - sound off, inside with indoors
+	-- set to off, and a cinematic - and in every one of them the old test left
+	-- the realm's loops muted while Duskfall played nothing at all. Silence
+	-- with no visible cause is the worst failure an audio addon has.
+	local active = db.suppress and db.sound and ShouldRain()
+	local keep = active and LoopsInUse() or {}
 	for _, id in ipairs(AMBIENCE_LOOPS) do
 		pcall(UnmuteSoundFile, id)
-		if db.suppress and db.enabled and not keep[id] then
+		if active and not keep[id] then
 			pcall(MuteSoundFile, id)
 		end
 	end
@@ -1033,10 +1066,16 @@ local function LogNormal(median, sigma, lo, hi)
 	return median * m
 end
 
+-- One driver, reused. A frame cannot be destroyed in this API, so creating one
+-- per thunderclap leaks a frame an hour's play - and the double flash lands at
+-- 0.26 s against a 0.22 s envelope, so two never overlap and one is enough.
+local flashDriver
+
 local function FlashOnce(peak, duration)
 	local elapsed = 0
 	flash:SetAlpha(0)
-	local driver = CreateFrame("Frame")
+	flashDriver = flashDriver or CreateFrame("Frame")
+	local driver = flashDriver
 	driver:SetScript("OnUpdate", function(self, dt)
 		elapsed = elapsed + dt
 		local t = elapsed / duration
@@ -1056,7 +1095,11 @@ local function Strike()
 	if not ShouldRain() or not db.thunder then return end
 	local w = W()
 	if w.flash then
-		local peak = 0.14 + Preset().mist * 1.4
+		-- Scaled by the same two things every other visible part of the addon
+		-- is. A flash at full strength while the rain behind it is at a quarter
+		-- is the one moment the overlay stops reading as weather, and it was
+		-- the single loudest thing in the room with "indoors: dim" set.
+		local peak = (0.14 + Preset().mist * 1.4) * db.scale * IndoorFactor()
 		FlashOnce(peak, 0.22)
 		if math.random() < 0.45 then
 			C_Timer.After(0.26, function() FlashOnce(peak * 0.7, 0.18) end)
@@ -1066,10 +1109,13 @@ local function Strike()
 	-- to trail, so it simply arrives.
 	C_Timer.After(w.flash and (0.6 + math.random() * 2.6) or 0, function()
 		if not ShouldRain() or not db.thunder or not db.sound then return end
+		-- Through the same gain as the bed. A volume slider that turns the rain
+		-- down and leaves the thunder where it was is not a volume slider.
 		local list = w.oneShots
-		local ok = PlaySoundFile(list[math.random(#list)], db.channel)
+		local vol = BedVolume(1)
+		local ok = Play(list[math.random(#list)], vol)
 		if not ok and w.fallbackOneShot then
-			PlaySoundFile(w.fallbackOneShot, db.channel)
+			Play(w.fallbackOneShot, vol)
 		end
 	end)
 end
@@ -1077,8 +1123,11 @@ end
 local function ScheduleLightning()
 	if lightningTimer then lightningTimer:Cancel() lightningTimer = nil end
 	if not db.enabled or not db.thunder then return end
-	-- A blizzard gusts far more often than a storm thunders.
-	local base = Preset().gustEvery or (70 - (Preset().speed - 0.8) * 28)
+	-- A blizzard gusts far more often than a storm thunders. Stated per preset
+	-- rather than derived from the fall speed, which is how it used to work:
+	-- that quietly tied the thunder rate to a visual tuning knob, so every
+	-- change to how fast the rain fell moved how often it thundered.
+	local base = Preset().strikeEvery or 60
 	lightningTimer = C_Timer.NewTimer(LogNormal(base, 0.62, 0.3, 3.2), function()
 		lightningTimer = nil
 		Strike()
