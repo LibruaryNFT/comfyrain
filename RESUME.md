@@ -964,6 +964,86 @@ after logout is a one-star review, so it needs an opt-in toggle and a restore on
 worth designing once the answer is in, not before. Whether `weatherDensity 0` also stops the
 new engine lightning is a question for the author's eyes, not for Lua.
 
+## The visual-quality consult, 2026-10-16
+
+Prompt: `consult-prompt-visual-quality.md`, run through `multi-review.py`. Gemini 2.5 Pro and
+Groq GPT-OSS 120B answered; Grok returned 403, the xAI team is out of credits, so this is a
+two-model consult and not a three-model one. Gemini's reply is **truncated mid-sentence** at
+item 2 of its own list, because the caller passes `max_tokens=4096`. Everything below item 2
+of Gemini is absent, not omitted.
+
+**Both models independently produced the same top two**, which is the only part of a
+two-model consult that carries weight: *fake depth first, then make the flash read as a bolt
+in a place*. Beyond those two they diverge, and most of what they diverge on is wrong.
+
+### Checked against the binary before believing any of it
+
+Every API either model told us to call was grepped out of `WowB.exe`. Positive controls
+(`GetPlayerFacing`, `SetGradient`, `SetMask`, `SetBlendMode`) are all present, so a zero here
+is a result and not a broken method.
+
+| API the consult told us to call | In the client | Consequence |
+|---|---|---|
+| `GetCameraPitch` | **absent** | Groq's whole parallax formula is unimplementable. Yaw only. |
+| `SetGradientAlpha` | **absent** | Gemini's horizon-fog call does not exist on this build. Removed in 10.0; use `SetGradient`. |
+| `CreateMaskTexture` / `AddMaskTexture` | present | Masks are real, but they are **MaskTexture objects**, not frames. `SetMask` takes a *file path*. Gemini's `rain_far:SetMask(gradient_frame)` would not have worked. |
+| `GetCameraZoom` | present | The only camera scalar we actually get. Weak, but it is something. |
+| `SetHorizTile` / `SetVertTile` / `SetDesaturated` / `SetTexelSnappingBias` | present | Available, unused so far. |
+
+### What to build, in order
+
+1. **Horizon-weighted alpha, then a near-layer radial mask.** Both models' number one, and
+   the one that attacks the actual tell: the sheet is uniformly dense from top to bottom.
+   `SetGradient` on each layer, vertical, plus a hand-generated radial mask TGA applied to
+   `near` so there is a clear bubble around the player. No camera pitch, so the gradient is
+   fixed in screen space rather than tied to the horizon line; that is a real limitation and
+   it is still most of the gain.
+2. **Parallax from `GetPlayerFacing()` alone.** Yaw changes shear the slant and nudge the
+   horizontal scroll per layer at different rates. Groq's pitch term is deleted.
+3. **Lightning as a located event.** Converged, and the highest-value item with the new
+   engine bolts standing next to ours. An off-centre soft-glow quad with a random rotation,
+   a two-stage leader/return-stroke envelope, a faint complementary darken afterwards, and a
+   thunder delay that *encodes* distance (`delay = metres / 343`, volume falling with it)
+   rather than being a free-running log-normal.
+4. **Stand aside when the realm sends a real storm.** Groq argues blend at ~30%, and is
+   right that full suppression makes the world feel emptier than before the addon. Our flash
+   must suppress hard though, whatever the sheets do, because two unrelated lightning systems
+   firing out of sync is worse than either alone.
+5. **1024² for `near` and `snow-near` only.** Groq's arithmetic is wrong (doubling texels
+   **halves** magnification, 2.42x to 1.21x, not to 1.4x; and a 1024 32-bit sheet is 4.2 MB,
+   not 2 MB). The direction stands: `near` is the magnified layer, so it is the only one that
+   gains. `far` is minified 0.70x and with no mipmaps it is the one that *shimmers*, which
+   more texels makes worse, not better. Far stays 512.
+6. **Lens drops and a ground-wet gradient.** Cheap, low risk, last. Ground wetness is a MOD
+   gradient over the bottom band of the screen; the "ripple line" Groq describes is a
+   2-pixel scrolling strip in screen space with no relation to where the ground actually is,
+   and reads as a HUD artefact. Take the gradient, drop the ripple.
+
+### Rejected, with the reason
+
+- **`hooksecurefunc` into `CWeatherLightningManager`** (Groq). It is C++ with no Lua binding;
+  there is nothing to hook. Correctly called a trap by Groq itself.
+- **Groq's Model-frame section asserts we already proved particles are clipped.** We did not.
+  We proved the M2 *loads*. The conclusion is invented, and treating it as settled would
+  close an open question with a hallucination. Still open, still item 8 of Phase 1, still
+  lowest value.
+- **`SetRenderMode("BLEND")` and `model:PlayAnim(0)`** (Groq). `SetRenderMode` exists in the
+  binary; `PlayAnim` does not appear and the pair is quoted as if it were a known recipe.
+- **`playbackFlags = {ignoreMute = true}`** (Groq). Invented. There is no such field.
+- **An intensity slider** (Groq, item 8). We already have presets and `/dusk density`. It is
+  proposing a feature we shipped.
+- **Per-frame costs quoted in milliseconds** (both). "1-2 ms per frame for two extra quads"
+  is off by two orders of magnitude and would be a third of a 60 fps budget. Ignore every
+  cost figure in both documents; the real numbers come from our own `OnUpdate` timing.
+
+### What must not ship unseen
+
+The client disappears 21 October. Of the list above, **1, 2 and 3 change what every player
+sees on every frame** and none of them can be eyeballed after that date. They get built and
+looked at before the 21st or they wait for the first post-launch patch. 5 and 6 are safe to
+build blind: a texture swap is verifiable from the TGA itself, and a bottom-screen gradient
+cannot fail in a way a spec will not catch.
+
 ### Phase 1 — by 21 October. 8 days. Client-gated and unrepeatable.
 
 In priority order, because there may not be time for all seven. Mechanics are in
