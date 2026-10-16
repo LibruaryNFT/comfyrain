@@ -372,6 +372,71 @@ local function CheckGeometry()
 end
 
 --------------------------------------------------------------------------------
+-- 10. Can an addon turn the realm's own weather off?
+--
+-- The question the author asked on 2026-10-16, and the only one that decides
+-- whether Duskfall REPLACES the weather or merely draws on top of it. There is
+-- no weather setter in Lua and there never was, but `weatherDensity` is an
+-- ordinary graphics CVar (0-3) sitting in the binary between `particleDensity`
+-- and `volumeFogLevel`, and at 0 the client renders no weather at all. If an
+-- addon may write it, our rain is the only rain on screen.
+--
+-- Why this needs a control: a protected CVar does NOT raise. SetCVar returns
+-- as if it worked and the value simply does not move, so "it did not change"
+-- is indistinguishable from "SetCVar is blocked for addons on this build"
+-- until a write that IS permitted has been seen to land.
+--
+-- Harmless CVars first, and every one of them is put back.
+--------------------------------------------------------------------------------
+
+local CVAR_CONTROLS = { "screenshotQuality", "particleDensity", "nameplateShowAll" }
+
+-- Writes a value, reads it straight back, restores the original. Returns
+-- whether the write actually landed.
+local function Poke(name, target)
+	local before = GetCVar(name)
+	if before == nil then return nil end
+	pcall(SetCVar, name, target)
+	local after = GetCVar(name)
+	pcall(SetCVar, name, before)
+	return after == target, before
+end
+
+local function CheckWeatherCVar()
+	if type(SetCVar) ~= "function" or type(GetCVar) ~= "function" then
+		record("weather_cvar", "unknown", "no SetCVar/GetCVar on this build")
+		return
+	end
+
+	local provenBy
+	for _, name in ipairs(CVAR_CONTROLS) do
+		local before = GetCVar(name)
+		if before ~= nil then
+			local moved = Poke(name, before == "0" and "1" or "0")
+			if moved then provenBy = name break end
+		end
+	end
+	if not provenBy then
+		record("weather_cvar", "unknown",
+			"not one control CVar would move, so SetCVar itself is unproven here")
+		return
+	end
+
+	local before = GetCVar("weatherDensity")
+	if before == nil then
+		record("weather_cvar", "no", "weatherDensity does not exist on this build")
+		return
+	end
+	local target = (before == "0") and "3" or "0"
+	local moved = Poke("weatherDensity", target)
+
+	record("weather_cvar", moved and "yes" or "no", string.format(
+		"%s moved, so writes land; weatherDensity was %s, wrote %s, read back %s, restored. "
+		.. "Whether 0 also stops the engine's new lightning is your eyes, not Lua.",
+		provenBy, tostring(before), target, moved and target or "unchanged"))
+end
+
+--------------------------------------------------------------------------------
 -- Driver
 --------------------------------------------------------------------------------
 
@@ -380,6 +445,7 @@ local CHECKS = {
 	{ "settings_panel",     CheckSettingsPanel },
 	{ "weather_model",      CheckWeatherModel },
 	{ "geometry",           CheckGeometry },
+	{ "weather_cvar",       CheckWeatherCVar },
 	{ "mute_self",          CheckMuteSelf },
 	{ "finish_event",       CheckFinishEvent },
 	{ "ambience_musicoff",  CheckAmbienceWithMusicOff },

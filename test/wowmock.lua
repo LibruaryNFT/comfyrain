@@ -278,6 +278,12 @@ function M.reset(opts)
 	}
 	for k, v in pairs(opts.cvars or {}) do M.cvars[k] = tostring(v) end
 
+	-- A CVar an addon may not write. The client does NOT raise on one: SetCVar
+	-- returns as though it worked and the value does not move, which is the
+	-- whole reason anything probing a CVar needs a positive control.
+	M.protectedCVars = {}
+	for _, name in ipairs(opts.protectedCVars or {}) do M.protectedCVars[name] = true end
+
 	-- World state the addon reads. Tests write these directly.
 	M.state = {
 		gameHour = 12, gameMinute = 0,   -- the realm clock
@@ -619,7 +625,11 @@ function M.install(env)
 	env.Enum = { WeatherType = { None = 0, Rain = 1, Snow = 2, Sandstorm = 3 } }
 
 	env.GetCVar = function(name) return M.cvars[name] end
-	env.SetCVar = function(name, value) M.cvars[name] = tostring(value) return true end
+	env.SetCVar = function(name, value)
+		if M.protectedCVars[name] then return true end   -- silently ignored, as in the client
+		M.cvars[name] = tostring(value)
+		return true
+	end
 	env.GetCVarBool = function(name) return M.cvars[name] == "1" end
 	-- Screenshot() writes a file and returns nothing, so the only thing a test
 	-- can see is that it was called and what the world looked like at the time.

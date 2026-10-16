@@ -461,3 +461,35 @@ it("says so rather than lying when the client will not take a screenshot", funct
 	eq(w:db().probe.results.screenshots.verdict, "no", "recorded as no, with a reason")
 	eq(#w.mock.errors, 0, "and nothing was thrown at the client")
 end)
+
+it("asks whether the realm's own weather can be switched off", function()
+	-- the author, 2026-10-16: "will our addon allow to disable Blizzard's weather
+	-- and use ours instead". There is no weather setter in Lua, but
+	-- weatherDensity is a plain graphics CVar and at 0 the client draws no
+	-- weather at all, so the whole question reduces to whether an addon may
+	-- write it.
+	local w = H.world()
+	w:slash("probe")
+	local r = results(w).weather_cvar
+	ok(r, "the probe asks")
+	eq(r.verdict, "yes", "a client that lets the write land answers yes")
+	contains(r.detail, "restored", "and puts the value back")
+	eq(w.mock.cvars.weatherDensity, "0", "which it did: the CVar is where it started")
+end)
+
+it("will not call a protected CVar 'no' without proving a write can land", function()
+	-- A protected CVar does not raise. SetCVar returns as if it worked and the
+	-- value does not move, so without a control "no" and "SetCVar is blocked
+	-- for addons entirely" are the same observation.
+	local blocked = H.world({ protectedCVars = { "weatherDensity" } })
+	blocked:slash("probe")
+	local r = results(blocked).weather_cvar
+	eq(r.verdict, "no", "one CVar refusing the write is a real no")
+	contains(r.detail, "moved", "because a control moved first")
+
+	local dead = H.world({ protectedCVars = {
+		"weatherDensity", "screenshotQuality", "particleDensity", "nameplateShowAll" } })
+	dead:slash("probe")
+	eq(results(dead).weather_cvar.verdict, "unknown",
+		"but a client where nothing moves is an unproven instrument, not an answer")
+end)

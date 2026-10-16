@@ -920,6 +920,50 @@ ten TOCs, each loading a different one-line Lua, so whichever line appears in
 only scans `Interface/AddOns` at launch, so it has not loaded yet. **Exit the client fully and
 relaunch; no command needed.**
 
+### Blizzard's own lightning, and what it does not give us — 2026-10-16
+
+A [r/classicwow post](https://www.reddit.com/r/classicwow/comments/1x7k116/) showed real
+lightning bolts with environment flashes on Forever. Checked both client binaries on disk:
+
+| Thing | State |
+|---|---|
+| `C_Weather` | still exactly one function, `GetCurrentWeather`. No setter, as before |
+| A lightning CVar | none |
+| `CWeatherLightningManager`, `LightningRec_C` DB2, `"Start Weather Lightning ID %d"` | present in **both** `WowB.exe` and `_forever_/Wow.exe` |
+
+So it is engine-side and server-driven: nothing new to call, and nothing that makes the
+overlay redundant. **Not provable as new in this patch** - the 70374 binary was overwritten
+by the update, so there is no before to diff against.
+
+**Consequence:** during a real server storm our flash doubles with theirs. We already read
+`GetCurrentWeather()` for the calib logger, so our lightning should stand down when the
+client reports a storm. Not built yet.
+
+**Two other things that fell out of the same look at the disk:**
+
+- The beta is now **1.60.1.70425**. The probe results above are from **70374**, so they are
+  one patch stale. Re-run `/dusk probe` before 21 Oct.
+- **`_forever_` is installed** - product `wowf`, 1.60.1.70245, pulled 15 Oct, never launched
+  (no `Interface/` or `WTF/` in it yet). That is the client that ships on 4 November, so the
+  flavour probe belongs there rather than in `_classic_beta_`.
+
+### Can we turn the realm's own weather off? — probe added 2026-10-16
+
+Asked directly. There is no weather setter in Lua and there never was, but `weatherDensity`
+is an ordinary graphics CVar (0-3) sitting in the binary between `particleDensity` and
+`volumeFogLevel`, and at 0 the client renders no weather at all. The whole question is
+whether an addon may write it, which only a live client can say.
+
+`weather_cvar` added to `Duskfall/Probe.lua`. It writes a harmless control CVar first and
+restores everything, because **a protected CVar does not raise**: `SetCVar` returns as
+though it worked and the value simply does not move, so "it did not change" and "addons
+cannot write CVars at all on this build" are the same observation without a control.
+
+**The feature is deliberately not built yet.** Silently leaving a player's weather disabled
+after logout is a one-star review, so it needs an opt-in toggle and a restore on logout -
+worth designing once the answer is in, not before. Whether `weatherDensity 0` also stops the
+new engine lightning is a question for the author's eyes, not for Lua.
+
 ### Phase 1 — by 21 October. 8 days. Client-gated and unrepeatable.
 
 In priority order, because there may not be time for all seven. Mechanics are in
@@ -986,7 +1030,7 @@ one-star comment on 5 November.
 ### Phase 2 — 21 October to 4 November. 14 days. No client exists.
 
 **The mock API is DONE, 2026-10-13.** It was the first thing and it is built: `test/`, run
-with `lua test/run.lua`, **145 specs, all passing**, under Lua 5.1.5 built to `~/.local`
+with `lua test/run.lua`, **147 specs, all passing**, under Lua 5.1.5 built to `~/.local`
 because that is WoW's own interpreter version and a 5.2+ construct that would fail in the
 client has to fail here too. `test/README.md` has the detail. What it covers: boot and
 SavedVariables defaults, the time-of-day grade, the three rain layers and their geometry,
