@@ -130,11 +130,11 @@ it("toggles sound, gusts and indoors from the window", function()
 	-- Indoors cycles three ways rather than toggling two, because the useful
 	-- setting is the middle one.
 	eq(w:db().indoors, "dim", "starts dimmed")
-	w:button("Indoors: dim"):Click()
+	w:button("Indoors: Dim"):Click()
 	eq(w:db().indoors, "on", "dim then on")
-	w:button("Indoors: on"):Click()
+	w:button("Indoors: On"):Click()
 	eq(w:db().indoors, "off", "on then off")
-	w:button("Indoors: off"):Click()
+	w:button("Indoors: Off"):Click()
 	eq(w:db().indoors, "dim", "and back round")
 end)
 
@@ -144,15 +144,15 @@ it("cycles the volume channel rather than opening a menu", function()
 	local w = H.world()
 	w:open()
 	eq(w:db().channel, "Ambience", "starts on Ambience")
-	w:button("Volume: Ambience"):Click()
+	w:button("Channel: Ambience"):Click()
 	eq(w:db().channel, "SFX", "cycles to the next")
-	ok(w:button("Volume: SFX"), "and relabels itself")
+	ok(w:button("Channel: SFX"), "and relabels itself")
 end)
 
 it("applies a slider as it moves, and clamps where the parser clamps", function()
 	local w = H.world()
 	w:open()
-	local s = w:slider("How visible it is")
+	local s = w:slider("Visibility")
 	ok(s, "the visibility slider exists")
 
 	s:Drag(0.5)
@@ -171,7 +171,7 @@ it("follows a typed command while it is open", function()
 	w:slash("snow")
 	w:slash("blizzard")
 	eq(w:button("Blizzard").selected, true, "the window moved with the command")
-	near(w:slider("How dark it gets"):GetValue(), w:db().gloom, 1e-9, "sliders too")
+	near(w:slider("Darkness"):GetValue(), w:db().gloom, 1e-9, "sliders too")
 end)
 
 it("does not type a command back at itself when it refreshes", function()
@@ -213,18 +213,18 @@ end)
 it("hides the time-of-day controls until time of day is on", function()
 	local w = H.world()
 	w:open()
-	eq(w:slider("How strongly"):GetParent():IsShown(), false, "hidden while off")
+	eq(w:slider("Strength"):GetParent():IsShown(), false, "hidden while off")
 
 	w:button("Held"):Click()
 	eq(w:db().timeMode, "fixed", "the mode changed")
-	eq(w:slider("How strongly"):GetParent():IsShown(), true, "and the controls appeared")
-	eq(w:slider("Hold this hour"):GetParent():IsShown(), true, "including the hour")
+	eq(w:slider("Strength"):GetParent():IsShown(), true, "and the controls appeared")
+	eq(w:slider("Hold at Hour"):GetParent():IsShown(), true, "including the hour")
 
-	w:slider("Hold this hour"):Drag(3)
+	w:slider("Hold at Hour"):Drag(3)
 	eq(w:db().timeFixed, 3, "which sets the hour it holds")
 
 	w:button("Shifted"):Click()
-	w:slider("Shift the realm's clock by hours"):Drag(-5)
+	w:slider("Shift by Hours"):Drag(-5)
 	eq(w:db().timeMode, "offset", "shifted mode")
 	eq(w:db().timeOffset, -5, "and a negative shift, which needs the sign")
 end)
@@ -237,7 +237,7 @@ it("resets the settings and keeps the evidence", function()
 	w:db().calib = { { zone = "Elwynn" } }
 	w:open()
 	w:button("Snow"):Click()
-	w:slider("How visible it is"):Drag(0.3)
+	w:slider("Visibility"):Drag(0.3)
 
 	w:button("Reset"):Click()
 	eq(w:db().weather, "rain", "weather back to default")
@@ -380,4 +380,81 @@ it("has a volume slider that only touches our own weather", function()
 	end
 	lt(loudest, 0.6, "nothing played above the slider, allowing for the wobble")
 	gt(loudest, 0, "and something played")
+end)
+
+it("wears the game's own frame, and still builds on a client without one", function()
+	-- "Make it look more native to WoW", 2026-10-16. The gold nine-sliced dialog
+	-- edge and the carved header plate are the two pieces that make a frame read
+	-- as part of the interface rather than as an addon's dark rectangle.
+	local w = H.world()
+	local p = w:open()
+	local b = p:GetBackdrop()
+	ok(b and b.edgeFile, "the panel took Blizzard's dialog border")
+	contains(b.edgeFile, "UI-DialogBox-Border", "the gold one")
+
+	local header, title = nil, nil
+	for _, t in ipairs(p._textures) do
+		if t.texture and t.texture:find("UI%-DialogBox%-Header") then header = t end
+	end
+	for _, fs in ipairs(p._fontStrings) do
+		if fs.text == "Duskfall" then title = fs end
+	end
+	ok(header, "and the carved header plate")
+	ok(title, "with the addon's name on it")
+
+	-- The fallback is not decoration either: a client with no BackdropTemplate
+	-- must still get a bordered window, not a floating pile of controls.
+	local old = H.world({ backdropTemplate = false })
+	local q = old:open()
+	ok(q and q:IsShown(), "the window still opens")
+	eq(q.GetBackdrop, nil, "with no backdrop available")
+	local edges = 0
+	for _, t in ipairs(q._textures) do
+		if t.layer == "BORDER" and t.colour then edges = edges + 1 end
+	end
+	eq(edges, 4, "so it drew its own four-sided border instead")
+	eq(#old.mock.errors, 0, "and nothing was thrown at the client")
+end)
+
+it("draws its own minimap icon and repaints it with the weather", function()
+	-- "The icon doesn't look too unique", 2026-10-16. It was a stock Blizzard
+	-- spell texture, which is what half of CurseForge uses.
+	local w = H.world()
+	w.env.Duskfall_Minimap()
+	local b = w.env.DuskfallMinimapButton
+
+	for _, t in ipairs(b._textures) do
+		ok(not (t.texture and t.texture:find("Interface\\\\Icons")),
+			"nothing on the button is a borrowed spell icon")
+	end
+
+	local function drops()
+		local out = {}
+		for _, t in ipairs(b._textures) do
+			if t.layer == "ARTWORK" and t.colour then out[#out + 1] = t end
+		end
+		return out
+	end
+	local function sky()
+		for _, t in ipairs(b._textures) do
+			if t.layer == "BACKGROUND" then return t end
+		end
+	end
+
+	local rain = drops()
+	gt(#rain, 3, "the rain is drawn as streaks")
+	gt(rain[1]:GetHeight(), rain[1]:GetWidth(), "which are taller than they are wide")
+	near(rain[1].rotation, -0.131, 1e-6, "slanted the same way the sheets are")
+
+	w:slash("snow")
+	local flakes = drops()
+	near(flakes[1]:GetHeight(), flakes[1]:GetWidth(), 1e-9, "a flake is a dot")
+	eq(flakes[1].rotation, 0, "and does not slant")
+
+	local lit = { unpack(sky().colour) }
+	w:slash("off")
+	local dark = sky().colour
+	ok(lit[1] ~= dark[1] or lit[3] ~= dark[3],
+		"the sky greys out when the weather is off")
+	ok(dark[3] <= dark[1] + 0.02, "no blue left in it")
 end)

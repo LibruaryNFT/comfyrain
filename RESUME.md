@@ -986,7 +986,7 @@ one-star comment on 5 November.
 ### Phase 2 — 21 October to 4 November. 14 days. No client exists.
 
 **The mock API is DONE, 2026-10-13.** It was the first thing and it is built: `test/`, run
-with `lua test/run.lua`, **127 specs, all passing**, under Lua 5.1.5 built to `~/.local`
+with `lua test/run.lua`, **145 specs, all passing**, under Lua 5.1.5 built to `~/.local`
 because that is WoW's own interpreter version and a 5.2+ construct that would fail in the
 client has to fail here too. `test/README.md` has the detail. What it covers: boot and
 SavedVariables defaults, the time-of-day grade, the three rain layers and their geometry,
@@ -1099,6 +1099,47 @@ converged on co-prime bed lengths (e.g. 23s + 31s, which do not re-align for 713
 2-3 deep, 10-15% crossfade overlap, per-play `volumeOverride` jitter of 5-8%, and
 log-normal rather than Poisson intervals for one-shots so gusts cluster. 4+ simultaneous
 beds turns to mush.
+
+### Math audit — DONE 2026-10-16 (commit 42423f6)
+
+Every formula in the addon was re-derived against its own comment. Four were wrong, none
+had ever been reported, and no existing spec could have caught any of them, because every
+spec until now asserted behaviour a player can name ("snow drifts") rather than that a
+constant means what it says.
+
+| Was wrong | Effect | Fix |
+|---|---|---|
+| Gust noise scaled `sqrt(3)` | every gust at 71% of its stated size; spread 0.46 not 0.65 | `NOISE_SCALE = sqrt(6)`: the driving noise is TWO uniforms, variance 2/12 |
+| Scroll step not multiplied by tiling | fall speed silently divided by density; `speed` meant 0.59x to 2.76x what it said | `* tiling` in the offset step, and every preset's `speed` divided through by its own density, so the screen is pixel-identical |
+| Thunder interval derived from fall speed | fixing the above would have taken a monsoon from a clap every 48s to every 15s | `strikeEvery` stated per preset, at the values the old formula produced |
+| Lightning flash ignored `db.scale` and `IndoorFactor()` | a full-strength flash over rain drawn at a quarter | both applied to the peak |
+
+Four smaller ones in the same pass: one-shot thunder bypassed the volume slider (new
+`Play()` shared with `SlotPlay`), suppression was keyed on `db.enabled` rather than on
+whether we are actually playing (so sound-off left the realm muted), `FlashOnce` built a
+new frame per thunderclap and `CreateFrame` has no inverse, and `BedVolume` could exceed
+1.0 after its jitter.
+
+`test/spec_math.lua`, 10 specs: the rule is that if a number in the source is justified by
+a sentence of maths, there is a spec that checks the sentence.
+
+### Menus, wording and the icon — DONE 2026-10-16
+
+Asked for directly: "more native to WoW", the wording, and an icon that is not generic.
+
+- **Native chrome.** Blizzard's nine-sliced `UI-DialogBox-Border` and the carved
+  `UI-DialogBox-Header` plate, around our own dark fill rather than the brown parchment
+  that usually comes with them, plus `UIPanelCloseButton`. Gold title and headings. Both
+  templates are probed with `pcall` and both fall back (four-quad border, an "x" button),
+  because an unknown template name raises.
+- **Title Case nouns**, with the plain-English sentence demoted to the tooltip, which
+  already carries the slash command: "How visible it is" became **Visibility**, "How dark
+  it gets" **Darkness**, "How much it gusts" **Wind**, "Volume: Ambience" **Channel:
+  Ambience**.
+- **Procedural minimap icon**, not a borrowed spell texture: a dusk-gradient sky masked
+  round inside the brass ring, with six hand-scattered streaks that slant at the same 7.5
+  degrees the sheets do, become dots for snow, and grey out when the weather is off. It
+  repaints through the same `DuskfallAPI.changed` hook the window uses.
 
 ### Screenshot sweeps are a within-sweep ranking, not a calibration
 

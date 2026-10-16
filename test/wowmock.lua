@@ -142,6 +142,11 @@ function Texture:SetGradient(orientation, a, b)
 	self.gradient = { orientation, a, b }
 end
 function Texture:SetDrawLayer(layer, sublevel) self.layer, self.sublevel = layer, sublevel end
+-- Both of these are modern-client only, which is why the addon pcalls them.
+-- Recorded rather than ignored: the slant on the minimap icon's streaks is the
+-- difference between rain and snow, and nothing else distinguishes them.
+function Texture:SetMask(file) self.mask = file end
+function Texture:SetRotation(r) self.rotation = r end
 
 --------------------------------------------------------------------------------
 -- Font strings
@@ -303,6 +308,10 @@ function M.reset(opts)
 	-- name they want the client to be pretending to accept.
 	M.soundParamsKey         = pick(opts.soundParamsKey, "soundKitID")
 	M.screenshotBlocked      = pick(opts.screenshotBlocked, false)
+	-- Whether CreateFrame(..., "BackdropTemplate") hands back a frame that can
+	-- actually take a backdrop. True on every current client; a spec sets it
+	-- false to prove the hand-drawn border still comes up on one that cannot.
+	M.backdropTemplate       = pick(opts.backdropTemplate, true)
 	M.screenshots = {}
 	M.soundKits = {}
 	for _, id in ipairs(opts.soundKits or { 567 }) do M.soundKits[id] = true end
@@ -326,6 +335,16 @@ local function newFrame(kind, name, parent, template)
 		_name = name, _parent = parent, _kind = kind, _template = template,
 		_shown = true, _scripts = {}, _events = {}, _textures = {}, _fontStrings = {},
 	}, Frame)
+	-- SetBackdrop lives on the template, not on every frame: asking for it
+	-- without inheriting BackdropTemplate is the classic post-9.0 error, and a
+	-- mock that answered anyway would hide it.
+	if template == "BackdropTemplate" and M.backdropTemplate then
+		f.SetBackdrop = function(self, b) self._backdrop = b end
+		f.GetBackdrop = function(self) return self._backdrop end
+		f.SetBackdropColor = function(self, ...) self._backdropColour = { ... } end
+		f.SetBackdropBorderColor = function(self, ...) self._backdropBorder = { ... } end
+	end
+
 	-- Only a Model frame has SetModel, so code that forgets to pass "Model"
 	-- fails here the way it would in the client.
 	if kind == "Model" then

@@ -11,7 +11,10 @@
 --    part of the addon that depends on an API we have never seen work. Nothing
 --    below uses a template, a Backdrop, or UIDropDownMenu either: every pixel
 --    comes from CreateFrame, CreateTexture and CreateFontString, which the
---    weather overlay has already proven on this client.
+--    weather overlay has already proven on this client. The two Blizzard
+--    templates it does reach for, BackdropTemplate for the gold dialog edge and
+--    UIPanelCloseButton for the X, are both probed with pcall and both have a
+--    hand-drawn fallback, so a client without either still gets a usable window.
 --
 -- 2. Every control issues a slash command through DuskfallAPI.Command. Not one
 --    of them writes to the saved variables directly. So the window can never do
@@ -32,14 +35,42 @@ local WIDTH    = 330
 local PAD      = 14
 local ROW      = 24
 local GAP      = 7
+-- Room at the top for the carved header plate to sit over the frame edge.
+local TOP_INSET = 30
 
--- The chat prefix colour, so the window and the addon's voice match.
+-- Gold is WoW's own heading colour and the single cheapest way to make a
+-- hand-drawn frame belong to the rest of the interface. The blue is kept, but
+-- only for the lamp on a lit toggle and the slider thumb: it is the addon's
+-- chat-prefix colour, so it reads as Duskfall's and not as a second theme.
+local GOLD     = { 1.00, 0.82, 0.00 }
 local ACCENT   = { 0.50, 0.72, 1.00 }
 local BG       = { 0.04, 0.05, 0.07, 0.94 }
 local EDGE     = { 0.50, 0.72, 1.00, 0.35 }
 local PILL     = { 0.16, 0.18, 0.23, 1 }
 local PILL_ON  = { 0.22, 0.42, 0.72, 1 }
 local DIM      = { 0.62, 0.64, 0.70 }
+
+-- Blizzard's own dialog border, nine-sliced by the client. Drawn around our own
+-- dark fill rather than over the brown stone background that usually comes with
+-- it: the gold edge and the header plate are what make a frame read as WoW
+-- furniture, and a parchment panel full of flat dark controls does not.
+local BORDER_BACKDROP = {
+	edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border",
+	edgeSize = 32,
+	insets   = { left = 11, right = 12, top = 12, bottom = 11 },
+}
+
+-- BackdropTemplate carries SetBackdrop on modern clients and does not exist on
+-- older ones, and an unknown template name raises. Asked once, with the answer
+-- cached, and everything below has a hand-drawn path for "no".
+local backdropOK
+local function SupportsBackdrop()
+	if backdropOK == nil then
+		local ok, f = pcall(CreateFrame, "Frame", nil, UIParent, "BackdropTemplate")
+		backdropOK = (ok and f and type(f.SetBackdrop) == "function") or false
+	end
+	return backdropOK
+end
 
 local panel, rows, controls
 local updating = false      -- guards the write-back loop while we set widgets
@@ -140,6 +171,10 @@ local function INDOORS(db)
 	return db.indoors
 end
 
+local function Title(s)
+	return (tostring(s):gsub("^%l", string.upper))
+end
+
 local function PillRow(parent, n)
 	local row = CreateFrame("Frame", nil, parent)
 	row:SetHeight(ROW)
@@ -231,7 +266,7 @@ local function Heading(parent, label)
 	local fs = Text(row, "GameFontNormalSmall")
 	fs:SetPoint("BOTTOMLEFT", row, "BOTTOMLEFT", 0, 2)
 	fs:SetText(label)
-	fs:SetTextColor(ACCENT[1], ACCENT[2], ACCENT[3])
+	fs:SetTextColor(GOLD[1], GOLD[2], GOLD[3])
 	local line = Fill(row, { 1, 1, 1, 0.08 }, "ARTWORK")
 	line:SetHeight(1)
 	line:SetPoint("BOTTOMLEFT", row, "BOTTOMLEFT", 0, 0)
@@ -247,7 +282,7 @@ end
 -- hiding the time-of-day controls when the feature is off shrinks the window
 -- instead of leaving a hole in it.
 local function Relayout()
-	local y = -PAD - 20
+	local y = -TOP_INSET
 	for _, r in ipairs(rows) do
 		local show = (not r.visible) or r.visible()
 		if show then
@@ -268,11 +303,18 @@ end
 --------------------------------------------------------------------------------
 
 local CHANNELS = { "Ambience", "SFX", "Master", "Music", "Dialog" }
+-- Title Case nouns throughout, which is how the client labels its own options.
+-- The sentence that used to be the label is now the tooltip's first line, so
+-- nothing was lost: the panel scans, and the explanation is one hover away.
 local TIME_MODES = {
-	{ key = "off",    label = "Off",      cmd = "time off" },
-	{ key = "local",  label = "My clock", cmd = "time local" },
-	{ key = "offset", label = "Shifted",  cmd = "time +9" },
-	{ key = "fixed",  label = "Held",     cmd = "time 21" },
+	{ key = "off",    label = "Off",      cmd = "time off",
+	  note = "Leave the realm's own day and night alone." },
+	{ key = "local",  label = "My Clock", cmd = "time local",
+	  note = "Light the world by your clock instead of the realm's." },
+	{ key = "offset", label = "Shifted",  cmd = "time +9",
+	  note = "Move the realm's clock by a set number of hours." },
+	{ key = "fixed",  label = "Held",     cmd = "time 21",
+	  note = "Hold one hour, all session. Permanent dusk." },
 }
 
 local function Refresh()
@@ -308,17 +350,17 @@ local function Refresh()
 	controls.thunder:SetOn(db.thunder)
 	-- Rain has lightning, snow has gusts, and the button must say which.
 	controls.thunder:SetLabel(weather.flash and "Thunder" or "Gusts")
-	controls.indoors:SetLabel("Indoors: " .. INDOORS(db))
-	controls.channel:SetLabel("Volume: " .. db.channel)
+	controls.indoors:SetLabel("Indoors: " .. Title(INDOORS(db)))
+	controls.channel:SetLabel("Channel: " .. db.channel)
 
 	for _, pill in ipairs(controls.timeMode.pills) do
 		pill:SetSelected(pill.mode == db.timeMode)
 	end
 	if db.timeMode == "offset" then
-		controls.hour.label:SetText("Shift the realm's clock by hours")
+		controls.hour.label:SetText("Shift by Hours")
 		controls.hour:Set(db.timeOffset)
 	elseif db.timeMode == "fixed" then
-		controls.hour.label:SetText("Hold this hour")
+		controls.hour.label:SetText("Hold at Hour")
 		controls.hour:Set(db.timeFixed)
 	end
 	controls.strength:Set(db.timeStrength)
@@ -334,7 +376,8 @@ end
 local function Build()
 	local db = DB()
 
-	panel = CreateFrame("Frame", "DuskfallPanel", UIParent)
+	panel = CreateFrame("Frame", "DuskfallPanel", UIParent,
+		SupportsBackdrop() and "BackdropTemplate" or nil)
 	panel:SetWidth(WIDTH)
 	panel:SetHeight(400)
 	panel:SetFrameStrata("DIALOG")
@@ -351,21 +394,48 @@ local function Build()
 	end)
 	panel:Hide()
 
+	-- The fill is inset so the nine-sliced gold edge has somewhere to sit; with
+	-- no backdrop it covers the whole frame and the hand-drawn border goes back
+	-- around the outside of it.
 	local bg = Fill(panel, BG)
-	bg:SetAllPoints(panel)
-	Border(panel, EDGE)
+	local backdrop = panel.SetBackdrop and pcall(panel.SetBackdrop, panel, BORDER_BACKDROP)
+	if backdrop then
+		bg:SetPoint("TOPLEFT", panel, "TOPLEFT", 10, -11)
+		bg:SetPoint("BOTTOMRIGHT", panel, "BOTTOMRIGHT", -11, 10)
+	else
+		bg:SetAllPoints(panel)
+		Border(panel, EDGE)
+	end
 
-	local title = Text(panel, "GameFontNormal")
-	title:SetPoint("TOPLEFT", panel, "TOPLEFT", PAD, -PAD)
+	-- The carved plate the client hangs over the top edge of its own dialogs.
+	-- One texture, and the thing most responsible for a frame looking like it
+	-- shipped with the game rather than with an addon.
+	local header = panel:CreateTexture(nil, "ARTWORK")
+	header:SetTexture("Interface\\DialogFrame\\UI-DialogBox-Header")
+	header:SetSize(230, 64)
+	header:SetPoint("TOP", panel, "TOP", 0, 12)
+
+	local title = Text(panel, "GameFontNormal", "CENTER")
+	title:SetPoint("TOP", header, "TOP", 0, -15)
 	title:SetText("Duskfall")
-	title:SetTextColor(ACCENT[1], ACCENT[2], ACCENT[3])
+	title:SetTextColor(GOLD[1], GOLD[2], GOLD[3])
 
-	local close = CreateFrame("Button", nil, panel)
-	close:SetSize(20, 20)
-	close:SetPoint("TOPRIGHT", panel, "TOPRIGHT", -PAD + 4, -PAD + 4)
-	local x = Text(close, "GameFontNormal", "CENTER")
-	x:SetPoint("CENTER")
-	x:SetText("x")
+	-- The client's own round close button if the template is there, and our
+	-- own letter if it is not. Neither may be the reason the window fails.
+	local close
+	local okClose = pcall(function()
+		close = CreateFrame("Button", nil, panel, "UIPanelCloseButton")
+	end)
+	if okClose and close then
+		close:SetPoint("TOPRIGHT", panel, "TOPRIGHT", -5, -5)
+	else
+		close = CreateFrame("Button", nil, panel)
+		close:SetSize(20, 20)
+		close:SetPoint("TOPRIGHT", panel, "TOPRIGHT", -PAD + 4, -PAD + 4)
+		local x = Text(close, "GameFontNormal", "CENTER")
+		x:SetPoint("CENTER")
+		x:SetText("x")
+	end
 	close:SetScript("OnClick", function() panel:Hide() end)
 	Teach(close, "Close", "/duskfall")
 
@@ -404,30 +474,32 @@ local function Build()
 		end)
 	end
 
-	controls.alpha = add(Slider(panel, "How visible it is", 0, 1.5, 0.05, "%.2f",
+	controls.alpha = add(Slider(panel, "Visibility", 0, 1.5, 0.05, "%.2f",
 		function(v) Run(string.format("alpha %.2f", v)) end))
-	Teach(controls.alpha.slider, "How visible it is", "/dusk alpha 0.75")
+	Teach(controls.alpha.slider, "Visibility", "/dusk alpha 0.75",
+		"How much weather you see through.")
 
-	controls.speed = add(Slider(panel, "How fast it falls", 0.2, 3, 0.05, "%.2f",
+	controls.speed = add(Slider(panel, "Fall Speed", 0.2, 3, 0.05, "%.2f",
 		function(v) Run(string.format("speed %.2f", v)) end))
-	Teach(controls.speed.slider, "How fast it falls", "/dusk speed 1.4")
+	Teach(controls.speed.slider, "Fall Speed", "/dusk speed 1.4",
+		"How fast it comes down.")
 
-	controls.dim = add(Slider(panel, "How dark it gets", 0, 2, 0.05, "%.2f",
+	controls.dim = add(Slider(panel, "Darkness", 0, 2, 0.05, "%.2f",
 		function(v) Run(string.format("dim %.2f", v)) end))
-	Teach(controls.dim.slider, "How dark it gets", "/dusk dim 0.5",
-		"0 leaves the world's own light alone.")
+	Teach(controls.dim.slider, "Darkness", "/dusk dim 0.5",
+		"How much the storm dims the world. 0 leaves the light alone.")
 
-	controls.gust = add(Slider(panel, "How much it gusts", 0, 2, 0.05, "%.2f",
+	controls.gust = add(Slider(panel, "Wind", 0, 2, 0.05, "%.2f",
 		function(v) Run(string.format("gust %.2f", v)) end))
-	Teach(controls.gust.slider, "How much it gusts", "/dusk gust 0.5",
-		"0 is dead calm: one fixed rate, no wind.")
+	Teach(controls.gust.slider, "Wind", "/dusk gust 0.5",
+		"How hard it gusts. 0 is dead calm: one fixed rate, no wind.")
 
 	add(Heading(panel, "Sound"), { gap = 4 })
 
-	controls.volume = add(Slider(panel, "How loud it is", 0, 1, 0.05, "%.2f",
+	controls.volume = add(Slider(panel, "Volume", 0, 1, 0.05, "%.2f",
 		function(v) Run(string.format("volume %.2f", v)) end))
-	Teach(controls.volume.slider, "How loud it is", "/dusk volume 0.5",
-		"Only Duskfall's own weather. Your game volume is untouched.")
+	Teach(controls.volume.slider, "Volume", "/dusk volume 0.5",
+		"Duskfall's weather only. Your game volume is untouched.")
 
 	local audio = add(CreateFrame("Frame", nil, panel))
 	audio:SetHeight(ROW)
@@ -444,24 +516,28 @@ local function Build()
 	-- Three states, so a cycling pill rather than a lamp. "Dim" is the default
 	-- and the one most people want: weather you can still hear and faintly see
 	-- from inside, instead of it vanishing the moment you cross a threshold.
-	controls.indoors = Pill(audio, "Indoors: dim", function()
+	controls.indoors = Pill(audio, "Indoors: Dim", function()
 		local order = { off = "dim", dim = "on", on = "off" }
 		Run("indoors " .. (order[INDOORS(DB())] or "dim"))
 	end)
 	controls.indoors:SetPoint("TOPLEFT", audio, "TOPLEFT", third * 2, 0)
 	controls.indoors:SetWidth(third)
+	Teach(controls.indoors, "Indoors", "/dusk indoors dim",
+		"Off hides it. Dim keeps it quiet and faint, the way weather is from " ..
+		"inside. On draws it at full strength.")
 
 	-- A cycling button rather than a dropdown: UIDropDownMenu is a template,
 	-- and five options do not need a menu.
-	controls.channel = add(Pill(panel, "Volume: Ambience", function()
+	controls.channel = add(Pill(panel, "Channel: Ambience", function()
 		local db2, at = DB(), 1
 		for i, c in ipairs(CHANNELS) do if c == db2.channel then at = i end end
 		Run("channel " .. CHANNELS[(at % #CHANNELS) + 1]:lower())
 	end))
-	Teach(controls.channel, "Which volume slider owns it",
-		"/dusk channel Ambience", "Ambience keeps it out of the way of music.")
+	Teach(controls.channel, "Channel", "/dusk channel Ambience",
+		"Which of the game's volume sliders owns the weather. Ambience keeps " ..
+		"it out of the way of music.")
 
-	add(Heading(panel, "Time of day"), { gap = 4 })
+	add(Heading(panel, "Time of Day"), { gap = 4 })
 
 	controls.timeMode = add(PillRow(panel, 4))
 	for i, pill in ipairs(controls.timeMode.pills) do
@@ -469,7 +545,7 @@ local function Build()
 		pill.mode = mode.key
 		pill:SetLabel(mode.label)
 		pill:SetScript("OnClick", function() Run(mode.cmd) end)
-		Teach(pill, mode.label, "/dusk " .. mode.cmd)
+		Teach(pill, mode.label, "/dusk " .. mode.cmd, mode.note)
 	end
 
 	controls.hour = add(Slider(panel, "Hour", -12, 23, 1, "%d", function(v)
@@ -483,29 +559,31 @@ local function Build()
 		return m == "offset" or m == "fixed"
 	end })
 
-	controls.strength = add(Slider(panel, "How strongly", 0, 1, 0.05, "%.2f",
+	controls.strength = add(Slider(panel, "Strength", 0, 1, 0.05, "%.2f",
 		function(v) Run(string.format("time strength %.2f", v)) end),
 		{ visible = function() return DB().timeMode ~= "off" end })
+	Teach(controls.strength.slider, "Strength", "/dusk time strength 0.7",
+		"How far towards that hour to grade the light.")
 
 	local foot = add(CreateFrame("Frame", nil, panel))
 	foot:SetHeight(ROW)
 	local half = (WIDTH - PAD * 2) / 2
-	local commands = Pill(foot, "All commands", function() Run("help") end)
+	local commands = Pill(foot, "Commands", function() Run("help") end)
 	commands:SetPoint("TOPLEFT", foot, "TOPLEFT", 0, 0)
 	commands:SetWidth(half - 3)
-	Teach(commands, "Print every command to chat", "/dusk help")
+	Teach(commands, "Commands", "/dusk help", "Print every command to chat.")
 
 	local reset = Pill(foot, "Reset", function() Run("reset") end)
 	reset:SetPoint("TOPLEFT", foot, "TOPLEFT", half, 0)
 	reset:SetWidth(half)
-	Teach(reset, "Back to defaults", "/dusk reset",
-		"Settings only. The calibration log is kept.")
+	Teach(reset, "Reset", "/dusk reset",
+		"Back to defaults. Settings only; the calibration log is kept.")
 
 	local hint = add(CreateFrame("Frame", nil, panel), { gap = 2 })
 	hint:SetHeight(14)
 	local hintText = Text(hint, "GameFontDisableSmall")
 	hintText:SetPoint("TOPLEFT", hint, "TOPLEFT", 0, 0)
-	hintText:SetText("Hover anything to see the command for it.")
+	hintText:SetText("Hover anything to see its slash command.")
 
 	-- Escape closes it, which is a list of frame names and therefore the reason
 	-- this frame has one.
@@ -519,9 +597,6 @@ local function Build()
 		panel:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
 	end
 
-	-- A typed command has to move the window too, or they disagree in front of
-	-- the player and the window is the half that stops being trusted.
-	DuskfallAPI.changed = Refresh
 end
 
 function Duskfall_Panel(mode)
@@ -545,6 +620,100 @@ end
 -- is not. Position is one number - the angle around the minimap - which is all
 -- LibDBIcon persists either.
 local minimap
+
+--------------------------------------------------------------------------------
+-- The icon
+--------------------------------------------------------------------------------
+--
+-- Drawn, not borrowed. Every stock spell icon that is nearly right is also the
+-- icon of a spell three other addons already use, and Spell_Frost_IceStorm -
+-- what this was - is a generic blue swirl that says nothing about weather.
+--
+-- So: a dusk sky behind falling weather, built from colour quads, which is the
+-- same toolkit the overlay itself is drawn with and needs no art file in the
+-- package. It shows the CURRENT weather, which no stock icon can do: blue-grey
+-- streaks for rain, pale dots for snow, and the whole thing greyed out when the
+-- weather is off, so the button answers "is it on, and what is it" at a glance.
+--
+-- Two optional APIs, both guarded, both degrading to something still worth
+-- looking at: SetMask rounds the sky off inside the brass ring (without it, a
+-- square of sky, which the ring mostly covers anyway) and SetRotation slants
+-- the rain (without it, the streaks fall straight down).
+local ROUND_MASK = "Interface\\CharacterFrame\\TempPortraitAlphaMask"
+local ICON_SIZE = 20
+local STREAKS = {
+	-- x, y, length: scattered by hand rather than randomly, because a random
+	-- scatter clumps and this is twenty pixels across.
+	{ -6,  3, 7 }, { -2, -2, 5 }, {  1,  4, 6 },
+	{  5, -1, 7 }, { -4, -5, 5 }, {  6,  5, 5 },
+}
+
+local icon = {}
+
+local function BuildIcon(button)
+	local sky = button:CreateTexture(nil, "BACKGROUND")
+	sky:SetSize(ICON_SIZE, ICON_SIZE)
+	sky:SetPoint("CENTER", -1, 1)
+	sky:SetColorTexture(1, 1, 1, 1)
+	pcall(sky.SetMask, sky, ROUND_MASK)
+	icon.sky = sky
+
+	icon.drops = {}
+	for i, s in ipairs(STREAKS) do
+		local t = button:CreateTexture(nil, "ARTWORK")
+		t:SetPoint("CENTER", sky, "CENTER", s[1], s[2])
+		t.length = s[3]
+		pcall(t.SetMask, t, ROUND_MASK)
+		icon.drops[i] = t
+	end
+	icon.button = button
+end
+
+-- Repainted whenever the weather changes, which is why it is not just set once
+-- at build time. Cheap: eight SetColorTexture calls on a frame nobody redraws.
+local function PaintIcon()
+	if not icon.sky then return end
+	local db = DuskfallAPI and DuskfallAPI.DB()
+	if not db then return end
+	local snow = db.weather == "snow"
+	local lit = db.enabled
+
+	-- Dusk, which is the name of the addon: deep blue above a last band of
+	-- light at the horizon. Flat colour if the client will not do a gradient.
+	local function colour(r, g, b, a)
+		if CreateColor then return CreateColor(r, g, b, a) end
+		return { r = r, g = g, b = b, a = a,
+		         GetRGBA = function(s) return s.r, s.g, s.b, s.a end }
+	end
+	if lit then
+		icon.sky:SetColorTexture(0.09, 0.12, 0.21, 1)
+		pcall(icon.sky.SetGradient, icon.sky, "VERTICAL",
+			colour(0.40, 0.31, 0.33, 1), colour(0.07, 0.10, 0.20, 1))
+	else
+		icon.sky:SetColorTexture(0.14, 0.14, 0.15, 1)
+		pcall(icon.sky.SetGradient, icon.sky, "VERTICAL",
+			colour(0.22, 0.22, 0.23, 1), colour(0.11, 0.11, 0.12, 1))
+	end
+
+	for _, t in ipairs(icon.drops) do
+		if snow then
+			-- A flake is a dot, and it does not slant.
+			t:SetSize(2, 2)
+			pcall(t.SetRotation, t, 0)
+		else
+			t:SetSize(1.4, t.length)
+			-- The same 7.5 degrees the rain sheets are drawn at.
+			pcall(t.SetRotation, t, -0.131)
+		end
+		if not lit then
+			t:SetColorTexture(0.45, 0.45, 0.47, 0.55)
+		elseif snow then
+			t:SetColorTexture(0.95, 0.97, 1.00, 0.95)
+		else
+			t:SetColorTexture(0.68, 0.80, 0.98, 0.85)
+		end
+	end
+end
 
 local function MinimapPlace()
 	local db = DuskfallAPI and DuskfallAPI.DB()
@@ -571,12 +740,8 @@ local function BuildMinimap()
 	border:SetSize(53, 53)
 	border:SetPoint("TOPLEFT")
 
-	local icon = minimap:CreateTexture(nil, "ARTWORK")
-	icon:SetTexture("Interface\\Icons\\Spell_Frost_IceStorm")
-	icon:SetSize(19, 19)
-	icon:SetPoint("CENTER", -1, 1)
-	-- Round it off so the square icon does not poke out of the round border.
-	icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+	BuildIcon(minimap)
+	PaintIcon()
 	minimap:SetHighlightTexture("Interface\\Minimap\\UI-Minimap-ZoomButton-Highlight")
 
 	minimap:RegisterForClicks("LeftButtonUp", "RightButtonUp")
@@ -636,5 +801,16 @@ function Duskfall_Minimap(mode)
 		return
 	end
 	BuildMinimap()
-	if minimap then minimap:Show() MinimapPlace() end
+	if minimap then minimap:Show() MinimapPlace() PaintIcon() end
 end
+
+-- One place that answers "something changed". A typed command has to move the
+-- window too, or the two disagree in front of the player and the window is the
+-- half that stops being trusted; and the minimap icon is a readout of the
+-- weather, so it is stale the moment anything else is.
+local function Changed()
+	Refresh()
+	PaintIcon()
+end
+
+if DuskfallAPI then DuskfallAPI.changed = Changed end
