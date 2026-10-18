@@ -23,6 +23,10 @@ local BED_JITTER  = 0.8
 -- exposes and it only applies at play time, so this is the whole dynamic range
 -- available to us. Both consults put a useful wobble at 5-8%.
 local BED_VOL_JITTER = 0.07
+-- Longest the second bed layer may wait before joining the first. Small on
+-- purpose: this is the gap between "the player turned rain on" and "the rain
+-- sounds like rain". See StartBed for why it used to be up to 30 seconds.
+local UNDER_FIRST_MAX = 2.5
 
 -- Blizzard weather ambience, Sound/ambience/Weather/*. Durations measured from
 -- the shipped files; they are exact, so the loop never gaps or doubles.
@@ -530,7 +534,11 @@ local function CalibRecord(source, parsed)
 		zone     = GetRealZoneText(),
 		subzone  = GetSubZoneText(),
 		gameTime = { GetGameTime() },
+		-- Both, not one. Neither being true is its own state - under an awning
+		-- or a cave mouth - and it is the state the overlay used to get wrong,
+		-- so a sample that recorded only IsIndoors() could not show it.
 		indoors  = IsIndoors() and true or false,
+		outdoors = IsOutdoors() and true or false,
 		cWeather = real,
 		cGrade   = grade,
 		console  = parsed,
@@ -656,12 +664,32 @@ end
 -- OnUpdate, and going indoors is exactly what hides it - so the poll would
 -- stop running at the precise moment it is needed, and the addon would be
 -- blind to the player walking back outside. A ticker runs either way.
+-- IsIndoors() and IsOutdoors() are NOT complements on this client, and that
+-- gap is the whole bug. A WMO interior sets IsIndoors true. Open world sets
+-- IsOutdoors true. But awnings, cave mouths, tents, bridges, mine entrances and
+-- the lip of most doorways set NEITHER - the player is under a roof the engine
+-- does not count as a room, and the old test, which only asked IsIndoors(),
+-- read every one of those as open sky and kept drawing rain on the ceiling.
+-- Asking both turns two states into three and treats "sheltered" as indoors,
+-- which is what it looks like.
+local function Sheltered()
+	if IsIndoors() then return true end
+	if IsOutdoors() then return false end
+	return true
+end
+
+-- Entering shelter is debounced much shorter than leaving it, because the two
+-- errors are not equally bad. Rain falling through a roof is the thing being
+-- reported; a second of missing rain after stepping back out is not. The long
+-- exit debounce is also what keeps a quick in-and-out under an arch from
+-- flickering: coming back needs a full ENTER_OUT seconds of clear sky.
+local ENTER_IN, ENTER_OUT = 0.35, 1.2
+
 local function PollIndoors()
-	local inside = IsIndoors() and true or false
+	local inside = Sheltered()
 	if inside ~= indoorsNow then
-		-- Debounce: walking under an arch should not restart the audio.
 		indoorsSince = indoorsSince or GetTime()
-		if GetTime() - indoorsSince > 0.9 then
+		if GetTime() - indoorsSince > (inside and ENTER_IN or ENTER_OUT) then
 			indoorsNow = inside
 			indoorsSince = nil
 			Duskfall_Refresh()
@@ -1028,13 +1056,20 @@ local function StartBed()
 	if not ShouldRain() or not db.sound then return end
 	PlayBedClip()
 
-	-- The under-bed starts somewhere random inside its own first cycle. There
-	-- is no way to seek into a file, so this is the only way to decorrelate the
-	-- two layers' phase, and it makes every session sound different from the
-	-- last rather than every session starting from the same aligned downbeat.
+	-- The under-bed starts a moment after the first, so the two layers' phase is
+	-- decorrelated rather than every session opening on the same aligned downbeat.
+	--
+	-- The offset used to be `random() * len * 0.6`, which on paper spread the
+	-- start across the clip's own first cycle. In practice `len` is 30 seconds
+	-- for rain and 50 for snow, so the second layer could arrive up to 18 or 30
+	-- seconds after the player turned the weather on - and until it did, the bed
+	-- was a single thin loop. That reads as the sound being slow to start, which
+	-- is what it was. The initial offset was never what decorrelates the layers
+	-- anyway: each relaunch is independently jittered (see BedInterval), so they
+	-- drift apart within a cycle or two regardless of where they began.
 	local u = Preset().under
 	if u then
-		underSlot.start = C_Timer.NewTimer(math.random() * u.len * 0.6, function()
+		underSlot.start = C_Timer.NewTimer(math.random() * UNDER_FIRST_MAX, function()
 			underSlot.start = nil
 			PlayUnderClip()
 		end)
@@ -1524,7 +1559,7 @@ boot:SetScript("OnEvent", function(_, event, arg1)
 		Refresh()
 	else
 		if not db then return end
-		indoorsNow = IsIndoors() and true or false
+		indoorsNow = Sheltered()
 		indoorsSince = nil
 		Refresh()
 	end

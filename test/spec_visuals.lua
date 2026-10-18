@@ -227,6 +227,48 @@ it("keeps raining indoors when the player asks it to", function()
 	eq(w:overlay():IsShown(), true, "overlay with indoors on")
 end)
 
+it("dims under a roof the engine does not call a room", function()
+	-- Reported from live play: "the rain goes through indoors sometimes". The
+	-- "sometimes" was the tell. IsIndoors() is true only inside a WMO interior,
+	-- so awnings, cave mouths, tents, bridges and most doorways returned false
+	-- and got full-strength rain drawn on the ceiling. IsOutdoors() is false in
+	-- all of those, which is the signal the old test never asked for.
+	local w = H.world()
+	w:advance(1.0, 0.1)
+	local outside = w:layers().far:GetAlpha()
+	gt(outside, 0, "raining outdoors to begin with")
+
+	-- Neither flag set: sheltered, but not indoors by the engine's reckoning.
+	w.mock.state.sheltered = true
+	w:advance(2.0, 0.1)
+	lt(w:layers().far:GetAlpha(), outside * 0.5, "dimmed under the awning")
+
+	-- Compared as a ratio, not to the exact figure: the gust process keeps
+	-- moving alpha on its own, so pinning the number would be testing the gust.
+	w.mock.state.sheltered = false
+	w:advance(3.0, 0.1)
+	gt(w:layers().far:GetAlpha(), outside * 0.8, "back to full in the open")
+	eq(#w.mock.errors, 0, "errors")
+end)
+
+it("takes cover faster than it leaves it", function()
+	-- The two errors are not equally bad. Rain falling through a roof is the
+	-- thing players report; a second of missing rain after stepping back into
+	-- the open is not. The long exit debounce is also what stops a quick dash
+	-- under an arch from flickering the overlay twice.
+	local w = H.world()
+	w:advance(1.0, 0.1)
+	local outside = w:layers().far:GetAlpha()
+
+	w.mock.state.sheltered = true
+	w:advance(0.8, 0.1)
+	lt(w:layers().far:GetAlpha(), outside, "inside within 0.8s")
+
+	w.mock.state.sheltered = false
+	w:advance(0.8, 0.1)
+	lt(w:layers().far:GetAlpha(), outside * 0.5, "still dim 0.8s after stepping out")
+end)
+
 it("gusts: one shared signal, lagged per layer, and switchable off", function()
 	-- The single biggest tell that this is a scrolling texture is that it
 	-- scrolls at exactly one rate forever. These assert the three properties

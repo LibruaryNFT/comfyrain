@@ -290,6 +290,7 @@ function M.reset(opts)
 		facing = 0.0,
 		speed = 0.0,
 		indoors = false,
+		sheltered = false,   -- under a roof the engine does not call a room
 		zone = "Elwynn Forest",
 		subzone = "Goldshire",
 		uiMapID = 37,
@@ -602,8 +603,15 @@ function M.install(env)
 
 	env.GetPlayerFacing = function() return M.state.facing end
 	env.GetUnitSpeed = function(unit) return (unit == "player") and M.state.speed or 0 end
+	-- These are NOT complements on the real client. Under an awning, a cave
+	-- mouth or a doorway both return false, and modelling them as opposites is
+	-- what let the rain-through-roofs bug live in a green test suite. `sheltered`
+	-- is that third state; leave it nil and the two behave as before.
 	env.IsIndoors = function() return M.state.indoors and true or false end
-	env.IsOutdoors = function() return not M.state.indoors end
+	env.IsOutdoors = function()
+		if M.state.sheltered then return false end
+		return not M.state.indoors
+	end
 	env.IsSubmerged = function() return M.state.submerged and true or false end
 	env.GetRealZoneText = function() return M.state.zone end
 	env.GetSubZoneText = function() return M.state.subzone end

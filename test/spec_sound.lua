@@ -164,6 +164,20 @@ it("moves the bed to whichever channel the player names", function()
 	eq(w:db().channel, "SFX", "an invalid channel is refused, not applied")
 end)
 
+it("brings the second bed layer in within a few seconds, not half a minute", function()
+	-- Reported from live play: "audio doesn't start quickly". The first bed
+	-- layer always started at once; the SECOND waited `random() * len * 0.6`,
+	-- and len is 30s for rain and 50s for snow, so the bed could stay a single
+	-- thin loop for up to 18 or 30 seconds after the player turned rain on.
+	-- The initial offset was never what decorrelates the layers anyway - the
+	-- per-relaunch jitter is - so it is capped and the phase spread survives.
+	local RAIN_LIGHT = 538983   -- the under-bed at the default intensity
+	local w = H.world()
+	w:advance(3.0, 0.1)
+	gt(#playsOf(w.mock, 0, RAIN_LIGHT), 0, "under-bed joined within 3s")
+	eq(#w.mock.errors, 0, "errors")
+end)
+
 it("thunders, with the sound trailing the flash", function()
 	local w = H.world()
 	local before = #w.mock.sounds

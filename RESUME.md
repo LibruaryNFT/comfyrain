@@ -814,6 +814,115 @@ existence check.** It returns HTTP 200 for a channel that cannot exist; a nonsen
 tried as a control and also returned 200. The CozyAzeroth brand finding rests on the YouTube
 channel name and video titles, not on that status code.
 
+## SCOPE FREEZE, 2026-10-18 — the finish line
+
+**This section supersedes the feature work in `## THE ROADMAP` below.** The roadmap's
+dates and its Phase 1 client-gated list still stand; its Phase 2/3/4 feature list does not.
+
+### Why the scope froze
+
+Three deep-research reports came back on the question "is this worth building" (the prompt
+is `dr-prompt-is-this-worth-building.md`). They disagreed on the verdict — reshape, abandon,
+ship-if-reframed — but **none of the three said ship as-is**, and they converged on the
+numbers:
+
+| Addon | Downloads | Note |
+|---|---|---|
+| Dynamic Azeroth Weather | 359 in 6 months | near-identical feature list to ours |
+| keyboardturner's Weather | ~2,300 lifetime | reacts to server weather, does not fake it |
+| Dynamic Weather (best ever) | 20,860 lifetime | abandoned 2021 |
+| Our 90-day ceiling, 2 of 3 reports | low hundreds | the third said 3,000-8,000 and was internally inconsistent |
+
+Also unanimous across all three:
+
+- **Skyboxes are impossible for an addon.** Three for three. The claim recorded in
+  `## What this can never match` was challenged, put into the research prompt rather than
+  argued, and came back confirmed. It is now settled; do not re-litigate it.
+- **There is a real fog/atmosphere backlash.** Eye strain, headaches, and Blizzard removing
+  `/console volumeFog 0` as "unintended". Our MOD darken quad and gloom grade sit on the
+  wrong side of that sentiment.
+- **Blizzard has been actively increasing weather since 23 September** and shipped
+  environment-lighting lightning on 16 October, which weakens the "weather is rare" half of
+  the thesis. The "on demand, anywhere, permanent" half is untouched and is still the pitch.
+
+The conclusion is not that the addon is bad. It is that **the remaining engineering spend
+is not justified by a few hundred downloads.** So: ship what exists, stop building.
+
+### Cut, explicitly
+
+Each of these was planned and is now out of scope. They are recorded here so a later session
+does not pick one up thinking it was forgotten.
+
+- The depth gradient and the near-layer radial mask (consult item 1).
+- Parallax from `GetPlayerFacing()` (consult item 2).
+- Located lightning with `delay = metres / 343` (consult item 3).
+- Standing aside for a real server storm (consult item 4).
+- Regenerating `rain-near` / `snow-near` / `snow-gale` at 1024² (consult item 5).
+- Lens drops and the ground-wet MOD gradient (consult item 6).
+- Drifting cloud-shadow dimming. Added verbally after the skybox thread; all three reports
+  warn it reads as a cheap muddy filter, and the fog backlash says the same.
+
+### A. Bugs from live play — done 2026-10-18
+
+Both were reported from actually playing, which is the only source of this quality of bug,
+and both were real.
+
+1. **"Audio doesn't start quickly."** The first bed layer always started at once. The second
+   waited `random() * len * 0.6`, and `len` is 30s for rain and 50s for snow, so the bed
+   could stay a single thin loop for **up to 18 or 30 seconds** after the player turned rain
+   on. Capped at `UNDER_FIRST_MAX = 2.5`. The initial offset was never what decorrelates the
+   two layers — the per-relaunch jitter in `BedInterval` is — so nothing is lost.
+2. **"Rain goes through indoors sometimes."** `IsIndoors()` and `IsOutdoors()` are **not
+   complements** on this client (both verified present in `WowB.exe`, positive control
+   `GetPlayerFacing`). A WMO interior sets the first; open world sets the second; awnings,
+   cave mouths, tents, bridges and most doorways set **neither**. The old test asked only
+   `IsIndoors()` and so read every one of those as open sky. Now `Sheltered()` treats
+   "neither" as indoors. The debounce is also asymmetric now — 0.35s to take cover, 1.2s to
+   leave it — because rain through a roof is the reported error and a second of missing rain
+   outdoors is not.
+
+   The test mock modelled the two as strict complements, which is why this bug lived in a
+   green suite. `test/wowmock.lua` now has a third state, `state.sheltered`.
+
+### B. Ship scope — packaging only, no new features
+
+Everything here is mechanical. None of it needs a running client.
+
+1. **Default the MOD darken quad to off.** One line, and it is the single change the fog
+   backlash argues for.
+2. `README.md` and an MIT `LICENSE`.
+3. TOC fixes: a real `## Author`, `## Version`, an `## IconTexture`, and drop `Probe.lua`
+   from the shipped file list.
+4. `.pkgmeta` plus a release workflow pinned to `BigWigsMods/packager@v2.6.1`. **The
+   workflow must run `build/make_*.py` before packaging** — the `.tga` and `.ogg` files are
+   gitignored, so a naive package ships with no rain and no sound.
+5. Public GitHub repo, and a tag.
+6. One 10-second looping GIF for CurseForge, Reddit and Discord.
+
+### C. the author's hands — client-gated, expires 21 October
+
+Three days left. Nothing in this list can be done after the beta client dies, and none of it
+can be done by the agent.
+
+- `/dusk probe` on build 70425. The results on disk are from 70374.
+- `/dusk calib on`, then play normally. This measures how often the server actually sends
+  weather, and it is the stated kill number for the thesis.
+- During a real storm, set `weatherDensity 0` and watch whether the **engine lightning**
+  stops too. The reports split on this: two say 0 suppresses precipitation, one says a
+  28 September beta tester found it no longer does, and the third says it suppresses
+  precipitation but not the new lightning.
+- Fully exit and relaunch to answer the TOC flavour question, staging the flavour probe into
+  `_forever_` rather than `_classic_beta_`.
+- Check the fullscreen quads at 21:9 and at several `UIParent:GetScale()` values.
+
+### The kill number
+
+Fewer than ~200 downloads at 30 days post-launch means the category ceiling is real and
+there is no second version. That is the measurable thing, decided in advance, so it is not
+re-argued later from enthusiasm.
+
+---
+
 ## THE ROADMAP
 
 The one plan. Supersedes every other schedule in this file. Revised 2026-10-13 after a
