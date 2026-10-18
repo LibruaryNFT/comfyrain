@@ -95,7 +95,31 @@ are unproven.
   path, not a frame; there is no camera-pitch API.** Correct for a 1.60.x Classic-era
   client?
 
-### 4. The honest verdict
+### 4. Skyboxes specifically
+
+On 17 October a thread on r/wowforever titled "The biggest easy-win Blizzard is currently
+NOT leveraging for WoW Forever is..... Skyboxes" reached roughly 516 upvotes and 61
+comments. The argument was that retail already has better skyboxes that could be reused,
+and the main counter-argument in the comments was that retail's are static painted clouds
+that look like a still image, and that what players actually want is movement: volumetric
+or drifting clouds, cloud shadows on the ground, a darker night, more stars.
+
+- How often does this request recur, and over what period? Is this one viral thread or a
+  standing demand? Quantify across r/wowforever, r/classicwow and the official forums.
+- Has Blizzard responded to it, or said anything about skyboxes, clouds or night sky for
+  Forever? Quote them.
+- **Is there any legitimate path for a third party to change or augment the sky in this
+  client?** Separate these clearly: an addon; a client setting or CVar the player already
+  has; the existing SD/HD graphics toggle; replacing art in the game's data archives. For
+  each, say whether it works and whether it breaks Blizzard's terms of service. I believe
+  only the last one can touch the sky and that it is bannable. Confirm or correct.
+- If the sky itself is off limits to an addon, is there a screen-space effect that
+  plausibly scratches the same itch, such as slow drifting cloud-shadow dimming or a
+  heavier overcast? Or would that read as a cheap substitute and damage the product?
+- Is "better sky" a bigger or smaller want than "weather on demand"? If skybox demand is
+  far larger and we cannot serve it, say so plainly.
+
+### 5. The honest verdict
 
 Given all of the above:
 
