@@ -7,6 +7,47 @@ because the client cannot be told to actually change the weather.
 Stormwind. v2 switches all audio and the drop sprite to Blizzard's own assets and stops
 the rain indoors; needs `/reload` to pick up (no new files, so no client restart).
 
+## THE 30-MINUTE ROUTE — do this before 21 October
+
+Everything client-gated is now a GitHub issue (`gh issue list --label client-gated`),
+so nothing here depends on this file or on a chat session surviving. Issues #1-#6.
+
+The route below answers five of the six in one pass. **Walk it in this order**, because
+the calibration log in step 1 wants the whole half hour to run underneath everything else.
+
+```
+/comfy calib on
+/comfy probe
+/console weatherDensity 1
+```
+
+Then walk Stormwind, slowly, and go **under** things rather than past them:
+
+| Stop | What it tests | Issue |
+|---|---|---|
+| Trade District awnings, the fruit stalls | NEITHER-flag awnings in the open world | #1 |
+| The canal bridges, standing under the arch | shelter with sky visible on both sides | #1 |
+| The inn, the barbershop | known-bad from live play; confirm both are fixed | #1 |
+| Dwarven District tunnel and the mine mouth | cave entrance, the other NEITHER shape | #1 |
+| Cathedral doorway, stop **on** the threshold | the flicker case: in and out inside 3s | #1 |
+| The open street inside the Keep's walls | the false positive that would kill the feature | #1 |
+| Any real storm: `/console weatherDensity 0` | does engine lightning stop too | #3 |
+
+Nothing needs typing at a doorway. The addon writes a row on every committed transition,
+with coordinates. `/comfy where` is only for when something looks wrong and you want the
+reading in chat immediately.
+
+Finish with `/reload` (SavedVariables are written on reload and on logout, not
+continuously), then on this box:
+
+```
+lua tools/where_report.lua
+```
+
+Two still outside the route: #4 needs a full exit and relaunch with the flavour probe
+staged into `_forever_`, and #5 is eyeballing the quads at several `UIParent:GetScale()`
+values, which cannot be done headlessly because the overlay is parented to `WorldFrame`.
+
 ## 2026-10-19 (last) — two checks that need no client
 
 The beta client is withdrawn **21 October** and the next one lands **4 November**, which
