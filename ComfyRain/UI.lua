@@ -202,12 +202,28 @@ local function Text(parent, inherits, justify)
 end
 
 -- The tooltip is where the command lives, so it is not optional on any control.
+-- GameTooltip is the same frame the game draws item tooltips into, so these
+-- inherit the border, the fonts and the anchoring without asking for any of it.
+--
+-- Everything is read off the widget at hover time rather than closed over, so a
+-- control whose meaning changes can change its tooltip: the Hour slider is two
+-- settings wearing one row, and the Channel button has to be able to say that
+-- the volume slider it is pointing at is turned down.
+--
+-- The note wraps. Without that, GameTooltip sizes itself to the longest line
+-- and a two-sentence explanation becomes a tooltip wider than the window it is
+-- explaining.
 local function Teach(widget, title, command, note)
-	widget.command = command
+	widget.tipTitle, widget.command, widget.tipNote = title, command, note
 	widget:SetScript("OnEnter", function(self)
 		GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-		GameTooltip:SetText(title)
-		if note then GameTooltip:AddLine(note) end
+		GameTooltip:SetText(self.tipTitle or "")
+		if self.tipNote then
+			GameTooltip:AddLine(self.tipNote, 0.9, 0.9, 0.9, true)
+		end
+		if self.tipWarn then
+			GameTooltip:AddLine(self.tipWarn, 1, 0.3, 0.3, true)
+		end
 		if self.command then GameTooltip:AddLine("|cffffd100" .. self.command .. "|r") end
 		GameTooltip:Show()
 	end)
@@ -574,6 +590,47 @@ end
 --------------------------------------------------------------------------------
 
 local CHANNELS = { "Ambience", "SFX", "Master", "Music", "Dialog" }
+
+-- Which of the game's own volume sliders each channel rides on, and the switch
+-- above it where there is one. Verified against WowB.exe 1.60.1.70425: all nine
+-- names below are in the binary, and an invented one is not.
+--
+-- This exists because of the single likeliest launch complaint. The addon can
+-- play into any channel but it cannot make an audible sound on a slider the
+-- player has already pulled to zero, and Ambience at zero is a common setting -
+-- the beta's own config had Master at 0.1 and Music at 0. Without this the
+-- panel shows a Volume slider, a Sound toggle that says On, and no sound, and
+-- there is nothing on screen that explains it. That is what the Channel button
+-- is for, and until now it never said so.
+local CHANNEL_CVAR = {
+	Ambience = { "Sound_EnableAmbience", "Sound_AmbienceVolume" },
+	SFX      = { "Sound_EnableSFX",      "Sound_SFXVolume" },
+	Music    = { "Sound_EnableMusic",    "Sound_MusicVolume" },
+	Master   = { nil,                    "Sound_MasterVolume" },
+	Dialog   = { nil,                    "Sound_DialogVolume" },
+}
+
+local function CVarNum(name)
+	local get = (C_CVar and C_CVar.GetCVar) or GetCVar
+	if type(get) ~= "function" then return nil end
+	local ok, v = pcall(get, name)
+	if not ok then return nil end
+	return tonumber(v)
+end
+
+-- False where the answer is "cannot tell". A CVar name that moved in some
+-- future flavour would otherwise put a red line on a panel whose sound is
+-- working perfectly, and a warning that cries wolf is worse than none.
+local function ChannelMuted(name)
+	if CVarNum("Sound_EnableAllSound") == 0 then return true end
+	local master = CVarNum("Sound_MasterVolume")
+	if master and master <= 0 then return true end
+	local pair = CHANNEL_CVAR[name]
+	if not pair then return false end
+	if pair[1] and CVarNum(pair[1]) == 0 then return true end
+	local v = CVarNum(pair[2])
+	return (v ~= nil and v <= 0) and true or false
+end
 -- Title Case nouns throughout, which is how the client labels its own options.
 -- The sentence that used to be the label is now the tooltip's first line, so
 -- nothing was lost: the panel scans, and the explanation is one hover away.
@@ -659,17 +716,37 @@ local function Refresh()
 	controls.thunder:SetLabel(weather.flash and "Thunder" or "Gusts")
 	controls.thunder:SetIcon(weather.flash and ICON.thunder or ICON.gusts)
 	controls.indoors:SetLabel("Indoors: " .. Title(INDOORS(db)))
-	controls.channel:SetLabel("Channel: " .. db.channel)
+
+	-- The one place the panel can tell a player why an addon they have switched
+	-- on is making no noise. Said on the face of the button rather than only in
+	-- the tooltip, because nobody hovers a control they have no reason to
+	-- suspect, and clicking it is also the fix.
+	local muted = db.sound and ChannelMuted(db.channel)
+	controls.channel:SetLabel("Channel: " .. db.channel .. (muted and "  (muted)" or ""))
+	controls.channel.tipWarn = muted and ("The game's own " .. db.channel ..
+		" volume is at zero, so nothing here can be heard. Click to move the " ..
+		"weather onto a different slider, or turn that one up in the game's " ..
+		"Sound options.") or nil
 
 	for _, pill in ipairs(controls.timeMode.pills) do
 		pill:SetSelected(pill.mode == db.timeMode)
 	end
+	-- One row, two settings, so the tooltip has to move with the label. It was
+	-- the only control in the window without one.
 	if db.timeMode == "offset" then
 		controls.hour.label:SetText("Shift by Hours")
 		controls.hour:Set(db.timeOffset)
+		controls.hour.slider.tipTitle = "Shift by Hours"
+		controls.hour.slider.tipNote =
+			"Move the light forward or back from the realm's own clock."
+		controls.hour.slider.command = "/comfy time +9"
 	elseif db.timeMode == "fixed" then
 		controls.hour.label:SetText("Hold at Hour")
 		controls.hour:Set(db.timeFixed)
+		controls.hour.slider.tipTitle = "Hold at Hour"
+		controls.hour.slider.tipNote =
+			"Hold the light at one hour of the day and leave it there."
+		controls.hour.slider.command = "/comfy time 21"
 	end
 	controls.strength:Set(db.timeStrength)
 
@@ -953,6 +1030,10 @@ local function Build()
 		local m = DB().timeMode
 		return m == "offset" or m == "fixed"
 	end })
+	-- Title, note and command are all replaced by Refresh, which knows which of
+	-- the two settings this row is currently standing in for.
+	Teach(controls.hour.slider, "Hour", "/comfy time +9",
+		"Move the light away from the realm's own clock.")
 
 	controls.strength = add(Slider(panel, "Strength", 0, 1, 0.05, "%.2f",
 		function(v) Run(string.format("time strength %.2f", v)) end,

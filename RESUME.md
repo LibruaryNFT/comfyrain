@@ -494,6 +494,29 @@ the rain icon beside it, and telling rain from snow is the one job that row has.
 carrying an icon says on/off by desaturating it, which is the client's idiom, and its lamp
 hides rather than saying the same thing twice.
 
+### Tooltips, and why Channel stays — DONE 2026-10-19
+
+Asked: do we need a WoW-item-style hover tooltip, and do we need the Channel button?
+
+**Tooltips were already that.** `Teach()` draws into `GameTooltip`, which is the same frame
+the game draws item tooltips into, so the border, fonts and anchoring are the player's own.
+Two real gaps closed: the **Hour** slider had no tooltip at all (one row standing in for two
+settings, so its title, note and command are now set by `Refresh`), and notes did not wrap —
+`GameTooltip` sizes to its longest line, so a two-sentence note was a tooltip wider than the
+panel. A sweep spec now walks every visible button and slider under the panel and fails on
+any that says nothing, which is the guard a hand-written list of `Teach` calls cannot be.
+
+**Channel stays, and now earns it.** The addon can play into any of the game's five volume
+sliders but cannot make a sound on one the player has pulled to zero, and Ambience at zero
+is common — the beta's own config had Master at 0.1 and Music at 0. Before this the panel
+showed Sound: On, Volume up, and no sound, with nothing on screen to explain it. `Refresh`
+now reads the CVars and the button says `Channel: Ambience  (muted)`, with a red tooltip
+line; clicking it is also the fix. Covers the master switch (`Sound_EnableAllSound`), the
+master slider and the per-channel pair. **Cannot-tell is not muted** — a name that moves in
+a later flavour must not put a red warning on a panel whose sound is fine — and it stays
+quiet while `sound` is off, because the panel already says that. All nine CVar names were
+checked against `WowB.exe` 1.60.1.70425, with an invented name as the negative control.
+
 ## Blizzard assets used, by FileDataID
 
 Addons can pass a numeric FileDataID to `SetTexture` and `PlaySoundFile`, so the client's own

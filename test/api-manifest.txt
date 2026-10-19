@@ -10,6 +10,8 @@
 PRESENT AddLine
 PRESENT C_AddOns
 PRESENT C_AddOns.GetAddOnMetadata
+PRESENT C_CVar
+PRESENT C_CVar.GetCVar
 PRESENT C_Map
 PRESENT C_Map.GetBestMapForUnit
 PRESENT C_Map.GetPlayerMapPosition

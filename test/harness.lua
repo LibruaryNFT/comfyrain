@@ -238,6 +238,40 @@ function H.world(opts)
 		end
 	end
 
+	-- Hover something and read back what the game would have drawn into the
+	-- tooltip. Returns the rows, which carry each line's colour and wrap flag,
+	-- and the text joined for a plain `contains`. A warning that is not red and
+	-- a two-sentence note that does not wrap are both wrong in ways the text on
+	-- its own cannot show.
+	function w:hover(widget)
+		self.env.GameTooltip:ClearLines()
+		local enter = widget and widget.GetScript and widget:GetScript("OnEnter")
+		if not enter then return nil, "" end
+		enter(widget)
+		return self.env.GameTooltip.rows,
+			table.concat(self.env.GameTooltip.lines, " | ")
+	end
+
+	-- Every button and slider the window is currently showing, by walking up to
+	-- the panel rather than by trusting a list somebody maintains by hand.
+	function w:hoverables()
+		local panel, found = self:panel(), {}
+		for _, f in ipairs(mock.frames) do
+			if f._kind == "Button" or f._kind == "CheckButton" or f._kind == "Slider" then
+				local at, hidden = f, false
+				while at do
+					if at._shown == false then hidden = true end
+					if at == panel then
+						if not hidden then found[#found + 1] = f end
+						break
+					end
+					at = at._parent
+				end
+			end
+		end
+		return found
+	end
+
 	function w:flash()
 		local o = self:overlay()
 		for _, t in ipairs(o._textures) do

@@ -1019,3 +1019,129 @@ it("centres its labels again on a client that has not got the icons", function()
 	eq(w:db().weather, "snow", "and the buttons still work")
 	eq(#w.mock.errors, 0, "with nothing thrown at the client")
 end)
+
+--------------------------------------------------------------------------------
+-- Hover tooltips
+--------------------------------------------------------------------------------
+--
+-- Asked 2026-10-19: can we get a WoW-item-style tooltip on hover? That is what
+-- these already are. GameTooltip is the same frame the game draws item
+-- tooltips into, so the border, the fonts and the anchoring come free and
+-- match whatever the player's client looks like. Nothing here is drawn by us.
+--
+-- The contract is coverage, not existence. A tooltip is where the slash
+-- command lives, so a control without one is a control whose command is
+-- unreachable from the window - and that is exactly the failure a hand-written
+-- list of Teach calls produces, silently, one control at a time.
+
+it("teaches every button and slider in the window, with no gaps", function()
+	local w = H.world()
+	w:open()
+	w:slash("time +9")           -- bring the two time rows on screen as well
+	local checked = 0
+	for _, f in ipairs(w:hoverables()) do
+		local rows = w:hover(f)
+		local what = tostring(f._text or (f._parent and "slider") or "?")
+		ok(rows and rows[1] and rows[1].text ~= "" and rows[1].text ~= nil,
+			"something under the cursor says what it is: " .. what)
+		checked = checked + 1
+	end
+	H.gt(checked, 15, "and the sweep actually walked the window")
+end)
+
+it("says which of its two jobs the Hour row is doing", function()
+	-- One slider stands in for two settings, so a tooltip fixed at build time
+	-- is wrong half the time. It was the last control in the window with none.
+	local w = H.world()
+	w:open()
+	w:slash("time +9")
+	local _, shifted = w:hover(w:slider("Shift by Hours"))
+	contains(shifted, "Shift by Hours", "shifted mode names itself")
+	contains(shifted, "realm", "and says what it shifts from")
+
+	w:slash("time 21")
+	local _, held = w:hover(w:slider("Hold at Hour"))
+	contains(held, "Hold at Hour", "holding mode names itself")
+	contains(held, "/comfy time 21", "and offers the command that does it")
+end)
+
+it("wraps its explanations instead of growing wider than the window", function()
+	-- GameTooltip sizes itself to its longest line. A two-sentence note that
+	-- does not wrap is a tooltip several hundred pixels wider than the panel
+	-- it is explaining, which is invisible to any spec that reads only text.
+	local w = H.world()
+	w:open()
+	local rows = w:hover(w:button("Indoors: Dim"))
+	local long
+	for _, r in ipairs(rows) do
+		if r.text and #r.text > 60 then long = r end
+	end
+	ok(long, "the long explanation is there")
+	eq(long.wrap, true, "and it is set to wrap")
+end)
+
+--------------------------------------------------------------------------------
+-- Channel, and why it is still on the panel
+--------------------------------------------------------------------------------
+--
+-- Asked 2026-10-19: do we really need the Channel button? Yes, for one reason,
+-- and it is the likeliest complaint this addon will get. The addon can play
+-- into any of the game's five volume sliders but it cannot make a sound on one
+-- the player has already pulled to zero, and Ambience at zero is a common
+-- setting - the beta's own config shipped with Master at 0.1 and Music at 0.
+-- Without this, Sound says On, Volume is up, and nothing can be heard, with
+-- nothing on screen to explain it. Clicking the button is also the fix.
+
+it("says on its face when the game's own volume slider is at zero", function()
+	local w = H.world({ cvars = { Sound_AmbienceVolume = 0 } })
+	w:open()
+	ok(w:says("Channel: Ambience%s+%(muted%)"), "the button admits it")
+
+	local rows = w:hover(w:button("Channel: Ambience  (muted)"))
+	local warned
+	for _, r in ipairs(rows) do
+		if r.r == 1 and r.g and r.g < 0.5 then warned = r end
+	end
+	ok(warned, "and the tooltip says it in red, not in the same grey as the rest")
+	contains(warned.text, "zero", "naming what is wrong")
+end)
+
+it("stops warning once the weather is moved to a channel that works", function()
+	local w = H.world({ cvars = { Sound_AmbienceVolume = 0 } })
+	w:open()
+	ok(w:says("%(muted%)"), "muted to start with")
+	w:slash("channel master")
+	eq(w:says("%(muted%)"), nil, "and the warning goes with the move")
+	ok(w:says("Channel: Master"), "leaving the button reading plainly")
+end)
+
+it("catches the master switch and the master slider, not just its own", function()
+	for _, case in ipairs({
+		{ Sound_EnableAllSound = 0 },
+		{ Sound_MasterVolume = 0 },
+		{ Sound_EnableAmbience = 0 },
+	}) do
+		local w = H.world({ cvars = case })
+		w:open()
+		local which = next(case)
+		ok(w:says("%(muted%)"), which .. " at zero is still silence")
+	end
+end)
+
+it("says nothing at all when it cannot read the sound settings", function()
+	-- A CVar name that moves in some later flavour must not put a red warning
+	-- on a panel whose sound is working. Cannot-tell is not muted.
+	local w = H.world({ cvars = false })
+	w:open()
+	eq(w:says("%(muted%)"), nil, "no warning it has not earned")
+	eq(#w.mock.errors, 0, "and nothing thrown reading CVars that answer nil")
+end)
+
+it("keeps quiet about the channel while the sound is switched off", function()
+	-- Sound off is the player's own doing and the panel already says so. A
+	-- second complaint about a muted channel is noise.
+	local w = H.world({ cvars = { Sound_AmbienceVolume = 0 } })
+	w:open()
+	w:slash("sound off")
+	eq(w:says("%(muted%)"), nil, "one explanation, not two")
+end)

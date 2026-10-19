@@ -277,12 +277,29 @@ function M.reset(opts)
 		Sound_EnableMusic = "1",
 		Sound_EnableAmbience = "1",
 		Sound_EnableSFX = "1",
+		-- The default is a player whose sound all works, so a spec names only
+		-- the slider it is pulling down. All nine names were checked against
+		-- WowB.exe 1.60.1.70425; an invented one is not in the binary.
+		Sound_EnableAllSound = "1",
+		Sound_MasterVolume = "1",
+		Sound_AmbienceVolume = "1",
+		Sound_SFXVolume = "1",
+		Sound_MusicVolume = "1",
+		Sound_DialogVolume = "1",
 		-- The client ships defaults for these, so a spec about restoring them
 		-- has to start from a value rather than from nil.
 		screenshotFormat = "jpeg",
 		screenshotQuality = "7",
 	}
-	for k, v in pairs(opts.cvars or {}) do M.cvars[k] = tostring(v) end
+	-- cvars = false is a client that answers for none of them. Worth being able
+	-- to ask for: anything that reads a CVar to decide what to tell the player
+	-- has to stay quiet on a flavour where the name has moved, rather than
+	-- treating "no answer" as an answer.
+	if opts.cvars == false then
+		M.cvars = {}
+	else
+		for k, v in pairs(opts.cvars or {}) do M.cvars[k] = tostring(v) end
+	end
 
 	-- A CVar an addon may not write. The client does NOT raise on one: SetCVar
 	-- returns as though it worked and the value does not move, which is the
@@ -671,12 +688,23 @@ function M.install(env)
 
 	-- Tooltips are how a settings window teaches its own slash commands, so
 	-- what was put in one is recorded rather than thrown away.
+	-- The colour and the wrap flag are kept beside each line, not dropped. A
+	-- warning that is not red is not a warning, and an unwrapped two-sentence
+	-- note makes a tooltip wider than the window it explains - both are
+	-- invisible to a spec that only reads the text.
 	env.GameTooltip = {
 		lines = {},
+		rows = {},
 		SetOwner = function(self, owner, anchor) self.owner, self.anchor = owner, anchor end,
-		SetText = function(self, text) self.lines = { text } end,
-		AddLine = function(self, text) self.lines[#self.lines + 1] = text end,
-		ClearLines = function(self) self.lines = {} end,
+		SetText = function(self, text)
+			self.lines, self.rows = { text }, { { text = text } }
+		end,
+		AddLine = function(self, text, r, g, b, wrap)
+			self.lines[#self.lines + 1] = text
+			self.rows[#self.rows + 1] =
+				{ text = text, r = r, g = g, b = b, wrap = wrap and true or false }
+		end,
+		ClearLines = function(self) self.lines, self.rows = {}, {} end,
 		Show = function(self) self.shown = true end,
 		Hide = function(self) self.shown = false end,
 		IsShown = function(self) return self.shown and true or false end,
@@ -864,6 +892,11 @@ function M.install(env)
 	-- declared struct rather than adjacency. runFinishCallback is a FLAG: it
 	-- arms SOUNDKIT_FINISHED, it does not call anything. The
 	-- real check is /dump C_Sound on a live client before 21 October.
+	-- The same CVars env.GetCVar already serves, reached the modern way. The
+	-- addon prefers C_CVar.GetCVar and falls back to the global, and a client that
+	-- has neither has to leave the panel saying nothing rather than guessing.
+	env.C_CVar = { GetCVar = env.GetCVar }
+
 	env.C_Sound = {
 		PlaySound = function(kit, channel) return play(kit, channel, "kit") end,
 		-- ONE argument, a params table. Confirmed on build 70374, which answered
