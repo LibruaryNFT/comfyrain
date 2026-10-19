@@ -381,6 +381,31 @@ it("logs the doorway anyway when the client will not give a position", function(
 	eq(#w.mock.errors, 0, "errors")
 end)
 
+it("logs doorways with the overlay switched off, because the walk is a survey", function()
+	-- The measuring walk and the addon being on are two different things, and
+	-- conflating them is a fair thing to be confused by: being asked to walk
+	-- around looking for rain bugs while no rain is drawn sounds like nonsense.
+	-- It is not. The indoor poll is a ticker of its own rather than the
+	-- overlay's OnUpdate, so the survey runs whether or not anything is
+	-- rendered - the question being measured is what the ENGINE says about a
+	-- doorway, which does not depend on us drawing over it.
+	local w = H.world()
+	w:slash("off")
+	w:advance(1.0, 0.1)
+	local before = #(w:db().where or {})
+
+	w.mock.state.sheltered = true
+	w:advance(2.0, 0.1)
+	w.mock.state.sheltered = false
+	w:advance(3.0, 0.1)
+
+	local log = w:db().where
+	eq(#log, before + 2, "in and out were both logged with the addon disabled")
+	eq(log[#log - 1].reason, "entered", "going in")
+	eq(log[#log].reason, "left", "and coming back out")
+	eq(w:db().enabled, false, "and the addon really was off the whole time")
+end)
+
 it("gusts: one shared signal, lagged per layer, and switchable off", function()
 	-- The single biggest tell that this is a scrolling texture is that it
 	-- scrolls at exactly one rate forever. These assert the three properties
