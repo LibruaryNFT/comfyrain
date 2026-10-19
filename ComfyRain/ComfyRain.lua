@@ -708,6 +708,8 @@ end
 
 local calibFrame
 local calibOn = false
+-- What the player's graphics CVars were before the watch raised them.
+local calibRestore
 
 -- Blizzard's own weather line, which the engine prints to the console:
 --
@@ -761,9 +763,23 @@ local function CalibRecord(source, parsed)
 		or string.format("%s at %.2f", tostring(real), grade or 0)
 
 	-- Loud on purpose. The whole session is worthless if he is looking away.
-	msg("|cffffd100>>> REAL WEATHER <<<|r " .. what)
-	msg(string.format("   %s - screenshot it now, then |cffffd100/comfy off|r and screenshot again",
+	-- The baseline entry is seeded at startup when it is definitely not
+	-- raining, so shouting "REAL WEATHER" at it would be a lie and would also
+	-- train him to ignore the one that matters.
+	if source == "baseline" then
+		msg("baseline taken (" ..
+			((entry.subzone ~= "" and entry.subzone) or entry.zone or "?") ..
+			", clear). Now just play.")
+		return entry
+	end
+
+	msg("|cffffd100>>> THE GAME'S OWN RAIN JUST STARTED <<<|r")
+	msg(string.format("   in %s. Do these three, in order:",
 		entry.subzone ~= "" and entry.subzone or entry.zone))
+	msg("   1. screenshot now |cff999999(this is Blizzard's rain)|r")
+	msg("   2. |cffffd100/comfy on|r, screenshot again |cff999999(ours on top of theirs)|r")
+	msg("   3. |cffffd100/comfy off|r, screenshot again |cff999999(theirs alone)|r")
+	msg("   |cff999999" .. what .. "|r")
 	return entry
 end
 
@@ -792,13 +808,26 @@ local function CalibStart()
 	end)
 
 	-- Without these two the client will not draw real weather at all, and the
-	-- session measures nothing.
-	for cvar, want in pairs(DENSITY_CVARS) do SetCVar(cvar, want) end
+	-- session measures nothing. They are the player's graphics settings, not
+	-- ours, so what they were is kept and `calib off` puts them back. An
+	-- earlier version raised them and never restored, which silently left
+	-- weatherDensity at 3 on a machine that had deliberately run it at 0.
+	calibRestore = {}
+	for cvar, want in pairs(DENSITY_CVARS) do
+		calibRestore[cvar] = GetCVar(cvar)
+		SetCVar(cvar, want)
+	end
 
 	calibOn = true
 	db.calib = db.calib or {}
-	msg("logging via |cff66ff66" .. table.concat(got, " + ") .. "|r, density raised")
-	msg("turn on |cffffd100/chatlog|r too, then go stand somewhere wet and play")
+	msg("|cff66ff66Weather watch is ON.|r Two things to know:")
+	msg("   Blizzard's own rain has been turned back up for this " ..
+	    "|cff999999(it was off on this machine)|r.")
+	msg("   Nothing about ComfyRain itself changed.")
+	msg("Now just |cffffd100play normally|r. When the game's own weather starts, " ..
+	    "this shouts in chat - you do not have to watch for it.")
+	msg("When you are done: |cffffd100/comfy calib off|r " ..
+	    "|cff999999(puts your graphics settings back)|r")
 	-- Seed one entry so there is a clear-weather baseline to difference against.
 	CalibRecord("baseline", nil)
 end
@@ -809,22 +838,36 @@ local function CalibStop()
 		calibFrame:SetScript("OnEvent", nil)
 	end
 	calibOn = false
-	msg(string.format("stopped. |cff66ff66%d|r observations held in ComfyRainDB.calib",
+	local put = {}
+	for cvar, was in pairs(calibRestore or {}) do
+		if was then SetCVar(cvar, was); put[#put + 1] = cvar end
+	end
+	calibRestore = nil
+	msg(string.format("Weather watch is |cffff6666OFF|r. " ..
+		"|cff66ff66%d|r sightings saved, and they survive a /reload.",
 		db.calib and #db.calib or 0))
+	if #put > 0 then
+		msg("Your graphics settings are back as they were.")
+	end
 end
 
 local function CalibReport()
 	local n = db.calib and #db.calib or 0
-	msg(string.format("calibration: %s, |cff66ff66%d|r observations",
-		calibOn and "|cff66ff66logging|r" or "|cffff6666off|r", n))
+	msg(string.format("Weather watch: %s. |cff66ff66%d|r sightings so far.",
+		calibOn and "|cff66ff66ON|r" or "|cffff6666off|r", n))
 	for i = math.max(1, n - 4), n do
 		local e = db.calib[i]
 		msg(string.format("  %s %s%s", date("%H:%M", e.at), e.zone or "?",
 			e.console and string.format(" - type %s @ %s", tostring(e.console.type),
 				tostring(e.console.intensity)) or ""))
 	end
-	if n > 0 then
-		msg("|cffffd100/comfy calib off|r when done; the table survives a /reload")
+	if n == 0 then
+		msg("What this is for: every look setting in this addon is a guess, " ..
+		    "because this machine has never drawn Blizzard's own rain.")
+		msg("|cffffd100/comfy calib on|r watches for the real thing so ours can " ..
+		    "be matched to it. Then just play.")
+	else
+		msg("|cffffd100/comfy calib off|r when you are done.")
 	end
 end
 
@@ -1578,7 +1621,7 @@ local function Help()
 	print("  |cffffd100/comfy reset|r - back to defaults; |cffffd100reset look|sound|time|r for one part")
 	print("  |cffffd100/comfy share|r - a string to send someone; |cffffd100/comfy import|r to paste theirs")
 	print("  |cffffd100/comfy density|r - is the client even allowed to draw real weather?")
-	print("  |cffffd100/comfy calib on|r - log real weather so the defaults stop being guesses")
+	print("  |cffffd100/comfy watch on|r - shout when the game's OWN rain starts, then just play")
 	print("  |cffffd100/comfy probe|r - answer the client-gated questions before the beta dies")
 	print("  |cffffd100/comfy status|r")
 end
@@ -1793,7 +1836,10 @@ local function HandleSlash(input, source)
 			db.zoom and "on" or "off",
 			Readable(GetCameraZoom and GetCameraZoom()) or -1))
 		return
-	elseif cmd == "calib" or cmd == "calibrate" then
+	-- "calib" is an abbreviation of a word that does not say what it does, and
+	-- it was the one command that had to be explained twice. The name stays
+	-- because it is in the notes and the logs, but "watch" is what it is.
+	elseif cmd == "calib" or cmd == "calibrate" or cmd == "watch" then
 		if arg == "off" then
 			CalibStop()
 		elseif arg == "on" then

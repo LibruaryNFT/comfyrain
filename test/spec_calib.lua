@@ -62,8 +62,56 @@ it("shouts loudly enough to be noticed from across the room", function()
 	local w = H.world()
 	w:slash("calib on")
 	w.mock.fire("CONSOLE_MESSAGE", LINE)
-	gt(#w.mock.printedMatching("REAL WEATHER"), 0, "the alert fired")
+	gt(#w.mock.printedMatching("OWN RAIN JUST STARTED"), 0, "the alert fired")
 	gt(#w.mock.printedMatching("screenshot"), 0, "and said what to do about it")
+end)
+
+it("does not shout at the baseline, which is taken in clear weather", function()
+	-- The baseline is seeded the moment the watch starts, and the watch is
+	-- started indoors in a capital because that is where someone is standing
+	-- when they read the instructions. Announcing REAL WEATHER at it is a lie
+	-- and it also trains him to ignore the one that matters.
+	local w = H.world()
+	w:slash("calib on")
+	eq(#w:db().calib, 1, "the baseline was still taken")
+	eq(#w.mock.printedMatching("OWN RAIN JUST STARTED"), 0, "and said nothing about rain")
+	gt(#w.mock.printedMatching("baseline"), 0, "it says what it actually did")
+end)
+
+it("says what it changed, in words, and what to type when done", function()
+	-- This command raises the player's graphics settings and then waits. Both
+	-- halves have to be legible at the moment it is typed: "logging via
+	-- CONSOLE_MESSAGE + WEATHER_CHANGED, density raised" told him neither what
+	-- had happened to his machine nor what he was supposed to do next.
+	local w = H.world()
+	w:slash("calib on")
+	gt(#w.mock.printedMatching("Weather watch is"), 0, "names itself in plain words")
+	gt(#w.mock.printedMatching("Blizzard's own rain"), 0, "says whose setting moved")
+	gt(#w.mock.printedMatching("play normally"), 0, "says what to do now")
+	gt(#w.mock.printedMatching("calib off"), 0, "and how to stop")
+end)
+
+it("puts the graphics settings back when it stops", function()
+	-- The watch raises weatherDensity because the client draws no real weather
+	-- without it. That is the player's setting, not ours, and this machine has
+	-- deliberately run it at 0 for years: an earlier version raised it and
+	-- never restored, so a half-hour measurement silently became permanent.
+	local w = H.world({ cvars = { weatherDensity = "0",
+	                              graphicsEnvironmentDetail = "1" } })
+	w:slash("calib on")
+	eq(w.mock.cvars.weatherDensity, "3", "raised for the measurement")
+	w:slash("calib off")
+	eq(w.mock.cvars.weatherDensity, "0", "and put back exactly as found")
+	eq(w.mock.cvars.graphicsEnvironmentDetail, "1", "both of them")
+	gt(#w.mock.printedMatching("back as they were"), 0, "and it says so")
+end)
+
+it("answers to watch, because calib is not a word", function()
+	local w = H.world()
+	w:slash("watch on")
+	gt(#w.mock.printedMatching("Weather watch is"), 0, "watch on starts it")
+	w:slash("watch off")
+	gt(#w.mock.printedMatching("OFF"), 0, "and watch off stops it")
 end)
 
 it("also logs through WEATHER_CHANGED when the console event is missing", function()
@@ -108,5 +156,5 @@ it("stops cleanly and reports the count", function()
 	w:slash("calib off")
 	w.mock.fire("CONSOLE_MESSAGE", LINE)
 	eq(#w:db().calib, 2, "nothing logged after stopping")
-	gt(#w.mock.printedMatching("observations"), 0, "reported the count")
+	gt(#w.mock.printedMatching("sightings saved"), 0, "reported the count")
 end)

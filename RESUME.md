@@ -12,16 +12,33 @@ the rain indoors; needs `/reload` to pick up (no new files, so no client restart
 Everything client-gated is now a GitHub issue (`gh issue list --label client-gated`),
 so nothing here depends on this file or on a chat session surviving. Issues #1-#6.
 
-The route below answers five of the six in one pass. **Walk it in this order**, because
-the calibration log in step 1 wants the whole half hour to run underneath everything else.
+The route below answers five of the six in one pass.
+
+### Step 1, once, when you log in
 
 ```
-/comfy calib on
+/comfy watch on
 /comfy probe
-/console weatherDensity 1
 ```
 
-Then walk Stormwind, slowly, and go **under** things rather than past them:
+**What `watch on` does, and why it is first.** Every look setting in this addon is a
+guess, because `weatherDensity` has been 0 on this machine since before the addon
+existed and the client has therefore never once drawn Blizzard's own rain here. There is
+nothing to compare ours against. `watch on` turns Blizzard's rain back up and then waits:
+real weather is server-driven, cannot be summoned, and arrives when it arrives. **It
+shouts in chat when it happens, so there is nothing to watch for.** It runs underneath
+the rest of the half hour, which is why it goes first.
+
+When the shout comes, it asks for three screenshots in a row: theirs, ours on top of
+theirs, theirs alone. That triple is the only calibration this addon will ever get.
+
+It was called `calib` and still answers to it. The name was the single most confusing
+thing in the command list, and it also used to raise the graphics settings without ever
+putting them back. `watch off` now restores them.
+
+### Step 2, the walk
+
+Walk Stormwind, slowly, and go **under** things rather than past them:
 
 | Stop | What it tests | Issue |
 |---|---|---|
@@ -37,8 +54,15 @@ Nothing needs typing at a doorway. The addon writes a row on every committed tra
 with coordinates. `/comfy where` is only for when something looks wrong and you want the
 reading in chat immediately.
 
-Finish with `/reload` (SavedVariables are written on reload and on logout, not
-continuously), then on this box:
+### Step 3, when you are done
+
+```
+/comfy watch off
+/reload
+```
+
+`watch off` puts the graphics settings back. `/reload` is what writes SavedVariables;
+they are not written continuously, so skipping it loses the whole walk. Then on this box:
 
 ```
 lua tools/where_report.lua
