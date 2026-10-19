@@ -77,6 +77,38 @@ Two still outside the route: #4 needs a full exit and relaunch with the flavour 
 staged into `_forever_`, and #5 is eyeballing the quads at several `UIParent:GetScale()`
 values, which cannot be done headlessly because the overlay is parented to `WorldFrame`.
 
+## 2026-10-19 — you could not tell what was on, or what was selected
+
+> "the button doesnt look right for zoom response and i cant tell if its on or off..
+> cant we maybe make things easier to understand wahts selected the text colour is
+> very difficult"
+
+Both halves were the same mistake: the window said on/off and selected/unselected with
+signals too small to read on a dark button at 97px.
+
+| Control | Said it with | Says it with now |
+|---|---|---|
+| Toggle, no icon | a 7px blue lamp | the client's own checkbox, ticked |
+| Toggle, with icon | desaturating a 14px icon, lamp hidden | the tick, **and** the icon greys |
+| Grouped pill | `SetButtonState("PUSHED")`, a 2px bevel | a gold ADD wash over the whole button |
+| Any label | white vs `DIM` 0.62 grey | gold vs `DIM` 0.62 grey |
+
+- `UI-CheckBox-Up` (130755) and `UI-CheckBox-Check` (130751) are referenced, not
+  shipped, like every other piece of Blizzard art here. Both were confirmed in the
+  listfile before being used.
+- Asked through `HasArt`, because a missing box would leave a label indented past
+  nothing and a toggle saying nothing at all. That is the one case the rule exists
+  for. The 7px lamp stays as the fallback and `artPaths = {}` still exercises it.
+- The selected state is a colour fill at `ADD`, not `UI-Panel-Button-Highlight`. The
+  highlight file is a three-slice sheet and would distort stretched across a pill; a
+  fill needs no `HasArt` and works on the flat-pill fallback too, which has no bevel
+  to shift in the first place.
+- The icon no longer carries the state alone. It used to hide the lamp to avoid
+  saying it twice; the trouble was that a desaturated 14px icon and a lit one are
+  nearly the same picture, so Thunder had no readable state at all.
+- Four new specs, each mutation-checked: no glow, white-instead-of-gold, and a tick
+  that never hides all fail the suite, each to the spec written for it. 253 green.
+
 ## 2026-10-19 — sweeps and golden files, so the client stops being the test rig
 
 > "well can tu do more testing, we dont want to have to keep manually testinge tc"

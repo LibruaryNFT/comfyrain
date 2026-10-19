@@ -83,6 +83,13 @@ local SLIDER_BACKDROP = {
 local ART = {
 	stone = "Interface\\DialogFrame\\UI-DialogBox-Background-Dark",
 	thumb = "Interface\\Buttons\\UI-SliderBar-Button-Horizontal",
+	-- The client's own checkbox, at the size the client draws it. What it
+	-- replaced was a 7px blue square, and the 7px blue square was reported from
+	-- live play as unreadable: "the button doesnt look right for zoom response
+	-- and i cant tell if its on or off". An on/off control in this window now
+	-- looks like every other on/off control the player has ever used.
+	check     = "Interface\\Buttons\\UI-CheckBox-Up",
+	checkMark = "Interface\\Buttons\\UI-CheckBox-Check",
 }
 
 -- Icons for the three buttons that name a kind of weather. Picked by rendering
@@ -315,8 +322,30 @@ local function Pill(parent, label, onClick)
 			local c = on and PILL_ON or PILL
 			self.bg:SetColorTexture(c[1], c[2], c[3], c[4])
 		end
+
+		-- The pressed state on its own is a two-pixel bevel shift. That was the
+		-- entire difference between the chosen intensity and the other three,
+		-- and from live play it was not visible: "cant we maybe make things
+		-- easier to understand whats selected". A whole button's worth of warm
+		-- light is, and it works the same on the flat-pill fallback, which has
+		-- no bevel to shift.
+		if on and not self.glow then
+			self.glow = Fill(self, { 1.00, 0.82, 0.00, 0.22 }, "ARTWORK", -1)
+			self.glow:SetAllPoints(self)
+			self.glow:SetBlendMode("ADD")
+		end
+		if self.glow then
+			if on then self.glow:Show() else self.glow:Hide() end
+		end
+
+		-- Gold, not white. White against the 62% grey of an unselected label is
+		-- a contrast step small enough to disappear on a dark button at this
+		-- size, which is what "the text colour is very difficult" was about.
+		-- Gold is the client's own colour for the live thing and is already
+		-- this panel's heading colour, so it reads as selection rather than as
+		-- a second theme.
 		if on then
-			self.label:SetTextColor(1, 1, 1)
+			self.label:SetTextColor(GOLD[1], GOLD[2], GOLD[3])
 		else
 			self.label:SetTextColor(DIM[1], DIM[2], DIM[3])
 		end
@@ -354,29 +383,49 @@ end
 -- no dependency on the client's checkbox art existing.
 local function Toggle(parent, label, command, onClick)
 	local b = Pill(parent, label, onClick)
-	b.lamp = Fill(b, PILL_ON, "ARTWORK")
-	b.lamp:SetSize(7, 7)
-	b.lamp:SetPoint("LEFT", b, "LEFT", 7, 0)
+
+	-- Asked about with HasArt because a missing box would leave the label
+	-- indented past nothing and the toggle saying nothing at all, which is the
+	-- one case the whole HasArt rule exists for. The lamp stays as the fallback
+	-- and is what a client without the checkbox art still draws.
+	b.boxed = HasArt(ART.check) and HasArt(ART.checkMark)
+	if b.boxed then
+		b.box = b:CreateTexture(nil, "ARTWORK")
+		b.box:SetTexture(ART.check)
+		b.box:SetSize(18, 18)
+		b.box:SetPoint("LEFT", b, "LEFT", 3, 0)
+		b.tick = b:CreateTexture(nil, "OVERLAY")
+		b.tick:SetTexture(ART.checkMark)
+		b.tick:SetSize(18, 18)
+		b.tick:SetPoint("CENTER", b.box, "CENTER")
+	else
+		b.lamp = Fill(b, PILL_ON, "ARTWORK")
+		b.lamp:SetSize(7, 7)
+		b.lamp:SetPoint("LEFT", b, "LEFT", 7, 0)
+	end
+	b.inset = b.boxed and 22 or 19
 	b.label:ClearAllPoints()
-	b.label:SetPoint("LEFT", b, "LEFT", 19, 0)
+	b.label:SetPoint("LEFT", b, "LEFT", b.inset, 0)
 	b.label:SetJustifyH("LEFT")
 
 	function b:SetOn(on)
-		-- A toggle that has been given an icon says on/off by greying the picture,
-		-- which is the client's own idiom, and the lamp goes away rather than
-		-- sitting beside it saying the same thing twice.
-		if self.icon and self.icon:IsShown() then
-			self.lamp:Hide()
-			if self.icon.SetDesaturated then
-				pcall(self.icon.SetDesaturated, self.icon, not on)
-			end
-		else
-			self.lamp:Show()
+		if self.tick then
+			if on then self.tick:Show() else self.tick:Hide() end
+		elseif self.lamp then
 			if on then
 				self.lamp:SetColorTexture(ACCENT[1], ACCENT[2], ACCENT[3], 1)
 			else
 				self.lamp:SetColorTexture(0.25, 0.26, 0.30, 1)
 			end
+		end
+		-- An icon still greys out when the toggle is off, but it is no longer
+		-- the only thing saying so. It used to carry the news alone and hide
+		-- the lamp to avoid saying it twice; the trouble with that was that a
+		-- desaturated 14px icon and a lit one are nearly the same picture, so
+		-- Thunder had no readable state at all. The tick says on or off now and
+		-- the picture is back to saying only what the button is for.
+		if self.icon and self.icon:IsShown() and self.icon.SetDesaturated then
+			pcall(self.icon.SetDesaturated, self.icon, not on)
 		end
 		if on then
 			self.label:SetTextColor(1, 1, 1)
@@ -387,16 +436,21 @@ local function Toggle(parent, label, command, onClick)
 	end
 	b:SetOn(false)
 
-	-- Same icon as a plain pill, except that losing it has to put the label back
-	-- beside the lamp rather than in the middle of the button.
+	-- Same icon as a plain pill, except that everything has to shift right of
+	-- the box rather than start at the button's edge, and losing the icon has
+	-- to put the label back beside the box rather than in the middle.
 	local setIcon = b.SetIcon
 	function b:SetIcon(path, off)
 		setIcon(self, path, off)
-		if not (self.icon and self.icon:IsShown()) then
-			self.label:ClearAllPoints()
-			self.label:SetPoint("LEFT", self, "LEFT", 19, 0)
-			self.label:SetJustifyH("LEFT")
+		self.label:ClearAllPoints()
+		if self.icon and self.icon:IsShown() then
+			self.icon:ClearAllPoints()
+			self.icon:SetPoint("LEFT", self, "LEFT", self.inset, 0)
+			self.label:SetPoint("LEFT", self, "LEFT", self.inset + 17, 0)
+		else
+			self.label:SetPoint("LEFT", self, "LEFT", self.inset, 0)
 		end
+		self.label:SetJustifyH("LEFT")
 		self:SetOn(self.on)
 	end
 

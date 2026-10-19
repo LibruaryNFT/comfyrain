@@ -900,6 +900,41 @@ it("shows a chosen option the way the client does, by holding it down", function
 	eq(w:button("Rain"):GetButtonState(), "NORMAL", "and the other one is not")
 end)
 
+it("lights the chosen option, because a bevel on its own is two pixels", function()
+	-- The pressed state above was the entire difference between the chosen
+	-- intensity and the other three, and from live play it was not visible:
+	-- "cant we maybe make things easier to understand whats selected". A
+	-- button's worth of warm light is, and it works on the flat-pill
+	-- fallback too, which has no bevel to shift.
+	local w = H.world()
+	w:open()
+	w:button("Heavy"):Click()
+	local on, off = w:button("Heavy"), w:button("Light")
+	ok(on.glow and on.glow:IsShown(), "the chosen intensity is lit")
+	eq(on.glow.blend, "ADD", "with light, not with a flat panel over the art")
+	ok(not (off.glow and off.glow:IsShown()), "and the others are not")
+
+	w:button("Light"):Click()
+	ok(not on.glow:IsShown(), "the light follows the choice")
+	ok(off.glow and off.glow:IsShown(), "onto the new one")
+end)
+
+it("says the chosen option in gold, not in white", function()
+	-- White against the 62% grey of an unselected label is a contrast step
+	-- small enough to disappear on a dark button at this size, which is what
+	-- "the text colour is very difficult" was about. Gold is the client's own
+	-- colour for the live thing and is already this panel's headings.
+	local w = H.world()
+	w:open()
+	w:button("Heavy"):Click()
+	local c = w:button("Heavy").label.colour
+	near(c[1], 1.00, 1e-9, "gold red")
+	near(c[2], 0.82, 1e-9, "gold green")
+	near(c[3], 0.00, 1e-9, "gold blue")
+	near(w:button("Light").label.colour[1], 0.62, 1e-9,
+		"and an unchosen one stays dim")
+end)
+
 it("lays the real dialog stone over its own fill, never instead of it", function()
 	local w = H.world()
 	local p = w:open()
@@ -993,17 +1028,35 @@ it("swaps the bolt for the wind when the weather turns to snow", function()
 	ok(wind ~= bolt, "and it is not the lightning bolt any more")
 end)
 
-it("greys the picture out when the toggle is off, instead of lighting a lamp", function()
-	-- Desaturating is the client's own way of saying a thing is switched off,
-	-- and one widget saying it twice - a grey icon AND a dark lamp - is noise.
+it("ticks the box and greys the picture when the toggle is off", function()
+	-- Until 2026-10-19 the picture carried the news alone on any toggle that
+	-- had one, and the lamp was hidden so as not to say it twice. Reported
+	-- from live play: "i cant tell if its on or off". A desaturated 14px icon
+	-- and a lit one are nearly the same picture. The tick is the state now and
+	-- the icon is back to saying only what the button is for.
 	local w = H.world()
 	w:open()
 	local t = w:button("Thunder")
-	eq(t.icon:IsDesaturated(), false, "on by default, so the icon is in colour")
-	eq(t.lamp:IsShown(), false, "and the lamp has stood down")
+	eq(t.tick:IsShown(), true, "on by default, so the box is ticked")
+	eq(t.icon:IsDesaturated(), false, "and the icon is in colour")
 
 	w:slash("thunder off")
-	eq(t.icon:IsDesaturated(), true, "turned off, the icon goes grey")
+	eq(t.tick:IsShown(), false, "turned off, the tick clears")
+	eq(t.icon:IsDesaturated(), true, "and the icon goes grey with it")
+end)
+
+it("keeps the tick clear of a toggle's picture", function()
+	-- Both are drawn on a 97px pill, so the one failure mode is the box
+	-- sitting under the icon or the icon under the word.
+	local w = H.world()
+	w:open()
+	local t = w:button("Thunder")
+	ok(t.icon:IsShown(), "the picture is there to collide with")
+	eq(t.icon._lastPoint.x, t.inset, "the icon starts right of the box")
+	eq(t.label._lastPoint.x, t.inset + 17, "and the word right of the icon")
+
+	local plain = w:button("Zoom Response")
+	eq(plain.label._lastPoint.x, plain.inset, "with no icon, the word sits on the box")
 end)
 
 it("centres its labels again on a client that has not got the icons", function()
