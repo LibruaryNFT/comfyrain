@@ -10,6 +10,10 @@
 -- that would normally place them is not reachable from an addon.
 
 local ADDON = "ComfyRain"
+-- Kept beside the addon name rather than only in the TOC: /comfy about prints
+-- it, and X-Website is not guaranteed to be readable as metadata on every
+-- client. The two are checked against each other by a spec.
+local HOMEPAGE = "https://github.com/LibruaryNFT/comfyrain"
 local MEDIA = "Interface\\AddOns\\ComfyRain\\"
 
 local BED_OVERLAP = 0.12      -- seconds of overlap when relooping the bed
@@ -1911,6 +1915,36 @@ local function HandleSlash(input, source)
 			msg(text)
 		end
 		return
+	elseif cmd == "about" or cmd == "version" then
+		-- Read from the TOC rather than kept in a constant here, because
+		-- @project-version@ is substituted by the packager at release time and
+		-- a number typed into the Lua would be whatever it was when somebody
+		-- last remembered. Only the C_AddOns form exists on this client; the
+		-- bare GetAddOnMetadata global is not in WowB.exe at all, so calling it
+		-- would have been a nil-index on the one command whose whole job is to
+		-- be reassuring.
+		local function meta(field)
+			if C_AddOns and C_AddOns.GetAddOnMetadata then
+				local ok, v = pcall(C_AddOns.GetAddOnMetadata, ADDON, field)
+				if ok and v and v ~= "" then return v end
+			end
+		end
+		local ver = meta("Version")
+		-- The packager leaves this literal in an unreleased working copy.
+		if not ver or ver:find("project%-version") then ver = "dev build" end
+		msg("|cffffd100Comfy Rain|r " .. ver .. ", by |cffffd100" ..
+			(meta("Author") or "LibruaryNFT") .. "|r. " ..
+			(meta("X-License") or "MIT") .. " licensed.")
+		msg("Bugs, requests and the source: |cffffd100" .. HOMEPAGE .. "|r")
+		-- Same reason as share: a chat line cannot be copied out of the chat
+		-- frame without dragging across it, and the whole point of printing a
+		-- URL is that somebody can get it into a browser.
+		if not (ComfyRainAPI.share and
+		        pcall(ComfyRainAPI.share, HOMEPAGE,
+		              "Ctrl-C copies it. Paste it into your browser.")) then
+			msg("|cff999999(select the line above to copy it)|r")
+		end
+		return
 	elseif cmd == "import" then
 		if arg == "" then
 			if ComfyRainAPI.share and pcall(ComfyRainAPI.share, nil) then return end
@@ -1956,6 +1990,9 @@ ComfyRainAPI = {
 	-- still goes through the slash parser like everything else.
 	Sections     = SECTIONS,
 	SectionOrder = SECTION_ORDER,
+	-- So the per-slider resets can grey out a value already sitting on its
+	-- default without the window keeping a second copy of these numbers.
+	Defaults     = DEFAULTS,
 	Export       = function() return ExportProfile() end,
 }
 

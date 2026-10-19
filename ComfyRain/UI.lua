@@ -77,6 +77,13 @@ local updating = false      -- guards the write-back loop while we set widgets
 
 local function DB() return ComfyRainAPI and ComfyRainAPI.DB() end
 local function Run(cmd) ComfyRainAPI.Command(cmd) end
+-- Read-only, like Sections. The per-slider resets need to know what a default
+-- IS in order to grey out a value that is already sitting on it, and hardcoding
+-- a second copy of the numbers here is how the window and the addon start
+-- disagreeing about what "default" means.
+local function Defaults()
+	return (ComfyRainAPI and ComfyRainAPI.Defaults) or {}
+end
 
 --------------------------------------------------------------------------------
 -- Pieces
@@ -214,7 +221,20 @@ local function Toggle(parent, label, command, onClick)
 	return b
 end
 
-local function Slider(parent, label, lo, hi, step, fmt, apply)
+-- reset, when given, returns the default for THIS slider and the command that
+-- sets it. It is a function rather than a constant because the Hour slider's
+-- default depends on which time mode is live, and because Defaults() is not
+-- available until the addon has loaded.
+--
+-- The affordance is the number itself rather than a separate button. A 330px
+-- row already carries a label, a track and a value, and seven little undo icons
+-- down the right-hand edge is how a settings window starts looking like a
+-- cockpit. Making the value clickable also puts the control exactly where the
+-- eye already is when you decide you have gone too far, and it gives the row a
+-- second job for free: the number is GOLD when the setting is off its default
+-- and grey when it is on it, so "what have I actually changed here" is
+-- answerable at a glance without pressing anything.
+local function Slider(parent, label, lo, hi, step, fmt, apply, reset)
 	local row = CreateFrame("Frame", nil, parent)
 	row:SetHeight(36)
 
@@ -222,8 +242,14 @@ local function Slider(parent, label, lo, hi, step, fmt, apply)
 	row.label:SetPoint("TOPLEFT", row, "TOPLEFT", 0, 0)
 	row.label:SetText(label)
 
-	row.value = Text(row, "GameFontNormalSmall", "RIGHT")
+	row.value = CreateFrame("Button", nil, row)
+	row.value:SetSize(58, 14)
 	row.value:SetPoint("TOPRIGHT", row, "TOPRIGHT", 0, 0)
+	row.valueText = Text(row.value, "GameFontNormalSmall", "RIGHT")
+	row.valueText:SetPoint("RIGHT")
+	-- Without this the button's own SetText has nothing to draw into, the same
+	-- reason Pill does it.
+	row.value:SetFontString(row.valueText)
 
 	local s = CreateFrame("Slider", nil, row)
 	s:SetOrientation("HORIZONTAL")
@@ -253,9 +279,50 @@ local function Slider(parent, label, lo, hi, step, fmt, apply)
 	end)
 
 	row.slider = s
+
+	if reset then
+		local hi = Fill(row.value, { 1, 1, 1, 0.10 }, "HIGHLIGHT")
+		hi:SetAllPoints(row.value)
+		row.value:SetHighlightTexture(hi)
+		row.value:SetScript("OnClick", function()
+			local _, cmd = reset()
+			if cmd then Run(cmd) end
+		end)
+		-- Teach reads self.command at hover time, so the tooltip can follow a
+		-- default that moves. The Hour slider's does.
+		Teach(row.value, label, nil, "Click to put just this back to its "
+			.. "default. Nothing else moves.")
+	else
+		row.value:EnableMouse(false)
+	end
+
 	function row:Set(v)
 		s:SetValue(v)
-		row.value:SetText(string.format(fmt, s:GetValue()))
+		local shown = s:GetValue()
+		row.value:SetText(string.format(fmt, shown))
+		if not reset then return end
+		local default, cmd = reset()
+		row.value.command = cmd
+		-- Half a step of tolerance rather than equality. The value shown is
+		-- whatever the Slider widget quantised our db number to, and a
+		-- comparison that demanded the two match bit for bit would light a row
+		-- up as "changed" permanently the first time they did not. Defensive:
+		-- the quantisation has NOT been observed to drift on this client, and
+		-- half a step is below the resolution of anything the player can
+		-- express anyway, so it costs nothing to be wrong about.
+		--
+		-- Deliberately unspecced, and that is the honest state rather than an
+		-- oversight. The mock's Slider quantises on the way IN, so GetValue
+		-- never returns an off-grid number and no spec written against it can
+		-- tell the tolerance from an equality test - two attempts at one both
+		-- passed with the tolerance removed. A guard that cannot fail is worse
+		-- than none, because it reads as cover.
+		local at = default and math.abs(shown - default) < (step / 2)
+		if at then
+			row.valueText:SetTextColor(DIM[1], DIM[2], DIM[3])
+		else
+			row.valueText:SetTextColor(GOLD[1], GOLD[2], GOLD[3])
+		end
 	end
 	return row
 end
@@ -566,23 +633,39 @@ local function Build()
 		end)
 	end
 
+	-- The db key and the command verb differ for two of these - Visibility
+	-- writes `scale` through `alpha`, Darkness writes `gloom` through `dim` -
+	-- which is exactly why the default is looked up by key rather than assumed
+	-- to match the slider's name.
+	local function Back(key, verb, fmt)
+		return function()
+			local d = Defaults()[key]
+			if d == nil then return end
+			return d, string.format(verb .. " " .. (fmt or "%.2f"), d)
+		end
+	end
+
 	controls.alpha = add(Slider(panel, "Visibility", 0, 1.5, 0.05, "%.2f",
-		function(v) Run(string.format("alpha %.2f", v)) end))
+		function(v) Run(string.format("alpha %.2f", v)) end,
+		Back("scale", "alpha")))
 	Teach(controls.alpha.slider, "Visibility", "/comfy alpha 0.75",
 		"How much weather you see through.")
 
 	controls.speed = add(Slider(panel, "Fall Speed", 0.2, 3, 0.05, "%.2f",
-		function(v) Run(string.format("speed %.2f", v)) end))
+		function(v) Run(string.format("speed %.2f", v)) end,
+		Back("speed", "speed")))
 	Teach(controls.speed.slider, "Fall Speed", "/comfy speed 1.4",
 		"How fast it comes down.")
 
 	controls.dim = add(Slider(panel, "Darkness", 0, 2, 0.05, "%.2f",
-		function(v) Run(string.format("dim %.2f", v)) end))
+		function(v) Run(string.format("dim %.2f", v)) end,
+		Back("gloom", "dim")))
 	Teach(controls.dim.slider, "Darkness", "/comfy dim 0.5",
 		"How much the storm dims the world. 0 leaves the light alone.")
 
 	controls.gust = add(Slider(panel, "Wind", 0, 2, 0.05, "%.2f",
-		function(v) Run(string.format("gust %.2f", v)) end))
+		function(v) Run(string.format("gust %.2f", v)) end,
+		Back("gust", "gust")))
 	Teach(controls.gust.slider, "Wind", "/comfy gust 0.5",
 		"How hard it gusts. 0 is dead calm: one fixed rate, no wind.")
 
@@ -602,7 +685,8 @@ local function Build()
 	add(Heading(panel, "Sound", "sound"), { gap = 4 })
 
 	controls.volume = add(Slider(panel, "Volume", 0, 1, 0.05, "%.2f",
-		function(v) Run(string.format("volume %.2f", v)) end))
+		function(v) Run(string.format("volume %.2f", v)) end,
+		Back("volume", "volume")))
 	Teach(controls.volume.slider, "Volume", "/comfy volume 0.5",
 		"ComfyRain's weather only. Your game volume is untouched.")
 
@@ -659,13 +743,25 @@ local function Build()
 		else
 			Run(string.format("time %d", v))
 		end
+	end,
+	-- The only slider whose default moves. One control is shown for two
+	-- settings - an offset from realm time, and an absolute hour to hold at -
+	-- so "the default" is 0 in one mode and 21 in the other, and a fixed
+	-- number here would grey out the wrong one half the time.
+	function()
+		local d = Defaults()
+		if DB() and DB().timeMode == "offset" then
+			return d.timeOffset, string.format("time %+d", d.timeOffset or 0)
+		end
+		return d.timeFixed, string.format("time %d", d.timeFixed or 21)
 	end), { visible = function()
 		local m = DB().timeMode
 		return m == "offset" or m == "fixed"
 	end })
 
 	controls.strength = add(Slider(panel, "Strength", 0, 1, 0.05, "%.2f",
-		function(v) Run(string.format("time strength %.2f", v)) end),
+		function(v) Run(string.format("time strength %.2f", v)) end,
+		Back("timeStrength", "time strength")),
 		{ visible = function() return DB().timeMode ~= "off" end })
 	Teach(controls.strength.slider, "Strength", "/comfy time strength 0.7",
 		"How far towards that hour to grade the light.")
@@ -699,6 +795,26 @@ local function Build()
 	local hintText = Text(hint, "GameFontDisableSmall")
 	hintText:SetPoint("TOPLEFT", hint, "TOPLEFT", 0, 0)
 	hintText:SetText("Hover anything to see its slash command.")
+
+	-- About rides on the hint line rather than taking a fourth pill. The footer
+	-- holds three already, a 330px row does not take a fourth without the
+	-- labels truncating, and this is the least-pressed button in the window:
+	-- small type on the right of a line that was empty anyway is the correct
+	-- amount of room to give it.
+	local about = CreateFrame("Button", nil, hint)
+	about:SetSize(46, 14)
+	about:SetPoint("TOPRIGHT", hint, "TOPRIGHT", 0, 0)
+	local aboutText = Text(about, "GameFontDisableSmall", "RIGHT")
+	aboutText:SetPoint("RIGHT")
+	about:SetFontString(aboutText)
+	about:SetText("About")
+	local aboutHi = Fill(about, { 1, 1, 1, 0.10 }, "HIGHLIGHT")
+	aboutHi:SetAllPoints(about)
+	about:SetHighlightTexture(aboutHi)
+	about:SetScript("OnClick", function() Run("about") end)
+	Teach(about, "About", "/comfy about",
+		"Version, licence, and the GitHub page for bugs and requests. The " ..
+		"link opens in a box you can copy out of.")
 
 	-- Escape closes it, which is a list of frame names and therefore the reason
 	-- this frame has one.
@@ -816,12 +932,15 @@ local function BuildShare()
 end
 
 -- text = the profile to hand out, or nil to open the box empty for a paste.
-local function ShowShare(text)
+-- note overrides the default caption. /comfy about reuses this box for the
+-- project URL, and telling somebody that a GitHub link can be "pasted back" to
+-- another ComfyRain user would be nonsense.
+local function ShowShare(text, note)
 	if not shareBox then BuildShare() end
 	shareBox.edit:SetText(text or "")
-	shareBox.note:SetText(text
+	shareBox.note:SetText(note or (text
 		and "Ctrl-C copies it. Anyone running ComfyRain can paste it back."
-		or "Paste a profile here and press Enter.")
+		or "Paste a profile here and press Enter."))
 	shareBox:Show()
 	shareBox.edit:SetFocus()
 	-- Selected on open: the whole point is that copying it costs one keystroke

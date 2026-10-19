@@ -8,6 +8,8 @@
 #      executable, so this scan cannot see it either way.
 
 PRESENT AddLine
+PRESENT C_AddOns
+PRESENT C_AddOns.GetAddOnMetadata
 PRESENT C_Map
 PRESENT C_Map.GetBestMapForUnit
 PRESENT C_Map.GetPlayerMapPosition
@@ -26,6 +28,7 @@ PRESENT CreateFontString
 PRESENT CreateFrame
 PRESENT CreateTexture
 PRESENT EnableMouse
+PRESENT GetAddOnMetadata
 PRESENT GetBuildInfo
 PRESENT GetCVar
 PRESENT GetCameraZoom

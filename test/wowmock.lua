@@ -874,9 +874,20 @@ function M.install(env)
 	env.GetPhysicalScreenSize = function() return M.width, M.height end
 	env.GetLocale = function() return "enUS" end
 	env.UnitName = function() return "Tester" end
-	env.GetAddOnMetadata = function(_, field)
-		return ({ Version = "2.0.0", Title = "ComfyRain" })[field]
-	end
+	-- Only the C_AddOns form. The bare GetAddOnMetadata global that used to be
+	-- here is NOT in WowB.exe 1.60.1.70425 - checked with
+	-- `tools/api_surface.py --grep AddOnMetadata`, which returns the namespaced
+	-- one and nothing else. A mock that offers both lets the addon call a
+	-- function the client does not have and still go green.
+	env.C_AddOns = { GetAddOnMetadata = function(_, field)
+		return ({
+			Version   = "2.0.0",
+			Title     = "Comfy Rain",
+			Author    = "LibruaryNFT",
+			["X-License"] = "MIT",
+			["X-Website"] = "https://github.com/LibruaryNFT/comfyrain",
+		})[field]
+	end }
 
 	-- Settings API. Present so a stub panel can be written, but registration is
 	-- recorded rather than honoured: whether Forever hosts a panel at all is

@@ -669,3 +669,179 @@ it("prints the string to chat when the window did not load", function()
 	w:slash("share")
 	gt(#w.mock.printedMatching("ComfyRain1:"), 0, "the string went to chat instead")
 end)
+
+--------------------------------------------------------------------------------
+-- Per-slider reset
+--------------------------------------------------------------------------------
+
+-- The row's value is a button, so these reach it through the row rather than by
+-- hunting for a frame whose text happens to be "1.00" - four sliders sit on
+-- their default at once and that search would find whichever came first.
+local function valueOf(w, label)
+	w:open()
+	local row = w:slider(label):GetParent()
+	return row.value, row.valueText
+end
+
+it("the number beside a slider puts just that slider back", function()
+	-- Reset Look already exists and takes the whole section with it. The case
+	-- this is for is "the darkness is wrong and everything else is how I want
+	-- it", which the section button cannot do without collateral.
+	local w = H.world()
+	w:slash("dim 1.80")
+	w:slash("alpha 0.40")
+	w:slash("gust 0.20")
+
+	local btn = valueOf(w, "Darkness")
+	btn:Click()
+
+	near(w:db().gloom, 1.0, 1e-9, "darkness went back to its default")
+	near(w:db().scale, 0.40, 1e-9, "visibility was not touched")
+	near(w:db().gust, 0.20, 1e-9, "and neither was wind")
+end)
+
+it("looks up the default by db key, not by the slider's name", function()
+	-- Visibility writes `scale` through the `alpha` command and Darkness writes
+	-- `gloom` through `dim`. Two of the seven sliders have a label, a key and a
+	-- verb that are all different words, so a reset that guessed any of them
+	-- from the others would silently reset the wrong thing or nothing.
+	local w = H.world()
+	w:slash("alpha 0.10")
+	valueOf(w, "Visibility"):Click()
+	near(w:db().scale, 1.0, 1e-9, "Visibility reset the scale key")
+
+	w:slash("dim 0.10")
+	valueOf(w, "Darkness"):Click()
+	near(w:db().gloom, 1.0, 1e-9, "Darkness reset the gloom key")
+end)
+
+it("golds the number that has moved and greys the ones that have not", function()
+	-- The second job the clickable value does: answering "what have I actually
+	-- changed in here" without pressing anything or reading a single tooltip.
+	local w = H.world()
+	local _, text = valueOf(w, "Wind")
+	eq(text.colour[1] < 0.8, true, "grey while it sits on the default")
+
+	w:slash("gust 0.25")
+	local _, moved = valueOf(w, "Wind")
+	near(moved.colour[1], 1.00, 1e-9, "gold once it has moved")
+	near(moved.colour[2], 0.82, 1e-9, "the heading gold, not a third colour")
+
+	valueOf(w, "Wind"):Click()
+	local _, back = valueOf(w, "Wind")
+	eq(back.colour[1] < 0.8, true, "and grey again after the reset")
+end)
+
+it("every slider starts grey on a fresh profile", function()
+	local w = H.world()
+	for _, label in ipairs({ "Visibility", "Fall Speed", "Darkness",
+	                         "Wind", "Volume" }) do
+		local _, text = valueOf(w, label)
+		eq(text.colour[1] < 0.8, true, label .. " is grey on a fresh profile")
+	end
+end)
+
+it("resets the hour to whichever default that mode actually uses", function()
+	-- One control, two settings: a shift from realm time (default 0) and an
+	-- hour to hold at (default 21). A fixed number here would reset one of the
+	-- two modes to the other's default.
+	local w = H.world()
+	w:slash("time fixed")
+	w:slash("time 4")
+	valueOf(w, "Hold at Hour"):Click()
+	eq(w:db().timeFixed, 21, "fixed mode went back to 21")
+
+	w:slash("time offset")
+	w:slash("time +5")
+	valueOf(w, "Shift by Hours"):Click()
+	eq(w:db().timeOffset, 0, "and offset mode back to 0, not to 21")
+end)
+
+it("routes a per-slider reset through the command parser like everything else", function()
+	-- The window must never be able to do something the command line cannot.
+	local w = H.world()
+	w:slash("volume 0.30")
+	w.mock.printed = {}
+	local ran
+	local real = w.env.ComfyRainAPI.Command
+	w.env.ComfyRainAPI.Command = function(c) ran = c; return real(c) end
+	valueOf(w, "Volume"):Click()
+	ok(ran and ran:match("^volume"), "it issued a volume command: " .. tostring(ran))
+	near(w:db().volume, 1.0, 1e-9, "and the command did the work")
+end)
+
+--------------------------------------------------------------------------------
+-- About
+--------------------------------------------------------------------------------
+
+it("about names the project, the licence and the page, and no person", function()
+	local w = H.world()
+	w.mock.printed = {}
+	w:slash("about")
+	gt(#w.mock.printedMatching("Comfy Rain"), 0, "says what it is")
+	gt(#w.mock.printedMatching("LibruaryNFT"), 0, "and who, by handle")
+	gt(#w.mock.printedMatching("MIT"), 0, "and the licence")
+	gt(#w.mock.printedMatching("github%.com/LibruaryNFT/comfyrain"), 0, "and where")
+end)
+
+it("puts the link in a box, because chat cannot be copied out of", function()
+	local w = H.world()
+	local got
+	w.env.ComfyRainAPI.share = function(text, note) got = { text, note } end
+	w:slash("about")
+	ok(got, "the copy box was opened")
+	contains(got[1], "github.com/LibruaryNFT/comfyrain", "with the URL in it")
+	-- The share box's own caption is about pasting a profile back to another
+	-- ComfyRain user, which is nonsense for a GitHub link.
+	ok(got[2] and not got[2]:match("paste it back"),
+		"and a caption that fits a URL: " .. tostring(got[2]))
+end)
+
+it("about still works when the window never loaded", function()
+	local w = H.world()
+	w.env.ComfyRainAPI.share = nil
+	w.mock.printed = {}
+	w:slash("about")
+	gt(#w.mock.printedMatching("github%.com"), 0, "the link went to chat instead")
+end)
+
+it("the About button in the window runs the command", function()
+	local w = H.world()
+	w.mock.slash("COMFYRAINUI", "")
+	local b = w:button("About")
+	ok(b, "the window has an About button")
+	w.mock.printed = {}
+	b:Click()
+	gt(#w.mock.printedMatching("github%.com"), 0, "and it printed the about block")
+end)
+
+it("the homepage in the Lua and the one in the TOC are the same URL", function()
+	-- HOMEPAGE is a constant in ComfyRain.lua because X-Website is not
+	-- guaranteed readable as metadata everywhere, which means there are two
+	-- copies of the project URL in the package and they can drift. They drift
+	-- silently: /comfy about would keep printing a working link to the old
+	-- repository name long after the real one moved. The rename to comfyrain
+	-- is still pending, so this will be the thing that catches it.
+	local function read(path)
+		local fh = io.open(path, "r")
+		ok(fh ~= nil, "could read " .. path)
+		local body = fh:read("*a")
+		fh:close()
+		return body
+	end
+	local dir = (debug.getinfo(1, "S").source:match("@(.*/)") or "./")
+	local lua = read(dir .. "../ComfyRain/ComfyRain.lua")
+	local toc = read(dir .. "../ComfyRain/ComfyRain.toc")
+
+	local inLua = lua:match('HOMEPAGE%s*=%s*"([^"]+)"')
+	local inToc = toc:match("##%s*X%-Website:%s*(%S+)")
+	ok(inLua, "ComfyRain.lua declares a HOMEPAGE")
+	ok(inToc, "the TOC declares an X-Website")
+	eq(inLua, inToc, "and they are the same URL")
+
+	-- The name is the handle, not the person. Asserted rather than trusted,
+	-- because a TOC is exactly the file somebody fixes up by hand before a
+	-- release and puts a real name back into.
+	local author = toc:match("##%s*Author:%s*(.-)%s*\n")
+	eq(author, "LibruaryNFT", "the shipped author is the GitHub handle")
+end)
