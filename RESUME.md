@@ -97,14 +97,18 @@ button's own centre. The art was painted at `(-1, +1)`, a 2.5px error on a 20px 
 overhung the brass on the left and left a crescent of bare map on the right. Drawn at
 22px now, so the mask's soft edge tucks under the brass lip rather than meeting the map.
 
-**The icon is a raindrop, and a snowflake for snow.** A warm lit cottage window was
-tried first and rejected on sight — "make it a rain icon or something". It read as comfy
-and did not read as weather, and an icon's first job is to name the thing it opens. The
-drop is back, 11% larger than before (`r` 0.258 → 0.287, as big as it goes while keeping
-its outline clear of the minimap's crop), and the snow setting gets a six-armed crystal
-built from the same shading recipe so the two are obviously siblings. Both are one bold
-silhouette with a dark outline over a glow, which is the lowest-frequency contrast in
-the frame and so the last thing a downsample destroys.
+**The icon is a raindrop. One, for both weathers.** A warm lit cottage window was tried
+first and rejected on sight — "make it a rain icon or something". It read as comfy and
+did not read as weather, and an icon's first job is to name the thing it opens. A
+six-armed crystal for the snow setting was built next and dropped the same day — "do the
+rain drop i guess first one". Nothing is lost by that: the tooltip and the panel both
+name the running weather in words, and an icon that changes under the player is a worse
+readout than one they can learn.
+
+The drop is 11% larger than before (`r` 0.258 → 0.287, as big as it goes while keeping
+its outline clear of the minimap's crop). One bold silhouette with a dark outline over a
+glow is the lowest-frequency contrast in the frame, and so the last thing a downsample
+destroys.
 
 **The backdrop is radial now, not a horizon.** The old drop sat on a straight horizon
 band with ground under it, and a straight band inside a circular crop becomes a chord:

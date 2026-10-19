@@ -487,7 +487,10 @@ it("draws its own minimap icon and repaints it with the weather", function()
 	ok(art().texture:find("ComfyRain"), "the picture is one we shipped")
 	local rain = art().texture
 	w:slash("snow")
-	ok(art().texture ~= rain, "and snow is not the same picture as rain")
+	eq(art().texture, rain,
+		"one picture for both weathers - the tooltip and the panel say which "
+		.. "is running, and an icon that changes under the player is a worse "
+		.. "readout than one they can learn")
 
 	w:slash("rain")
 	w:slash("off")

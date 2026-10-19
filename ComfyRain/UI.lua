@@ -1533,10 +1533,9 @@ local minimap
 -- what this was - is a generic blue swirl that says nothing about weather.
 --
 -- So: our own art, rasterised by build/make_icon_tga.py and shipped in the
--- package. It shows the CURRENT weather, which no stock icon can do - the
--- rain and snow files are two renders of the same scene - and desaturates when
--- the weather is off, so the button answers "is it on, and what is it" at a
--- glance.
+-- package. One raindrop, which is the picture the addon is named after, and it
+-- desaturates when the weather is off so the button still answers "is this on"
+-- at a glance.
 --
 -- This was six colour quads until 2026-10-19: a dusk gradient with little
 -- streaks scattered over it. Twenty pixels is not enough room for scattered
@@ -1544,11 +1543,13 @@ local minimap
 -- needs to be more comfy and maybe bigger" was looking at. A picture drawn at
 -- 256px and resampled once, by a good filter, offline, beats anything assembled
 -- from rectangles at draw time.
+--
+-- One picture, not one per weather. A matching snowflake was built and dropped
+-- the same day - "do the rain drop i guess first one" - and nothing is lost by
+-- it: the tooltip and the panel both name the weather in words, and an icon
+-- that changes under the player is a worse readout than one they can learn.
 local ROUND_MASK = "Interface\\CharacterFrame\\TempPortraitAlphaMask"
-local ICON_ART = {
-	rain = "Interface\\AddOns\\ComfyRain\\icon",
-	snow = "Interface\\AddOns\\ComfyRain\\icon-snow",
-}
+local ICON_ART = "Interface\\AddOns\\ComfyRain\\icon"
 
 -- The hole in MiniMap-TrackingBorder is NOT centred on the button. With the
 -- 53x53 border anchored TOPLEFT on a 31x31 button - the arrangement every
@@ -1591,16 +1592,16 @@ local function BuildIcon(button)
 	icon.button = button
 end
 
--- Repainted whenever the weather changes, which is why it is not just set once
--- at build time. Cheap: one SetTexture on a frame nobody redraws.
+-- Repainted whenever the weather is switched, which is why it is not just set
+-- once at build time. Cheap: one SetTexture on a frame nobody redraws.
 local function PaintIcon()
 	if not icon.art then return end
 	local db = ComfyRainAPI and ComfyRainAPI.DB()
 	if not db then return end
 
-	icon.art:SetTexture(ICON_ART[db.weather] or ICON_ART.rain)
-	-- Off is the same picture with the lamp out: grey, and dimmer than the
-	-- ring around it so the eye reads it as inactive rather than as night.
+	icon.art:SetTexture(ICON_ART)
+	-- Off is the same picture greyed out, and dimmer than the ring around it,
+	-- so the eye reads it as inactive rather than as a darker sky.
 	pcall(icon.art.SetDesaturated, icon.art, not db.enabled)
 	if db.enabled then
 		icon.art:SetVertexColor(1, 1, 1)

@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""Generate ComfyRain's icon: a raindrop, and a snowflake.
+"""Generate ComfyRain's icon: a raindrop.
 
-Three things read these files. The in-game addon list draws `icon.tga` next to
-the title (`## IconTexture` in the .toc), and the minimap button draws whichever
-of the two matches the current weather, so the art has to survive being seen at
-64px, at 20px, and inside a circular hole with its corners cut off.
+Two things read this file. The in-game addon list draws it next to the title
+(`## IconTexture` in the .toc) and the minimap button draws it, so the art has
+to survive being seen at 64px, at 20px, and inside a circular hole with its
+corners cut off.
 
 Each of those has killed a design.
 
@@ -17,11 +17,14 @@ The second was a lit cottage window, which read as comfy and did not read as
 weather. "make it a rain icon or something", 2026-10-19. An icon's first job is
 to name the thing it opens, and a window names a house.
 
-So: a single raindrop, filling most of the frame, dark-outlined, and a
-snowflake built the same way for the snow setting. A drop and a six-armed star
-are the two weather shapes with silhouettes distinctive enough to survive at
-20px, and they are distinguishable from each other at a glance, which matters
-because the button is the only place both ever appear.
+So: a single raindrop, filling most of the frame, dark-outlined. It is the one
+weather shape whose silhouette survives at 20px, and it is the picture the
+addon is named after.
+
+One icon, not one per weather. A matching snowflake was built and dropped the
+same day - "do the rain drop i guess first one". The button says which weather
+is running through its tooltip and the panel says it in words, and an icon that
+changes under the player is a worse readout than one they can learn.
 
 Not a cloud, deliberately. A cloud at 20px is an indistinct blob and half the
 weather category already uses one.
@@ -66,12 +69,6 @@ WARM = (0.90, 0.58, 0.42)
 DROP_DEEP = (0.129, 0.243, 0.392)
 DROP_PALE = (0.72, 0.88, 1.00)
 DROP_RIM = (0.58, 0.80, 1.00)
-
-# The flake, built from the same three-stop recipe so the two icons are
-# obviously siblings: a deep end, a pale end and a rim light.
-FLAKE_DEEP = (0.400, 0.560, 0.720)
-FLAKE_PALE = (0.980, 0.995, 1.000)
-FLAKE_RIM = (0.780, 0.900, 1.000)
 
 OUTLINE = (0.016, 0.031, 0.063)
 
@@ -139,18 +136,6 @@ def streaks(rng, count=22):
     return acc
 
 
-def specks(rng, count=26):
-    """Background snow, playing the part the streaks play in the rain icon."""
-    yy, xx = grid()
-    acc = np.zeros((N, N), dtype=np.float64)
-    for _ in range(count):
-        cx, cy = rng.uniform(0.0, 1.0), rng.uniform(0.0, 1.0)
-        r = rng.uniform(0.007, 0.016)
-        a = rng.uniform(0.35, 0.75)
-        acc = np.maximum(acc, coverage(np.hypot(xx - cx, yy - cy) - r) * a)
-    return acc
-
-
 def teardrop(yy, xx, cx=0.500, cy=0.572, r=0.287, apex=0.072):
     """Signed coverage of a classic teardrop: a disc with a cone on top.
 
@@ -182,98 +167,52 @@ def teardrop(yy, xx, cx=0.500, cy=0.572, r=0.287, apex=0.072):
     return np.where(yy < y_tan, cone, disc)
 
 
-def flake(yy, xx, cx=0.500, cy=0.500, r=0.335):
-    """Signed coverage of a six-armed snowflake.
+def glass(yy, xx, sdf, inside):
+    """Shade the drop as a lit glassy solid.
 
-    Six rounded bars through the centre at 30 degree steps, each with a pair of
-    barbs two thirds of the way out, unioned by taking the minimum distance.
-    Deliberately fat: a botanically correct flake is all hairline detail and
-    turns to a grey smudge the moment it is resampled, so these arms are a
-    twelfth of the frame thick and the barbs are short. What has to survive at
-    20px is "a star, not a drop", and nothing finer than that.
+    A vertical ramp pale to deep, the warm backdrop reflected across the lower
+    third, a rim light down the side the glow is on, and exactly one specular.
+    Two highlights on a 64px icon is one too many, and the reflection is what
+    stops it reading as a flat blue pebble.
     """
-    def bar(ang, length, half, ox=0.0, oy=0.0):
-        ca, sa = math.cos(ang), math.sin(ang)
-        px, py = xx - cx - ox, yy - cy - oy
-        # Into the bar's own frame, then distance to a segment along its x axis.
-        u = px * ca + py * sa
-        v = -px * sa + py * ca
-        u = np.abs(u) - length
-        return np.hypot(np.maximum(u, 0.0), v) - half
-
-    d = None
-    for k in range(3):
-        ang = math.radians(k * 60)
-        arm = bar(ang, r, 0.046)
-        d = arm if d is None else np.minimum(d, arm)
-        # Barbs: a short bar at +-60 degrees, crossing each arm near its tip.
-        for s in (1, -1):
-            ox = math.cos(ang) * r * 0.60 * s
-            oy = math.sin(ang) * r * 0.60 * s
-            # Both barbs, not one. A single barb per tip makes the flake read
-            # as six bent arms rather than as a symmetric crystal, which at
-            # icon size looks like a mistake rather than like snow.
-            for b in (60, -60):
-                d = np.minimum(
-                    d, bar(ang + math.radians(b), r * 0.19, 0.030, ox, oy))
-    # A hub, so the six arms meet in a shape rather than a spike cluster.
-    return np.minimum(d, np.hypot(xx - cx, yy - cy) - 0.082)
-
-
-def glass(yy, xx, sdf, inside, deep, pale, rim_colour, lo, hi, spec_at, warmth=0.45):
-    """Shade a silhouette as a lit glassy solid.
-
-    Shared by the drop and the flake so the two read as one set: a vertical
-    ramp pale to deep, the warm backdrop reflected across the lower third, a
-    rim light down the side the glow is on, and exactly one specular. Two
-    highlights on a 64px icon is one too many.
-    """
+    lo, hi = 0.12, 0.74
     g = np.clip((yy - lo) / (hi - lo), 0.0, 1.0)
     body = np.empty((N, N, 3), dtype=np.float64)
     for c in range(3):
-        body[..., c] = pale[c] + (deep[c] - pale[c]) * g ** 0.85
+        body[..., c] = DROP_PALE[c] + (DROP_DEEP[c] - DROP_PALE[c]) * g ** 0.85
 
     refl = np.exp(-(((yy - (lo + (hi - lo) * 0.82)) / 0.075) ** 2))
     for c in range(3):
-        body[..., c] += (WARM[c] - body[..., c]) * refl * warmth
+        body[..., c] += (WARM[c] - body[..., c]) * refl * 0.50
 
     rim = coverage(sdf + 0.030)
     rimband = np.clip(inside - rim, 0.0, 1.0) * np.clip((xx - 0.46) / 0.3, 0, 1)
     for c in range(3):
-        body[..., c] += (rim_colour[c] - body[..., c]) * rimband * 0.75
+        body[..., c] += (DROP_RIM[c] - body[..., c]) * rimband * 0.75
 
-    sx, sy = spec_at
-    spec = np.exp(-((((xx - sx) / 0.055) ** 2 + ((yy - sy) / 0.090) ** 2)))
+    spec = np.exp(-((((xx - 0.428) / 0.055) ** 2 + ((yy - 0.320) / 0.090) ** 2)))
     for c in range(3):
         body[..., c] += (1.0 - body[..., c]) * spec * 0.80
     return body
 
 
-def render(kind, seed):
+def render(seed=11):
     rng = np.random.default_rng(seed)
     yy, xx = grid()
 
     rgb = sky(yy, xx)
-    weather = (streaks(rng) if kind == "rain" else specks(rng))[..., None]
+    weather = streaks(rng)[..., None]
     tint = np.array((0.84, 0.90, 1.00))
     rgb = rgb * (1.0 - weather * 0.45) + tint * weather * 0.45
 
-    if kind == "rain":
-        sdf = teardrop(yy, xx)
-        shade = (DROP_DEEP, DROP_PALE, DROP_RIM, 0.12, 0.74, (0.428, 0.320), 0.50)
-    else:
-        sdf = flake(yy, xx)
-        shade = (FLAKE_DEEP, FLAKE_PALE, FLAKE_RIM, 0.10, 0.90, (0.410, 0.330), 0.14)
-
+    sdf = teardrop(yy, xx)
     inside = coverage(sdf)
     # The outline is an annulus just outside the fill. It is the single most
-    # load-bearing element at minimap size: without it the subject's lower half
+    # load-bearing element at minimap size: without it the drop's lower half
     # sits on the glow at nearly the same value and the silhouette breaks.
     ring = coverage(sdf - 0.022) - inside
 
-    deep, pale, rim_colour, lo, hi, spec_at, warmth = shade
-    body = glass(yy, xx, sdf, inside, deep, pale, rim_colour, lo, hi,
-                 spec_at, warmth)
+    body = glass(yy, xx, sdf, inside)
 
     rgb = rgb * (1.0 - inside[..., None]) + body * inside[..., None]
     rgb = rgb * (1.0 - ring[..., None]) + np.array(OUTLINE) * ring[..., None]
@@ -291,34 +230,26 @@ def render(kind, seed):
     return Image.fromarray((rgba * 255).astype(np.uint8), mode="RGBA")
 
 
-def preview(images, path):
-    """Both icons at 64px and at the 20px the minimap button draws them."""
+def preview(im, path):
+    """The icon at 64px and at the 20px the minimap button draws it."""
     pad, cell = 12, 256
-    w = pad + len(images) * (cell + 160 + pad * 2)
-    canvas = Image.new("RGB", (w, cell + pad * 2), (26, 27, 31))
-    x = pad
-    for im in images:
-        rgb = im.convert("RGB").resize((SIZE, SIZE), Image.LANCZOS)
-        canvas.paste(rgb.resize((cell, cell), Image.NEAREST), (x, pad))
-        x += cell + pad
-        small = rgb.resize((20, 20), Image.LANCZOS)
-        canvas.paste(small.resize((160, 160), Image.NEAREST), (x, pad + 48))
-        x += 160 + pad
+    canvas = Image.new("RGB", (cell + 160 + pad * 3, cell + pad * 2), (26, 27, 31))
+    rgb = im.convert("RGB").resize((SIZE, SIZE), Image.LANCZOS)
+    canvas.paste(rgb.resize((cell, cell), Image.NEAREST), (pad, pad))
+    small = rgb.resize((20, 20), Image.LANCZOS)
+    canvas.paste(small.resize((160, 160), Image.NEAREST), (cell + pad * 2, pad + 48))
     canvas.save(path)
 
 
 def main():
     args = sys.argv[1:]
     out = args[0].rstrip("/")
-    images = []
-    for kind, seed, name in (("rain", 11, "icon.tga"), ("snow", 7, "icon-snow.tga")):
-        big = render(kind, seed)
-        big.resize((SIZE, SIZE), Image.LANCZOS).save(
-            f"{out}/{name}", format="TGA", compression=None)
-        images.append(big)
-        print(f"wrote {name} ({SIZE}x{SIZE} 32-bit TGA, rendered at {N}x{N})")
+    big = render()
+    big.resize((SIZE, SIZE), Image.LANCZOS).save(
+        f"{out}/icon.tga", format="TGA", compression=None)
+    print(f"wrote icon.tga ({SIZE}x{SIZE} 32-bit TGA, rendered at {N}x{N})")
     if "--preview" in args:
-        preview(images, args[args.index("--preview") + 1])
+        preview(big, args[args.index("--preview") + 1])
 
 
 if __name__ == "__main__":
