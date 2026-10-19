@@ -1,6 +1,6 @@
 # Consult: how far can a 2D-only WoW weather overlay be pushed?
 
-You are advising on a World of Warcraft addon called ComfyRain. It makes it look and sound
+You are advising on a World of Warcraft addon called Duskfall. It makes it look and sound
 like it is raining (or snowing) whenever the player wants, because the client cannot be told
 to change the weather. It ships 4 November on CurseForge.
 

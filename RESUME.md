@@ -1,4 +1,4 @@
-# ComfyRain — rain, weather and cozy ambience in World of Warcraft
+# Comfy Rain — rain, weather and cozy ambience in World of Warcraft
 
 **What this is:** a WoW addon that makes it look and sound like it is always raining,
 because the client cannot be told to actually change the weather.
@@ -130,7 +130,7 @@ restart** — only new files on disk do. Durations below were measured from the 
 SnowLight is **29.951 s, not 30** — rounding it would gap the loop by 49 ms every 30 seconds.
 The snow beds spread 10 dB light-to-heavy where the rain beds spread 16 dB; that is Blizzard's
 own mix and it is left alone. Sandstorm (538988 / 538987 / 538986) exists on the same naming
-scheme but has no art here, so `/comfy auto` declines it rather than half-applying it.
+scheme but has no art here, so `/dusk auto` declines it rather than half-applying it.
 
 **Blizzard ships no tiling rain-curtain sheet** — only single particle sprites (`RainDrop01`,
 186226), placed by a particle system an addon cannot reach, and a sprite cannot be tiled into a
@@ -164,7 +164,7 @@ FileDataIDs came from `listfile/verified-listfile.csv` (community listfile, tag 
   **second audio loop** — the 110.7 s wind under the 40 s snow bed. Nothing else needs two.
 - Audio: Blizzard's rain loop for the current intensity, relooped by
   `C_Timer.NewTicker(len - 0.12)` using that file's exact measured duration. Falls back to the
-  bundled `rain.ogg` only if `PlaySoundFile` refuses the FileDataID, and says so in `/comfy status`.
+  bundled `rain.ogg` only if `PlaySoundFile` refuses the FileDataID, and says so in `/dusk status`.
 - **Indoors:** `IsIndoors()` is polled every 0.3 s with a 0.9 s debounce (so an archway does not
   restart the audio), plus the `ZONE_CHANGED*` events. Going inside fades the overlay out over
   0.7 s and stops the bed; `/rain indoors on` opts back into raining inside.
@@ -173,7 +173,7 @@ FileDataIDs came from `listfile/verified-listfile.csv` (community listfile, tag 
 Assets are not checked in; they are deterministic output of the build scripts.
 - `build/make_rain_tga.py` — 512×512 32-bit **uncompressed** TGA (WoW rejects RLE TGA), drops
   scattered so the sheet wraps in both axes. `SLANT_DEG = 7.5` here **must match** `SLANT` in
-  `ComfyRain.lua` as its tangent (0.1317). Each drop is rasterised from an optical model: a
+  `Duskfall.lua` as its tangent (0.1317). Each drop is rasterised from an optical model: a
   Gaussian across the width (the drop's own blur circle), an exponential falloff from the bright
   leading head up the tail, both ends windowed to zero so nothing terminates in a chopped edge,
   and the slant sheared in during rasterising so thin streaks are never resampled. Per-drop taper,
@@ -203,7 +203,7 @@ at launch. Later Lua edits need only `/reload`.
 
 ## The settings window
 
-`/comfyrain` (or `/comfyui`, or `/comfy ui|config|options|settings`) opens it. `/comfy` on its own
+`/duskfall` (or `/duskui`, or `/dusk ui|config|options|settings`) opens it. `/dusk` on its own
 still toggles the weather, because nobody types eight letters to flip a switch. It opens itself
 **once, ever**, four seconds after a first install, and records `db.seenUI` so it never does it
 again — the onboarding hole both consult models flagged.
@@ -218,12 +218,12 @@ Three things about it are deliberate and should not be "simplified" later:
    UIDropDownMenu** — every pixel is `CreateFrame` / `CreateTexture` / `CreateFontString`, which
    the weather overlay has already proven on this client. The channel picker is a cycling button
    for that reason, and the checkboxes draw their own lamp.
-2. **Every control issues a slash command** through `ComfyRainAPI.Command`, and none of them writes
+2. **Every control issues a slash command** through `DuskfallAPI.Command`, and none of them writes
    a setting directly. So the window can never do something the command line cannot, the two can
    never disagree, and the entire settings surface stays behind the slash parser's existing tests.
    `HandleSlash(input, "ui")` suppresses the chat status line; a typed command still reports.
 3. **Every tooltip names the command it runs.** The window is not a replacement for the commands,
-   it is how you learn them: drag the slider, read `/comfy alpha 0.75`, type it next time.
+   it is how you learn them: drag the slider, read `/dusk alpha 0.75`, type it next time.
 
 There is no OK / Apply / Cancel. The weather is drawn live behind the window.
 
@@ -232,18 +232,18 @@ without it falls back to printing the command list, and there is a spec for each
 
 ## Commands
 
-`/comfy` toggle · `/comfy rain|snow` · `/comfy light|normal|heavy` · `/comfy monsoon` ·
-`/comfy blizzard` · `/comfy auto` · `/comfy alpha 0.75` · `/comfy speed 1.4` · `/comfy dim 0.5` ·
-`/comfy indoors on|off` · `/comfy sound on|off` · `/comfy thunder on|off` ·
-`/comfy channel Ambience|SFX|Master` · `/comfy density` · `/comfy status` ·
-`/comfy probe` · `/comfy calib on|off|wipe` · `/comfy reset` (settings only, keeps the calib log)
+`/dusk` toggle · `/dusk rain|snow` · `/dusk light|normal|heavy` · `/dusk monsoon` ·
+`/dusk blizzard` · `/dusk auto` · `/dusk alpha 0.75` · `/dusk speed 1.4` · `/dusk dim 0.5` ·
+`/dusk indoors on|off` · `/dusk sound on|off` · `/dusk thunder on|off` ·
+`/dusk channel Ambience|SFX|Master` · `/dusk density` · `/dusk status` ·
+`/dusk probe` · `/dusk calib on|off|wipe` · `/dusk reset` (settings only, keeps the calib log)
 
-`/rain` is a permanent alias for `/comfy`. `/comfyrain` and `/comfyui` open the settings window.
+`/rain` is a permanent alias for `/dusk`. `/duskfall` and `/duskui` open the settings window.
 
 `monsoon` and `blizzard` each name a weather as well as an intensity, so they switch both:
-nobody typing `/comfy blizzard` wants rain. Switching weather at the top of one scale lands at
+nobody typing `/dusk blizzard` wants rain. Switching weather at the top of one scale lands at
 the top of the other, and `db.intensity` is normalised on every change so a saved setting can
-never name a preset the current weather does not have. `/comfy auto` is a one-shot match to
+never name a preset the current weather does not have. `/dusk auto` is a one-shot match to
 `C_Weather`, not a mode — there is no weather event to hang a mode on, and a ticker polling it
 would cost more than it is worth.
 
@@ -252,7 +252,7 @@ would cost more than it is worth.
 `/rain calib on` raises the density CVars, registers `CONSOLE_MESSAGE` and
 `WEATHER_CHANGED` (each through `pcall`, because an unknown event name throws on this
 client and aborts the rest of the file with it), and from then on every real weather
-change is shouted in chat and appended to `ComfyRainDB.calib` with the zone, uiMapID,
+change is shouted in chat and appended to `DuskfallDB.calib` with the zone, uiMapID,
 game time, indoor flag, both CVars, the `C_Weather` reading and the parsed console line.
 
 It is written to shout because real weather is server-driven and intermittent: it cannot
@@ -391,12 +391,12 @@ Delivered 2026-10-12, all three reading `dr-prompt.md` v2. Their disagreements, 
 | Collapse the MOD quads | **Yes**, exact and free | Unanimous |
 | Determinism | Hash **uiMapID** + time bucket, FNV-1a, no `SendAddonMessage` | Unanimous |
 | Schema before GUI? | **Yes.** R1 and R2 say schema first; R3 says GUI first and is outvoted | Binding sliders to hard-coded locals means rewiring every one later |
-| Keep permanent rain? | **Yes.** Vary *intensity* so it never flatlines, never to zero | R2 argued for 20% clear spells; the addon was called AlwaysRain. **That half of the argument died with the name on 2026-10-14** - `ComfyRain` does not promise permanence, so clear spells are now an open question rather than a contradiction. The default stays permanent until something says otherwise |
+| Keep permanent rain? | **Yes.** Vary *intensity* so it never flatlines, never to zero | R2 argued for 20% clear spells; the addon was called AlwaysRain. **That half of the argument died with the name on 2026-10-14** - `Duskfall` does not promise permanence, so clear spells are now an open question rather than a contradiction. The default stays permanent until something says otherwise |
 
 Only report 1 flagged the **SavedVariables bug** — early Forever builds wrote them and
 never read them back. Reportedly fixed by build 69913, contested, and we are on 70338. A
 settings GUI is worthless if settings evaporate, so probe it before building one:
-`/run ComfyRainDB.probe = time()` → `/reload` → `/dump ComfyRainDB.probe`.
+`/run DuskfallDB.probe = time()` → `/reload` → `/dump DuskfallDB.probe`.
 
 Other traps worth keeping, all from report 1: registering an unknown event **throws and
 aborts the whole file**, so `pcall` the `WEATHER_CHANGED` registration; `select(4,
@@ -473,7 +473,7 @@ midnight at lunchtime. `/rain time local` grades the screen towards your own clo
 
 - `/rain time local` — match the machine's clock · `/rain time +9` / `-5` — shift by hours ·
   `/rain time 21` — hold one hour · `/rain time off` · `/rain time strength 0.7`
-- Its own frame (`ComfyRainTimeOfDay`, frame level 1, under the rain at level 5) so it works
+- Its own frame (`DuskfallTimeOfDay`, frame level 1, under the rain at level 5) so it works
   with the rain off. Wanting your realm's night to match your clock has nothing to do with rain.
 - **Graded by the ratio between the wanted hour and the realm's hour, not by the wanted hour
   alone.** The world is already lit for the realm, so realm 22:00 wanting 22:00 must be a no-op;
@@ -708,7 +708,7 @@ existing users re-download. Its real lesson is mechanism, not velocity: daily do
 from ~6.5k to 9.9k to 13.8k immediately after Team Overpowered published a video on
 11 October framed as **immersion**. That is the channel this product fits.
 
-**Schedule consequence:** submit the project as `ComfyRain` on **27 October**, the day name
+**Schedule consequence:** submit the project as `Duskfall` on **27 October**, the day name
 reservation opens, so it clears moderation before launch. Ship 4 November. The window that
 sets the ceiling is days 7 to 30, while creators are making "Forever addons you need" lists.
 
@@ -723,7 +723,7 @@ free addon whose legal position rests on Blizzard's goodwill rather than tradema
 
 It also found, and buried under "one real weakness", that every dictionary tags *gloaming*
 as literary or poetic and that it is spelled *glowing* when heard once. **That weakness was
-the verdict and the report scored it as a footnote.** See `## The name: ComfyRain` below. The
+the verdict and the report scored it as a footnote.** See `## The name: Duskfall` below. The
 same round's finding that the brand carries no search load is what makes comprehension the
 brand's only remaining job.
 
@@ -739,7 +739,12 @@ brand's only remaining job.
   folder ships, because the addon has never been published and the only install that can
   reach this path is the author's. Still untested on the client.
 
-## The name: ComfyRain
+## The name: Duskfall
+
+**Superseded 2026-10-19 by Comfy Rain.** Everything below is the
+record of how Duskfall was chosen on 2026-10-14 and is left as written. Historical
+mentions of `Duskfall` elsewhere in this file are also left alone on purpose: a decision
+log that is search-and-replaced stops being evidence of what was actually checked.
 
 **Settled 2026-10-14, third pass. `Gloaming` is dead and `Cozy Azeroth` before it.**
 `AlwaysRain` is a feature name that caps the product at one weather type and already fights
@@ -747,11 +752,11 @@ a roadmap containing snow, fog, ash and time-of-day.
 
 | Field | Value |
 |---|---|
-| Folder (**irreversible**) | `ComfyRain` |
-| TOC `## Title` | `ComfyRain` |
-| CurseForge title | `ComfyRain: Rain, Weather and Cozy Ambience` |
-| Slash | `/comfy`, with `/rain` kept as a permanent alias |
-| SavedVariables | `ComfyRainDB`, migrating from `AlwaysRainDB` on first load |
+| Folder (**irreversible**) | `Duskfall` |
+| TOC `## Title` | `Duskfall` |
+| CurseForge title | `Duskfall: Rain, Weather and Cozy Ambience` |
+| Slash | `/dusk`, with `/rain` kept as a permanent alias |
+| SavedVariables | `DuskfallDB`, migrating from `AlwaysRainDB` on first load |
 
 ### Why Gloaming died after one day
 
@@ -770,11 +775,11 @@ first requirement of its only job was the error. Obscurity was being scored as d
 A name nobody can spell is not distinctive, it is unfindable the one time it matters: when
 somebody tells a friend about it out loud.
 
-### Why ComfyRain
+### Why Duskfall
 
 It keeps every property that made Gloaming right and drops the one that killed it.
 
-| Test | Gloaming | ComfyRain |
+| Test | Gloaming | Duskfall |
 |---|---|---|
 | Honest about the renderer: MOD blend can only *darken* | Yes | Yes, dusk is the dim half of the day |
 | Caps nothing: not a weather type, not an audio word | Yes | Yes |
@@ -786,22 +791,22 @@ It keeps every property that made Gloaming right and drops the one that killed i
 
 **CurseForge, checked 2026-10-14 with a positive control.** The instrument is
 `curseforge.com/wow/search?search=<term>`. Control: `CozyFire` returns **1 project, the
-known one**, so the method finds what exists. `comfyrain` returns **0 projects**. (Bare
+known one**, so the method finds what exists. `duskfall` returns **0 projects**. (Bare
 `dusk` returns 21, but only Duskwatch at 120 downloads and Dusk Lure Tracker at 356 are
 actually named Dusk-anything; the rest are fuzzy hits on Tuskarr, Dust and Medusa.)
 
 **Why not bare `Dusk`:** DUSK is a well-known 2018 indie FPS by New Blood, which is a
-louder general-search collision than anything ComfyRain has, and a four-letter word is
+louder general-search collision than anything Duskfall has, and a four-letter word is
 harder to own.
 
-**ComfyRain's own collisions, checked 2026-10-14, none in the channel that matters:** The
-ComfyRain, a Swedish melodic death metal band formed 1999; *ComfyRain*, a 2024 mobile
-Wizardry-like; *COMFYRAIN*, a 2025 Steam village-defence game by KafkaStudio; and
-"comfyraincrew", a music and content creator. **No WoW addon, no WoW repo, nothing in
+**Duskfall's own collisions, checked 2026-10-14, none in the channel that matters:** The
+Duskfall, a Swedish melodic death metal band formed 1999; *Duskfall*, a 2024 mobile
+Wizardry-like; *DUSKFALL*, a 2025 Steam village-defence game by KafkaStudio; and
+"duskfallcrew", a music and content creator. **No WoW addon, no WoW repo, nothing in
 CurseForge or an addon manager.** Same class of harmless cross-category noise that Gloaming
 had, and it does not reach a free addon.
 
-Follow-on: the addon's own `/rain gloom` subcommand becomes **`/comfy dim`**, keeping
+Follow-on: the addon's own `/rain gloom` subcommand becomes **`/dusk dim`**, keeping
 `gloom` as a hidden alias.
 
 The title changed on 2026-10-14 from "Weather, Ambience and Time of Day" to **"Rain,
@@ -867,7 +872,7 @@ CurseForge's own fuzzy matcher, so it shows what a user's search would actually 
    the evidence above.
 
 **Gloaming**, by the same instrument: **1 project returned, unrelated** (a herb and mining
-tracker). Clean on collisions, and killed the next day on comprehension instead. **ComfyRain**
+tracker). Clean on collisions, and killed the next day on comprehension instead. **Duskfall**
 returns **0 projects**, control `CozyFire` = 1.
 
 A note on method, so it is not repeated: **`curl` against a Twitch channel URL is not an
@@ -963,7 +968,7 @@ Everything here is mechanical. None of it needs a running client.
    - `install.sh` now substitutes `@project-version@` with `dev-<sha>` and builds the icon.
 
 **The packaging finding, which cost a silently broken release.** The BigWigs packager
-**honours `.gitignore`**. Running `build/make_*.py` into `ComfyRain/` before it is therefore
+**honours `.gitignore`**. Running `build/make_*.py` into `Duskfall/` before it is therefore
 *not* enough: the assets sit on disk, every one of them is skipped, and the zip installs
 perfectly with no rain and no sound. This was caught only by downloading the pinned packager
 and running it locally, then unzipping the artifact. Two consequences, both load-bearing:
@@ -974,7 +979,7 @@ and running it locally, then unzipping the artifact. Two consequences, both load
   no unsubstituted `@project-version@`. Checking the working directory would have passed on
   the broken build, because the directory was never the thing that was wrong.
 
-Verified locally end to end: `move-folders` lifts `ComfyRain/ComfyRain` to `ComfyRain`, the
+Verified locally end to end: `move-folders` lifts `Duskfall/Duskfall` to `Duskfall`, the
 version token substitutes, `Probe.lua` is stripped, flavour auto-detects as `forever` from
 `## Interface: 16001`, zip is 716K.
 
@@ -988,13 +993,13 @@ picks deliberately, on an effect they turned on, with a Darkness slider in the w
 is consent; Blizzard's undisableable fog was not. The reasoning is in a comment on `DEFAULTS`
 so it is not re-tried blind.
 
-5. **The repo exists: `LibruaryNFT/comfyrain`, pushed, CI green.** Created **private**
+5. **The repo exists: `LibruaryNFT/duskfall`, pushed, CI green.** Created **private**
    deliberately, not as an oversight. This file is in it, and this file contains the
    download ceilings, the kill number and four research prompts. Flipping it public is one
    command and is the author's call, not the agent's:
 
    ```
-   gh repo edit LibruaryNFT/comfyrain --visibility public --accept-visibility-change-consequences
+   gh repo edit LibruaryNFT/duskfall --visibility public --accept-visibility-change-consequences
    ```
 
    Either flip it, or add `RESUME.md` and `dr-prompt-*.md` to a `.gitignore` first. Nothing
@@ -1009,7 +1014,7 @@ shipped.
 | Rehearsal | What broke | Why no error |
 |---|---|---|
 | rc1 (CI, pre-tag) | `make_rain_audio.py` shells out to `ffmpeg`, absent from the runner | bare `FileNotFoundError`, named neither audio nor ffmpeg |
-| rc1 | zip named `ComfyRain-v1.0.0-rc1-1-g7935820`, and no release published | the asset commit moved HEAD past the tag, so the packager built an alpha; **exit 0** |
+| rc1 | zip named `Duskfall-v1.0.0-rc1-1-g7935820`, and no release published | the asset commit moved HEAD past the tag, so the packager built an alpha; **exit 0** |
 | rc2 | verify's own `grep -qx '## Version: ...'` never matched | the packager writes a **CRLF** `.toc`; the line ends in `\r` |
 | rc3, rc1 | **no GitHub release at all** | the packager reads `GITHUB_OAUTH`, never `GITHUB_TOKEN`; `upload_github` opens with `[[ -z "$github_token" ]] && return 0`; **exit 0** |
 
@@ -1039,12 +1044,12 @@ three rain/snow texture pairs, `icon.tga`, both `.ogg`, `## Version: v1.0.0-rc4`
    **Capture it in the same sitting as the section C list below**, because it needs the
    client and the client dies on 21 October. It is about two minutes:
 
-   - `/comfy heavy`, find a street with sky in frame (the Trade District shot above is a good
+   - `/dusk heavy`, find a street with sky in frame (the Trade District shot above is a good
      one), `Alt+Z` twice to hide the UI.
    - `Ctrl+Alt+Shift+R` starts GNOME's recorder, same keys stop it. Record ~12 seconds,
      turning the camera slowly through about 90 degrees so the parallax reads. It lands in
      `~/Videos/Screencasts/`.
-   - Do a second take on `/comfy snow` and a third on `/comfy blizzard` while you are there.
+   - Do a second take on `/dusk snow` and a third on `/dusk blizzard` while you are there.
      Three takes cost a minute and the one that looks best cannot be known in advance.
    - Leave the files. ffmpeg is on this box; the agent crops, trims and converts to a GIF.
 7. The CurseForge project itself, then `## X-Curse-Project-ID` in the TOC and a `CF_API_KEY`
@@ -1058,7 +1063,7 @@ would find.
 
 - **A saved profile is now sanitised, not merely filled.** The old merge was
   `if db[k] == nil then db[k] = v end`: correct for an absent key, and it does nothing at all
-  for a present key of the wrong type. A `ComfyRainDB` carrying `scale = "loud"` — a truncated
+  for a present key of the wrong type. A `DuskfallDB` carrying `scale = "loud"` — a truncated
   file, a hand edit, a migration from some future version — loaded without complaint and then
   threw inside the per-frame arithmetic. That is an error **every frame, forever**, fixable
   only by deleting a file the player does not know exists. `SanitiseProfile()` type-checks
@@ -1066,7 +1071,7 @@ would find.
   than a second invented set, validates `weather`/`channel`/`timeMode`/`indoors` against
   their valid sets, and rewrites the legacy boolean `indoors`. A numeric string like `"0.5"`
   is kept, because that is a value the player meant.
-- **`ComfyRainDB` itself is type-tested.** It was `ComfyRainDB or {}`, and a half-written file
+- **`DuskfallDB` itself is type-tested.** It was `DuskfallDB or {}`, and a half-written file
   reads back as a string, which is truthy. We already guarded the *old* AlwaysRain table that
   way; ours was no less likely to be the truncated one.
 - **Drop shape is pinned from 4:3 to 32:9**, plus 5:4, 16:9, 21:9 and 4K, as the invariant
@@ -1082,8 +1087,8 @@ replaced. A green spec that cannot go red is the thing that let the indoor bug s
 Three days left. Nothing in this list can be done after the beta client dies, and none of it
 can be done by the agent.
 
-- `/comfy probe` on build 70425. The results on disk are from 70374.
-- `/comfy calib on`, then play normally. This measures how often the server actually sends
+- `/dusk probe` on build 70425. The results on disk are from 70374.
+- `/dusk calib on`, then play normally. This measures how often the server actually sends
   weather, and it is the stated kill number for the thesis.
 - During a real storm, set `weatherDensity 0` and watch whether the **engine lightning**
   stops too. The reports split on this: two say 0 suppresses precipitation, one says a
@@ -1155,7 +1160,7 @@ be recovered, and no amount of agent time substitutes for it.
 
 ### Probe results, build 70374, 2026-10-14
 
-Read off `ComfyRainDB.probe` on disk, not transcribed from chat. **Build is 70374, not the
+Read off `DuskfallDB.probe` on disk, not transcribed from chat. **Build is 70374, not the
 70338 the earlier notes assumed.**
 
 | Check | Verdict | What it means |
@@ -1204,9 +1209,9 @@ NOT mean anything is visible: the check deliberately records that a loaded model
 rendered one, and nothing has been seen on screen.
 
 **Still unanswered, and it needs a full client restart rather than a `/reload`:** which TOC
-suffix this client loads. `build/make_flavour_probe.py` writes a `ComfyRainFlavour` folder with
+suffix this client loads. `build/make_flavour_probe.py` writes a `DuskfallFlavour` folder with
 ten TOCs, each loading a different one-line Lua, so whichever line appears in
-`ComfyRainFlavourDB` names the suffix. It was installed while the client was running and WoW
+`DuskfallFlavourDB` names the suffix. It was installed while the client was running and WoW
 only scans `Interface/AddOns` at launch, so it has not loaded yet. **Exit the client fully and
 relaunch; no command needed.**
 
@@ -1232,7 +1237,7 @@ client reports a storm. Not built yet.
 **Two other things that fell out of the same look at the disk:**
 
 - The beta is now **1.60.1.70425**. The probe results above are from **70374**, so they are
-  one patch stale. Re-run `/comfy probe` before 21 Oct.
+  one patch stale. Re-run `/dusk probe` before 21 Oct.
 - **`_forever_` is installed** - product `wowf`, 1.60.1.70245, pulled 15 Oct, never launched
   (no `Interface/` or `WTF/` in it yet). That is the client that ships on 4 November, so the
   flavour probe belongs there rather than in `_classic_beta_`.
@@ -1244,7 +1249,7 @@ is an ordinary graphics CVar (0-3) sitting in the binary between `particleDensit
 `volumeFogLevel`, and at 0 the client renders no weather at all. The whole question is
 whether an addon may write it, which only a live client can say.
 
-`weather_cvar` added to `ComfyRain/Probe.lua`. It writes a harmless control CVar first and
+`weather_cvar` added to `Duskfall/Probe.lua`. It writes a harmless control CVar first and
 restores everything, because **a protected CVar does not raise**: `SetCVar` returns as
 though it worked and the value simply does not move, so "it did not change" and "addons
 cannot write CVars at all on this build" are the same observation without a control.
@@ -1320,7 +1325,7 @@ is a result and not a broken method.
 - **`SetRenderMode("BLEND")` and `model:PlayAnim(0)`** (Groq). `SetRenderMode` exists in the
   binary; `PlayAnim` does not appear and the pair is quoted as if it were a known recipe.
 - **`playbackFlags = {ignoreMute = true}`** (Groq). Invented. There is no such field.
-- **An intensity slider** (Groq, item 8). We already have presets and `/comfy density`. It is
+- **An intensity slider** (Groq, item 8). We already have presets and `/dusk density`. It is
   proposing a feature we shipped.
 - **Per-frame costs quoted in milliseconds** (both). "1-2 ms per frame for two extra quads"
   is off by two orders of magnitude and would be a third of a 60 fps budget. Ignore every
@@ -1339,9 +1344,9 @@ cannot fail in a way a spec will not catch.
 In priority order, because there may not be time for all seven. Mechanics are in
 `### /rain calib` above; the logger is already built and committed.
 
-**Seven of the eight are now one command.** `ComfyRain/Probe.lua`, built 2026-10-14. Type
-`/comfy probe` in game, `/reload` when it says to, then `/comfy probe report`. Every answer is
-written to `ComfyRainDB.probe` in `WTF/Account/<ACCOUNT>/SavedVariables/ComfyRain.lua`, so the
+**Seven of the eight are now one command.** `Duskfall/Probe.lua`, built 2026-10-14. Type
+`/dusk probe` in game, `/reload` when it says to, then `/dusk probe report`. Every answer is
+written to `DuskfallDB.probe` in `WTF/Account/<ACCOUNT>/SavedVariables/Duskfall.lua`, so the
 results come off disk afterwards rather than being transcribed out of a chat window. Items 4
 and 6 are the exceptions: 4 is travel the probe cannot do, and 6 is a folder-naming
 experiment, not a Lua question.
@@ -1354,9 +1359,9 @@ Three things about it that are the whole point:
   nothing and is recorded as `unknown`, not `no`.
 - **Proxies are not reported as the thing.** The client can only say it *agreed* to play.
   Whether sound came out is the player's ears, so the ambience check records `ask` and waits
-  for `/comfy probe heard yes|no`.
+  for `/dusk probe heard yes|no`.
 - **It is a separate chunk, pcall'd per check.** A raise in the probe cannot abort
-  `ComfyRain.lua`, and one exploding check cannot cost the other six. Covered by
+  `Duskfall.lua`, and one exploding check cannot cost the other six. Covered by
   `test/spec_probe.lua`; drop the file and its TOC line to ship without it.
 
 It leaves the rain muted on purpose when it finishes, because the mute has to outlive the
@@ -1392,7 +1397,7 @@ session to be measured after a `/reload`. It says so.
 
 Also while the client is up, though these do **not** expire and so are not really Phase 1:
 check the fullscreen quads at 21:9 and at several `UIParent:GetScale()` values, eyeball
-`/comfy snow` and `/comfy blizzard` in daylight and at night (the whiteout cap and the snow
+`/dusk snow` and `/dusk blizzard` in daylight and at night (the whiteout cap and the snow
 tint are both guesses until seen), and confirm the v2 code actually renders (the Blizzard FileDataIDs, the mist texture and the indoor fade
 have never been seen working). Costs minutes now; the alternative is learning about it from a
 one-star comment on 5 November.
@@ -1424,8 +1429,8 @@ supplied per spec rather than defaulted, so no test result rests on a fabricated
 
 **Ships 4 November, because Phase 1 will have verified it:**
 
-- ~~`AlwaysRain` → `ComfyRain`~~ **DONE 2026-10-14.** Folder, file, TOC, frame names,
-  globals and slash commands all renamed; `/comfy`, `/comfyrain` and a permanent `/rain`;
+- ~~`AlwaysRain` → `Duskfall`~~ **DONE 2026-10-14.** Folder, file, TOC, frame names,
+  globals and slash commands all renamed; `/dusk`, `/duskfall` and a permanent `/rain`;
   `gloom` subcommand is now `dim` with `gloom` kept as an unadvertised alias. Suite 53/53.
   Three specs added: the migration carries settings over exactly once, a non-table old
   profile is ignored rather than fatal, and `dim` and `gloom` both set the same value.
@@ -1500,7 +1505,7 @@ the addon managers' "recently updated" lists, which is not nothing.
 A constant scroll rate is the biggest tell that this is a 2D overlay: the eye finds the
 loop inside a minute. Shipped: ONE Ornstein-Uhlenbeck gust signal (tau 7s, sigma 0.35)
 with per-layer one-pole followers (near 6.0, far 2.2, mist 1.0 /s), driving scroll rate,
-layer alpha, slant shear and gloom, scaled 0.45x at light to 2.0x at monsoon. `/comfy gust
+layer alpha, slant shear and gloom, scaled 0.45x at light to 2.0x at monsoon. `/dusk gust
 0..2` plus a panel slider; 0 is exactly calm.
 
 Design confirmed by two independent LLM consults (Gemini 2.5 Pro, GPT-OSS-120B), saved to
@@ -1553,7 +1558,7 @@ Asked for directly: "more native to WoW", the wording, and an icon that is not g
 - **Procedural minimap icon**, not a borrowed spell texture: a dusk-gradient sky masked
   round inside the brass ring, with six hand-scattered streaks that slant at the same 7.5
   degrees the sheets do, become dots for snow, and grey out when the weather is off. It
-  repaints through the same `ComfyRainAPI.changed` hook the window uses.
+  repaints through the same `DuskfallAPI.changed` hook the window uses.
 
 ### Screenshot sweeps are a within-sweep ranking, not a calibration
 
