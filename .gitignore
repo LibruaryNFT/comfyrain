@@ -15,3 +15,7 @@ build/rain-preview.png
 # Local research artifacts, never committed.
 listfile/
 probe-results/
+
+# Python bytecode. tools/probe.cpython-312.pyc was tracked by accident.
+__pycache__/
+*.pyc
