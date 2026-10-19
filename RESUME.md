@@ -77,6 +77,39 @@ Two still outside the route: #4 needs a full exit and relaunch with the flavour 
 staged into `_forever_`, and #5 is eyeballing the quads at several `UIParent:GetScale()`
 values, which cannot be done headlessly because the overlay is parented to `WorldFrame`.
 
+## 2026-10-19 — the window is the client's Options window now
+
+> "we did reload, now what, im confused, can u pleae fix the ui, the weird tellow
+> is offputting.. why cant we make it like their options menu"
+
+With a screenshot of the client's own Options > Controls page beside ours. The gold
+wash below was the right reading of the wrong problem. **A row of four pills has to
+shout which one is live, and the client's Options window never has that problem,
+because it shows one value at a time.**
+
+| Was | Is |
+|---|---|
+| 4 intensity pills, 4 time pills, 2 weather pills | one `Select` row each: `Label  ◀ [ Value ] ▶` |
+| cycling pills for Indoors and Channel | the same `Select` row |
+| checkbox drawn inside a `UIPanelButton` face | box and word on the panel, no face |
+| icons on Thunder and Gusts | gone; the Weather well keeps the rain/snow pair |
+| gold wash + gold label on the chosen pill | nothing; there is one value on the row |
+| gold slider number when off default | white when off default, grey when on it |
+
+- `Select` is the row the client uses for Loot Key. Arrows are the spellbook page
+  arrows (130866 / 130869) rather than `UI-SquareButton-Up` (796424): the pair has
+  been in the game since 2004 and the square button has not, which on a 1.60-branch
+  client is the safer bet. `HasArt` falls back to `<` and `>`.
+- Five pill grids gone. Window height is unchanged, but every group is now the same
+  shape, which was the other half of the ask.
+- **A spec now fails if any control in the window is gold**, with the Weather heading
+  as its positive control. Gold is for headings, the title and the status line, the
+  way the client uses it. Mutation-checked by putting the gold slider number back.
+- 253 green. `GetStringWidth` was added to the manifest and verified present in
+  `WowB.exe`.
+- `tools/preview_panel.py` is now stale in one more way: it knows nothing about
+  `Select`.
+
 ## 2026-10-19 — you could not tell what was on, or what was selected
 
 > "the button doesnt look right for zoom response and i cant tell if its on or off..

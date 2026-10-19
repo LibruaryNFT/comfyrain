@@ -83,37 +83,43 @@ local SLIDER_BACKDROP = {
 local ART = {
 	stone = "Interface\\DialogFrame\\UI-DialogBox-Background-Dark",
 	thumb = "Interface\\Buttons\\UI-SliderBar-Button-Horizontal",
-	-- The client's own checkbox, at the size the client draws it. What it
-	-- replaced was a 7px blue square, and the 7px blue square was reported from
-	-- live play as unreadable: "the button doesnt look right for zoom response
-	-- and i cant tell if its on or off". An on/off control in this window now
-	-- looks like every other on/off control the player has ever used.
+	-- The client's own checkbox, at the size the client draws it, standing on
+	-- the background rather than on a button face. See Check.
 	check     = "Interface\\Buttons\\UI-CheckBox-Up",
 	checkMark = "Interface\\Buttons\\UI-CheckBox-Check",
+	-- The arrows either side of a Select. These two rather than
+	-- UI-SquareButton-Up, which is what the modern options window uses: the
+	-- square button is FileDataID 796424 and the spellbook arrows are 130866
+	-- and 130869, which is to say the arrows have been in the game since 2004
+	-- and the square button has not. On a client built from the 1.60 branch
+	-- the older pair is the safer bet, and HasArt covers the rest.
+	prev = "Interface\\Buttons\\UI-SpellbookIcon-PrevPage-Up",
+	next = "Interface\\Buttons\\UI-SpellbookIcon-NextPage-Up",
 }
 
--- Icons for the three buttons that name a kind of weather. Picked by rendering
--- the candidates at 14px and looking at them, which is the size they are drawn
--- at here, not by reading their names at 64px:
+-- The one picture left in the window, in the Weather selector. Picked by
+-- rendering the candidates at 14px and looking at them, which is the size they
+-- are drawn at here, not by reading their names at 64px:
 --
 --   rain     IceStorm's shards lose their detail on the way down and what is
 --            left is slanted streaks, which is exactly what rain looks like.
 --   snow     FrostShock keeps a bold white snowflake at 14px. ChillingBlast is
 --            the better picture at full size and was the first choice, but it
 --            dissolves into a white diagonal slash that is indistinguishable
---            from the rain icon beside it, and telling rain from snow is the
---            one thing this row has to do.
---   thunder  LightningBolt01 is still a bolt at 14px.
+--            from the rain icon, and telling rain from snow is the one thing
+--            this picture has to do.
 --
 -- Worth recording because it is the kind of thing that gets "fixed" later: no
 -- icon anywhere in the game depicts rain. The whole 2.27M-file catalogue was
 -- searched, not just the classic range. So rain borrows a shape rather than a
 -- subject, and that is deliberate.
+--
+-- Thunder and Gusts used to carry icons too, on their toggles. The client's
+-- own Options window has no icons on anything, and matching it was the whole
+-- point of the 2026-10-19 rebuild, so they went.
 local ICON = {
 	rain    = "Interface\\Icons\\Spell_Frost_IceStorm",
 	snow    = "Interface\\Icons\\Spell_Frost_FrostShock",
-	thunder = "Interface\\Icons\\Spell_Lightning_LightningBolt01",
-	gusts   = "Interface\\Icons\\Spell_Frost_ArcticWinds",
 }
 
 -- An unknown template name raises inside CreateFrame, so each is asked for once
@@ -323,29 +329,15 @@ local function Pill(parent, label, onClick)
 			self.bg:SetColorTexture(c[1], c[2], c[3], c[4])
 		end
 
-		-- The pressed state on its own is a two-pixel bevel shift. That was the
-		-- entire difference between the chosen intensity and the other three,
-		-- and from live play it was not visible: "cant we maybe make things
-		-- easier to understand whats selected". A whole button's worth of warm
-		-- light is, and it works the same on the flat-pill fallback, which has
-		-- no bevel to shift.
-		if on and not self.glow then
-			self.glow = Fill(self, { 1.00, 0.82, 0.00, 0.22 }, "ARTWORK", -1)
-			self.glow:SetAllPoints(self)
-			self.glow:SetBlendMode("ADD")
-		end
-		if self.glow then
-			if on then self.glow:Show() else self.glow:Hide() end
-		end
-
-		-- Gold, not white. White against the 62% grey of an unselected label is
-		-- a contrast step small enough to disappear on a dark button at this
-		-- size, which is what "the text colour is very difficult" was about.
-		-- Gold is the client's own colour for the live thing and is already
-		-- this panel's heading colour, so it reads as selection rather than as
-		-- a second theme.
+		-- Nothing else. A gold wash was tried here on 2026-10-19 to make the
+		-- chosen one of four pills obvious, and the answer from live play was
+		-- "the weird tellow is offputting.. why cant we make it like their
+		-- options menu". It was the right reading of the wrong problem: a row
+		-- of four pills has to shout which one is live, and the client's own
+		-- Options window never asks that question of itself, because it shows
+		-- one value at a time. Select is that, and it is what the groups became.
 		if on then
-			self.label:SetTextColor(GOLD[1], GOLD[2], GOLD[3])
+			self.label:SetTextColor(1, 1, 1)
 		else
 			self.label:SetTextColor(DIM[1], DIM[2], DIM[3])
 		end
@@ -366,67 +358,79 @@ local function Title(s)
 	return (tostring(s):gsub("^%l", string.upper))
 end
 
-local function PillRow(parent, n)
-	local row = CreateFrame("Frame", nil, parent)
-	row:SetHeight(ROW)
-	row.pills = {}
-	for i = 1, n do
-		local p = Pill(row, "", nil)
-		p:SetPoint("TOPLEFT", row, "TOPLEFT", (i - 1) * ((WIDTH - PAD * 2) / n), 0)
-		p:SetWidth((WIDTH - PAD * 2) / n - 3)
-		row.pills[i] = p
-	end
-	return row
-end
+-- A checkbox row, which is the single most common row in the client's own
+-- Options window: a box on the left edge, a word beside it, and nothing else.
+-- No button face. A face is a promise that pressing it does something separate
+-- from the box, and on a row where the whole thing is one control that promise
+-- is a lie - which is roughly what "the button doesnt look right for zoom
+-- response" was describing.
+--
+-- Clicking anywhere on the row toggles it, the way the client's own rows work.
+local CHECK = 20
 
--- A checkbox is a pill with a lamp on it: one widget type instead of two, and
--- no dependency on the client's checkbox art existing.
-local function Toggle(parent, label, command, onClick)
-	local b = Pill(parent, label, onClick)
+local function Check(parent, label, command, onClick)
+	local b = CreateFrame("Button", nil, parent)
+	b:SetHeight(ROW)
 
-	-- Asked about with HasArt because a missing box would leave the label
-	-- indented past nothing and the toggle saying nothing at all, which is the
-	-- one case the whole HasArt rule exists for. The lamp stays as the fallback
-	-- and is what a client without the checkbox art still draws.
+	-- Asked about with HasArt because a missing box would leave a label
+	-- indented past nothing and the row saying nothing at all, which is the one
+	-- case the whole HasArt rule exists for. The hand-drawn well and lamp below
+	-- are what a client without the checkbox art gets, and are still a box with
+	-- a light in it rather than a different idea.
 	b.boxed = HasArt(ART.check) and HasArt(ART.checkMark)
 	if b.boxed then
 		b.box = b:CreateTexture(nil, "ARTWORK")
 		b.box:SetTexture(ART.check)
-		b.box:SetSize(18, 18)
-		b.box:SetPoint("LEFT", b, "LEFT", 3, 0)
+		b.box:SetSize(CHECK, CHECK)
+		b.box:SetPoint("LEFT", b, "LEFT", 0, 0)
 		b.tick = b:CreateTexture(nil, "OVERLAY")
 		b.tick:SetTexture(ART.checkMark)
-		b.tick:SetSize(18, 18)
+		b.tick:SetSize(CHECK, CHECK)
 		b.tick:SetPoint("CENTER", b.box, "CENTER")
 	else
-		b.lamp = Fill(b, PILL_ON, "ARTWORK")
-		b.lamp:SetSize(7, 7)
-		b.lamp:SetPoint("LEFT", b, "LEFT", 7, 0)
+		b.well = Fill(b, { 0, 0, 0, 0.45 }, "ARTWORK")
+		b.well:SetSize(14, 14)
+		b.well:SetPoint("LEFT", b, "LEFT", 2, 0)
+		b.lamp = Fill(b, ACCENT, "OVERLAY")
+		b.lamp:SetSize(8, 8)
+		b.lamp:SetPoint("CENTER", b.well, "CENTER")
 	end
-	b.inset = b.boxed and 22 or 19
-	b.label:ClearAllPoints()
+	b.inset = b.boxed and CHECK + 3 or 19
+
+	b.label = Text(b, "GameFontHighlightSmall", "LEFT")
 	b.label:SetPoint("LEFT", b, "LEFT", b.inset, 0)
-	b.label:SetJustifyH("LEFT")
+	b:SetFontString(b.label)
+
+	-- Only the box and the word light up, not the full width of the row. A
+	-- highlight stretched to the panel edge on a row whose text is three
+	-- characters long reads as a selected list item rather than as hover.
+	local hi = Fill(b, { 1, 1, 1, 0.10 }, "HIGHLIGHT")
+	hi:SetPoint("TOPLEFT", b, "TOPLEFT", 0, 0)
+	hi:SetPoint("BOTTOMLEFT", b, "BOTTOMLEFT", 0, 0)
+	hi:SetWidth(10)
+	b:SetHighlightTexture(hi)
+	b.highlight = hi
+
+	function b:SetLabel(text)
+		self.label:SetText(text)
+		self:SetText(text)
+		-- The hover highlight is sized to the words, so it has to be remeasured
+		-- whenever they change. Thunder becomes Gusts; Weather on becomes
+		-- Weather off, which is three characters longer.
+		local w = self.label:GetStringWidth() or 0
+		self.highlight:SetWidth(self.inset + w + 3)
+		self:SetWidth(self.inset + w + 3)
+	end
+	b:SetLabel(label)
 
 	function b:SetOn(on)
 		if self.tick then
 			if on then self.tick:Show() else self.tick:Hide() end
 		elseif self.lamp then
-			if on then
-				self.lamp:SetColorTexture(ACCENT[1], ACCENT[2], ACCENT[3], 1)
-			else
-				self.lamp:SetColorTexture(0.25, 0.26, 0.30, 1)
-			end
+			if on then self.lamp:Show() else self.lamp:Hide() end
 		end
-		-- An icon still greys out when the toggle is off, but it is no longer
-		-- the only thing saying so. It used to carry the news alone and hide
-		-- the lamp to avoid saying it twice; the trouble with that was that a
-		-- desaturated 14px icon and a lit one are nearly the same picture, so
-		-- Thunder had no readable state at all. The tick says on or off now and
-		-- the picture is back to saying only what the button is for.
-		if self.icon and self.icon:IsShown() and self.icon.SetDesaturated then
-			pcall(self.icon.SetDesaturated, self.icon, not on)
-		end
+		-- White when it is doing something, grey when it is not. The same step
+		-- the client uses, and the only state colour left in the window.
 		if on then
 			self.label:SetTextColor(1, 1, 1)
 		else
@@ -436,26 +440,126 @@ local function Toggle(parent, label, command, onClick)
 	end
 	b:SetOn(false)
 
-	-- Same icon as a plain pill, except that everything has to shift right of
-	-- the box rather than start at the button's edge, and losing the icon has
-	-- to put the label back beside the box rather than in the middle.
-	local setIcon = b.SetIcon
-	function b:SetIcon(path, off)
-		setIcon(self, path, off)
-		self.label:ClearAllPoints()
-		if self.icon and self.icon:IsShown() then
-			self.icon:ClearAllPoints()
-			self.icon:SetPoint("LEFT", self, "LEFT", self.inset, 0)
-			self.label:SetPoint("LEFT", self, "LEFT", self.inset + 17, 0)
-		else
-			self.label:SetPoint("LEFT", self, "LEFT", self.inset, 0)
-		end
-		self.label:SetJustifyH("LEFT")
-		self:SetOn(self.on)
-	end
-
+	b:SetScript("OnClick", onClick)
 	Teach(b, label, command)
 	return b
+end
+
+-- One choice, shown one value at a time: a label on the left, and on the right
+-- an arrow, the current value in a sunken well, and another arrow. This is the
+-- row the client's own Options window uses for Loot Key, and it replaced five
+-- separate grids of pills on 2026-10-19.
+--
+-- The pills were not ugly, they were unanswerable. Four of them side by side
+-- have to say which one is live using nothing but a difference in how the same
+-- button is drawn, and every difference tried was reported as unreadable:
+-- first the two-pixel pressed bevel ("i cant tell if its on or off"), then a
+-- gold wash ("the weird tellow is offputting"). A selector never has to say
+-- it. There is one value on the row and it is the value.
+--
+-- It also costs four rows of height across the window and makes every group
+-- the same shape, which is the other half of "why cant we make it like their
+-- options menu".
+local SELECT_W = 112
+local ARROW = 18
+
+local function Arrow(row, dir, onStep)
+	local b = CreateFrame("Button", nil, row)
+	b:SetSize(ARROW, ARROW)
+	local path = dir < 0 and ART.prev or ART.next
+	if HasArt(path) then
+		local t = b:CreateTexture(nil, "ARTWORK")
+		t:SetTexture(path)
+		t:SetAllPoints(b)
+		b.art = t
+	else
+		-- A client without the spellbook art still gets something to press.
+		local t = Text(b, "GameFontNormal", "CENTER")
+		t:SetPoint("CENTER")
+		b:SetFontString(t)
+		b:SetText(dir < 0 and "<" or ">")
+	end
+	local hi = Fill(b, { 1, 1, 1, 0.16 }, "HIGHLIGHT")
+	hi:SetAllPoints(b)
+	b:SetHighlightTexture(hi)
+	b:SetScript("OnClick", function() onStep(dir) end)
+
+	-- The arrows borrow the well's tooltip rather than keeping their own. Only
+	-- the well is re-Taught on every refresh - the value and therefore the
+	-- command it teaches change with the setting - and three copies of a
+	-- moving target is three chances for two of them to go stale.
+	b:SetScript("OnEnter", function(self)
+		local enter = row.well:GetScript("OnEnter")
+		if enter then enter(row.well) end
+	end)
+	b:SetScript("OnLeave", function() GameTooltip:Hide() end)
+	return b
+end
+
+local function Select(parent, label, onStep)
+	local row = CreateFrame("Frame", nil, parent)
+	row:SetHeight(ROW)
+
+	row.label = Text(row)
+	row.label:SetPoint("LEFT", row, "LEFT", 0, 0)
+	row.label:SetText(label)
+
+	-- The value sits in a sunken well, not on a button face: the things to
+	-- press are either side of it. It is clickable anyway, stepping forward,
+	-- because a player who has worked out that this row cycles will click the
+	-- middle of it first.
+	local well = CreateFrame("Button", nil, row)
+	well:SetSize(SELECT_W, ROW - 4)
+	well:SetPoint("RIGHT", row, "RIGHT", -(ARROW + 2), 0)
+	local bg = Fill(well, { 0, 0, 0, 0.45 })
+	bg:SetAllPoints(well)
+	Border(well, { 1, 1, 1, 0.13 })
+	local wellHi = Fill(well, { 1, 1, 1, 0.08 }, "HIGHLIGHT")
+	wellHi:SetAllPoints(well)
+	well:SetHighlightTexture(wellHi)
+	well:SetScript("OnClick", function() onStep(1) end)
+	row.well = well
+
+	row.value = Text(well, "GameFontHighlightSmall", "CENTER")
+	well:SetFontString(row.value)
+
+	row.icon = well:CreateTexture(nil, "ARTWORK")
+	row.icon:SetSize(14, 14)
+	row.icon:SetPoint("LEFT", well, "LEFT", 5, 0)
+	row.icon:Hide()
+
+	row.left  = Arrow(row, -1, onStep)
+	row.left:SetPoint("RIGHT", well, "LEFT", -2, 0)
+	row.right = Arrow(row, 1, onStep)
+	row.right:SetPoint("LEFT", well, "RIGHT", 2, 0)
+
+	-- The label is given exactly the room left over, and told not to wrap, so a
+	-- long one is cut off at the arrow rather than pushing a second line into
+	-- the row below it.
+	row:SetScript("OnSizeChanged", function(self, w)
+		self.label:SetWidth(math.max(10, (w or WIDTH) - SELECT_W - ARROW * 2 - 10))
+	end)
+	row.label:SetWordWrap(false)
+
+	-- icon is a path or nil. Passing one shifts the word right to make room,
+	-- which is the only layout this widget has two of.
+	function row:SetValue(text, icon)
+		self.value:SetText(text or "")
+		self.well:SetText(text or "")
+		self.value:ClearAllPoints()
+		if icon and HasArt(icon) then
+			self.icon:SetTexture(icon)
+			self.icon:Show()
+			self.value:SetPoint("LEFT", self.icon, "RIGHT", 4, 0)
+			self.value:SetPoint("RIGHT", self.well, "RIGHT", -5, 0)
+		else
+			self.icon:Hide()
+			self.value:SetPoint("CENTER", self.well, "CENTER", 0, 0)
+		end
+	end
+	row:SetValue("")
+
+	return row
 end
 
 -- reset, when given, returns the default for THIS slider and the command that
@@ -567,11 +671,16 @@ local function Slider(parent, label, lo, hi, step, fmt, apply, reset)
 		-- tell the tolerance from an equality test - two attempts at one both
 		-- passed with the tolerance removed. A guard that cannot fail is worse
 		-- than none, because it reads as cover.
+		-- White when it has been moved off its default, grey when it is sitting
+		-- on it. This was gold, and gold is what five slider numbers and a row
+		-- of pills all being gold at once looked like: "the weird tellow is
+		-- offputting". The affordance is the brightness step, not the hue, and
+		-- the client's own options numbers are white.
 		local at = default and math.abs(shown - default) < (step / 2)
 		if at then
 			row.valueText:SetTextColor(DIM[1], DIM[2], DIM[3])
 		else
-			row.valueText:SetTextColor(GOLD[1], GOLD[2], GOLD[3])
+			row.valueText:SetTextColor(1, 1, 1)
 		end
 	end
 	return row
@@ -644,6 +753,12 @@ end
 --------------------------------------------------------------------------------
 
 local CHANNELS = { "Ambience", "SFX", "Master", "Music", "Dialog" }
+
+-- The order the Weather and Indoors selectors step through. Intensity has no
+-- list here because its one is the weather's own `order`, which is the whole
+-- reason the top step can be called monsoon under rain and blizzard under snow.
+local WEATHERS = { "rain", "snow" }
+local INDOOR_ORDER = { "off", "dim", "on" }
 
 -- Which of the game's own volume sliders each channel rides on, and the switch
 -- above it where there is one. Verified against WowB.exe 1.60.1.70425: all nine
@@ -740,20 +855,21 @@ local function Refresh()
 
 	local weather = ComfyRainAPI.Weather[db.weather] or ComfyRainAPI.Weather.rain
 
-	controls.rain:SetSelected(db.weather == "rain")
-	controls.snow:SetSelected(db.weather == "snow")
 	controls.power:SetOn(db.enabled)
 	controls.power:SetLabel(db.enabled and "Weather on" or "Weather off")
 
-	-- The intensity pills are relabelled rather than rebuilt: the top step is
-	-- named for its weather (monsoon, blizzard) and the rest are shared.
-	for i, pill in ipairs(controls.intensity.pills) do
-		local name = weather.order[i]
-		pill.intensity = name
-		pill:SetLabel(name and (name:gsub("^%l", string.upper)) or "")
-		pill:SetSelected(name == db.intensity)
-		Teach(pill, "Intensity", name and ("/comfy " .. name) or nil)
-	end
+	controls.weather:SetValue(Title(db.weather), ICON[db.weather])
+	Teach(controls.weather.well, "Weather", "/comfy " .. db.weather,
+		"Rain or snow. The arrows step between them; so do /comfy rain and " ..
+		"/comfy snow.")
+
+	-- Named for the weather it is under: the top step is monsoon in rain and
+	-- blizzard in snow, so the value shown and the command the tooltip teaches
+	-- both come out of the weather's own order rather than a list here.
+	controls.intensity:SetValue(Title(db.intensity))
+	Teach(controls.intensity.well, "Intensity", "/comfy " .. db.intensity,
+		"How hard it comes down. " ..
+		table.concat(weather.order, ", ") .. ".")
 
 	controls.alpha:Set(db.scale)
 	controls.speed:Set(db.speed)
@@ -763,27 +879,27 @@ local function Refresh()
 
 	controls.sound:SetOn(db.sound)
 	controls.zoom:SetOn(db.zoom)
-	-- Rain has lightning, snow has gusts, and the button must say which. The
-	-- icon changes with the word, and SetIcon re-applies the on/off state, so
-	-- it is the last of the three to run.
+	-- Rain has lightning, snow has gusts, and the row must say which.
 	controls.thunder:SetOn(db.thunder)
 	controls.thunder:SetLabel(weather.flash and "Thunder" or "Gusts")
-	controls.thunder:SetIcon(weather.flash and ICON.thunder or ICON.gusts)
-	controls.indoors:SetLabel("Indoors: " .. Title(INDOORS(db)))
+	controls.indoors:SetValue(Title(INDOORS(db)))
 
 	-- The one place the panel can tell a player why an addon they have switched
-	-- on is making no noise. Said on the face of the button rather than only in
-	-- the tooltip, because nobody hovers a control they have no reason to
-	-- suspect, and clicking it is also the fix.
+	-- on is making no noise. Said on the face of the control rather than only
+	-- in the tooltip, because nobody hovers a control they have no reason to
+	-- suspect, and stepping it is also the fix.
 	local muted = db.sound and ChannelMuted(db.channel)
-	controls.channel:SetLabel("Channel: " .. db.channel .. (muted and "  (muted)" or ""))
-	controls.channel.tipWarn = muted and ("The game's own " .. db.channel ..
-		" volume is at zero, so nothing here can be heard. Click to move the " ..
-		"weather onto a different slider, or turn that one up in the game's " ..
-		"Sound options.") or nil
+	controls.channel:SetValue(db.channel .. (muted and " (muted)" or ""))
+	controls.channel.well.tipWarn = muted and ("The game's own " .. db.channel ..
+		" volume is at zero, so nothing here can be heard. Step this to move " ..
+		"the weather onto a different slider, or turn that one up in the " ..
+		"game's Sound options.") or nil
 
-	for _, pill in ipairs(controls.timeMode.pills) do
-		pill:SetSelected(pill.mode == db.timeMode)
+	for _, m in ipairs(TIME_MODES) do
+		if m.key == db.timeMode then
+			controls.timeMode:SetValue(m.label)
+			Teach(controls.timeMode.well, m.label, "/comfy " .. m.cmd, m.note)
+		end
 	end
 	-- One row, two settings, so the tooltip has to move with the label. It was
 	-- the only control in the window without one.
@@ -929,35 +1045,29 @@ local function Build()
 
 	add(Heading(panel, "Weather", "look"), { gap = 4 })
 
-	-- Weather, and the master switch, on one line: the two things somebody
-	-- opening this window for the first time is looking for.
-	local top = add(CreateFrame("Frame", nil, panel))
-	top:SetHeight(ROW)
-	local third = (WIDTH - PAD * 2) / 3
-	controls.rain = Pill(top, "Rain", function() Run("rain") end)
-	controls.rain:SetPoint("TOPLEFT", top, "TOPLEFT", 0, 0)
-	controls.rain:SetWidth(third - 3)
-	controls.rain:SetIcon(ICON.rain)
-	Teach(controls.rain, "Rain", "/comfy rain")
-
-	controls.snow = Pill(top, "Snow", function() Run("snow") end)
-	controls.snow:SetPoint("TOPLEFT", top, "TOPLEFT", third, 0)
-	controls.snow:SetWidth(third - 3)
-	controls.snow:SetIcon(ICON.snow)
-	Teach(controls.snow, "Snow", "/comfy snow")
-
-	controls.power = Toggle(top, "Weather on", "/comfy", function()
+	-- The master switch first, because it is the one control in the section
+	-- that can make every other one in it do nothing.
+	local powerRow = add(CreateFrame("Frame", nil, panel))
+	powerRow:SetHeight(ROW)
+	controls.power = Check(powerRow, "Weather on", "/comfy", function()
 		Run(DB().enabled and "off" or "on")
 	end)
-	controls.power:SetPoint("TOPLEFT", top, "TOPLEFT", third * 2, 0)
-	controls.power:SetWidth(third)
+	controls.power:SetPoint("LEFT", powerRow, "LEFT", 0, 0)
 
-	controls.intensity = add(PillRow(panel, 4))
-	for _, pill in ipairs(controls.intensity.pills) do
-		pill:SetScript("OnClick", function(self)
-			if self.intensity then Run(self.intensity) end
-		end)
-	end
+	controls.weather = add(Select(panel, "Weather", function(d)
+		local order, db2 = WEATHERS, DB()
+		local at = 1
+		for i, n in ipairs(order) do if n == db2.weather then at = i end end
+		Run(order[((at - 1 + d) % #order) + 1])
+	end))
+
+	controls.intensity = add(Select(panel, "Intensity", function(d)
+		local db2 = DB()
+		local w = ComfyRainAPI.Weather[db2.weather] or ComfyRainAPI.Weather.rain
+		local at = 1
+		for i, n in ipairs(w.order) do if n == db2.intensity then at = i end end
+		Run(w.order[((at - 1 + d) % #w.order) + 1])
+	end))
 
 	-- The db key and the command verb differ for two of these - Visibility
 	-- writes `scale` through `alpha`, Darkness writes `gloom` through `dim` -
@@ -1002,10 +1112,9 @@ local function Build()
 	-- switch. Full width: it has no natural partner on a row.
 	local zoomRow = add(CreateFrame("Frame", nil, panel))
 	zoomRow:SetHeight(ROW)
-	controls.zoom = Toggle(zoomRow, "Zoom Response", "/comfy zoom off",
+	controls.zoom = Check(zoomRow, "Zoom Response", "/comfy zoom off",
 		function() Run(DB().zoom and "zoom off" or "zoom on") end)
-	controls.zoom:SetPoint("TOPLEFT", zoomRow, "TOPLEFT", 0, 0)
-	controls.zoom:SetWidth(third - 3)
+	controls.zoom:SetPoint("LEFT", zoomRow, "LEFT", 0, 0)
 	Teach(controls.zoom, "Zoom Response", "/comfy zoom off",
 		"Drops get bigger and faster the closer the camera is, finer and " ..
 		"denser when you pull back.")
@@ -1018,52 +1127,49 @@ local function Build()
 	Teach(controls.volume.slider, "Volume", "/comfy volume 0.5",
 		"ComfyRain's weather only. Your game volume is untouched.")
 
+	-- Two checkboxes on one row. The client stacks them one per row, and this
+	-- window has half its width and four more sections to fit.
 	local audio = add(CreateFrame("Frame", nil, panel))
 	audio:SetHeight(ROW)
-	controls.sound = Toggle(audio, "Sound", "/comfy sound off",
+	controls.sound = Check(audio, "Sound", "/comfy sound off",
 		function() Run(DB().sound and "sound off" or "sound on") end)
-	controls.sound:SetPoint("TOPLEFT", audio, "TOPLEFT", 0, 0)
-	controls.sound:SetWidth(third - 3)
+	controls.sound:SetPoint("LEFT", audio, "LEFT", 0, 0)
 
-	controls.thunder = Toggle(audio, "Thunder", "/comfy thunder off",
+	controls.thunder = Check(audio, "Thunder", "/comfy thunder off",
 		function() Run(DB().thunder and "thunder off" or "thunder on") end)
-	controls.thunder:SetPoint("TOPLEFT", audio, "TOPLEFT", third, 0)
-	controls.thunder:SetWidth(third - 3)
+	controls.thunder:SetPoint("LEFT", audio, "LEFT", (WIDTH - PAD * 2) / 2, 0)
 
-	-- Three states, so a cycling pill rather than a lamp. "Dim" is the default
-	-- and the one most people want: weather you can still HEAR from inside but
-	-- cannot see, instead of either silence or rain falling through the roof.
-	controls.indoors = Pill(audio, "Indoors: Dim", function()
-		local order = { off = "dim", dim = "on", on = "off" }
-		Run("indoors " .. (order[INDOORS(DB())] or "dim"))
-	end)
-	controls.indoors:SetPoint("TOPLEFT", audio, "TOPLEFT", third * 2, 0)
-	controls.indoors:SetWidth(third)
-	Teach(controls.indoors, "Indoors", "/comfy indoors dim",
+	-- Three states, which is why this is a selector and not a checkbox. "Dim"
+	-- is the default and the one most people want: weather you can still HEAR
+	-- from inside but cannot see, instead of either silence or rain falling
+	-- through the roof.
+	controls.indoors = add(Select(panel, "Indoors", function(d)
+		local at = 2
+		for i, n in ipairs(INDOOR_ORDER) do
+			if n == INDOORS(DB()) then at = i end
+		end
+		Run("indoors " .. INDOOR_ORDER[((at - 1 + d) % #INDOOR_ORDER) + 1])
+	end))
+	Teach(controls.indoors.well, "Indoors", "/comfy indoors dim",
 		"Off stops it dead. Dim keeps the sound and draws nothing, the way " ..
 		"weather is from inside. On draws it at full strength.")
 
-	-- A cycling button rather than a dropdown: UIDropDownMenu is a template,
-	-- and five options do not need a menu.
-	controls.channel = add(Pill(panel, "Channel: Ambience", function()
+	controls.channel = add(Select(panel, "Channel", function(d)
 		local db2, at = DB(), 1
 		for i, c in ipairs(CHANNELS) do if c == db2.channel then at = i end end
-		Run("channel " .. CHANNELS[(at % #CHANNELS) + 1]:lower())
+		Run("channel " .. CHANNELS[((at - 1 + d) % #CHANNELS) + 1]:lower())
 	end))
-	Teach(controls.channel, "Channel", "/comfy channel Ambience",
+	Teach(controls.channel.well, "Channel", "/comfy channel Ambience",
 		"Which of the game's volume sliders owns the weather. Ambience keeps " ..
 		"it out of the way of music.")
 
 	add(Heading(panel, "Time of Day", "time"), { gap = 4 })
 
-	controls.timeMode = add(PillRow(panel, 4))
-	for i, pill in ipairs(controls.timeMode.pills) do
-		local mode = TIME_MODES[i]
-		pill.mode = mode.key
-		pill:SetLabel(mode.label)
-		pill:SetScript("OnClick", function() Run(mode.cmd) end)
-		Teach(pill, mode.label, "/comfy " .. mode.cmd, mode.note)
-	end
+	controls.timeMode = add(Select(panel, "Mode", function(d)
+		local db2, at = DB(), 1
+		for i, m in ipairs(TIME_MODES) do if m.key == db2.timeMode then at = i end end
+		Run(TIME_MODES[((at - 1 + d) % #TIME_MODES) + 1].cmd)
+	end))
 
 	controls.hour = add(Slider(panel, "Hour", -12, 23, 1, "%d", function(v)
 		if DB().timeMode == "offset" then
@@ -1100,6 +1206,7 @@ local function Build()
 
 	local foot = add(CreateFrame("Frame", nil, panel))
 	foot:SetHeight(ROW)
+	local third = (WIDTH - PAD * 2) / 3
 	local commands = Pill(foot, "Commands", function() Run("help") end)
 	commands:SetPoint("TOPLEFT", foot, "TOPLEFT", 0, 0)
 	commands:SetWidth(third - 3)

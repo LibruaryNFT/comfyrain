@@ -228,6 +228,18 @@ function H.world(opts)
 		end
 	end
 
+	-- A Select row, found by the label on its left. `.value.text` is what the
+	-- player reads in the well, and `.left` / `.right` / `.well` are the three
+	-- things they can click.
+	function w:select(label)
+		for _, f in ipairs(mock.frames) do
+			if f._kind == "Frame" and f.well and f.value
+				and f.label and f.label.text == label then
+				return f
+			end
+		end
+	end
+
 	function w:slider(label)
 		for _, f in ipairs(mock.frames) do
 			if f._kind == "Slider" and f._parent then

@@ -49,7 +49,9 @@ PRESENT GetPlayerMapPosition
 PRESENT GetPoint
 PRESENT GetRealZoneText
 PRESENT GetScale
+PRESENT GetScript
 PRESENT GetStringHeight
+PRESENT GetStringWidth
 PRESENT GetSubZoneText
 PRESENT GetText
 PRESENT GetTime

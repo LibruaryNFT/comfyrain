@@ -9,6 +9,25 @@
 local H = require("harness")
 local it, eq, ok, near, lt, gt, contains = H.it, H.eq, H.ok, H.near, H.lt, H.gt, H.contains
 
+-- Step a Select row until it reads `value`. These specs used to click a pill
+-- by name; a selector shows one value at a time, so "choose Snow" became
+-- "press the arrow until it says Snow". Capped so a value that can never come
+-- up fails the assertion that follows rather than hanging the suite.
+local function choose(w, label, value)
+	local s = w:select(label)
+	if not s then return nil end
+	for _ = 1, 8 do
+		if s.value.text == value then return s end
+		s.right:Click()
+	end
+	return s
+end
+
+local function reads(w, label)
+	local s = w:select(label)
+	return s and s.value.text
+end
+
 it("opens on /comfyrain and closes again", function()
 	local w = H.world()
 	w.mock.slash("COMFYRAINUI", "")
@@ -84,36 +103,50 @@ end)
 it("drives the addon through the commands, not around them", function()
 	local w = H.world()
 	w:open()
-	w:button("Snow"):Click()
+	choose(w, "Weather", "Snow")
 	eq(w:db().weather, "snow", "the weather changed")
 	-- Proof it went through the real path rather than writing the setting: the
 	-- sheets only swap inside the command handler's Refresh.
 	ok(tostring(w:layers().far.texture):find("snow"), "and the sheets followed")
 
-	w:button("Rain"):Click()
+	choose(w, "Weather", "Rain")
 	eq(w:db().weather, "rain", "and back")
 end)
 
 it("names the top intensity after the weather it belongs to", function()
 	local w = H.world()
 	w:open()
-	ok(w:button("Monsoon"), "rain tops out at Monsoon")
-	eq(w:button("Blizzard"), nil, "and does not offer Blizzard")
+	choose(w, "Intensity", "Monsoon")
+	eq(w:db().intensity, "monsoon", "rain tops out at Monsoon")
 
-	w:button("Snow"):Click()
-	ok(w:button("Blizzard"), "snow tops out at Blizzard")
-	eq(w:button("Monsoon"), nil, "and the rain word is gone")
-
-	w:button("Blizzard"):Click()
-	eq(w:db().intensity, "blizzard", "clicking it applies it")
+	choose(w, "Weather", "Snow")
+	-- The selector steps through the weather's OWN order, so the rain word is
+	-- not reachable under snow rather than merely not shown.
+	eq(reads(w, "Intensity"), "Blizzard", "and the top step renamed itself")
+	choose(w, "Intensity", "Monsoon")
+	eq(w:db().intensity, "blizzard", "Monsoon cannot be stepped to under snow")
 	gt(w:whiteout():GetAlpha(), 0, "and the whiteout came on, so it really ran")
+end)
+
+it("steps an intensity backwards as well as forwards", function()
+	-- Four values behind one control: the left arrow is the difference between
+	-- this and a cycling button, and it is the reason a selector replaced one.
+	local w = H.world()
+	w:open()
+	choose(w, "Intensity", "Light")
+	w:select("Intensity").right:Click()
+	eq(w:db().intensity, "normal", "forward a step")
+	w:select("Intensity").left:Click()
+	eq(w:db().intensity, "light", "and back again")
+	w:select("Intensity").left:Click()
+	eq(w:db().intensity, "monsoon", "off the bottom, round to the top")
 end)
 
 it("calls the lightning button what it actually does", function()
 	local w = H.world()
 	w:open()
 	ok(w:button("Thunder"), "rain thunders")
-	w:button("Snow"):Click()
+	choose(w, "Weather", "Snow")
 	ok(w:button("Gusts"), "snow gusts")
 	eq(w:button("Thunder"), nil, "and never claims to thunder")
 end)
@@ -130,11 +163,12 @@ it("toggles sound, gusts and indoors from the window", function()
 	-- Indoors cycles three ways rather than toggling two, because the useful
 	-- setting is the middle one.
 	eq(w:db().indoors, "dim", "starts dimmed")
-	w:button("Indoors: Dim"):Click()
+	eq(reads(w, "Indoors"), "Dim", "and says so")
+	w:select("Indoors").right:Click()
 	eq(w:db().indoors, "on", "dim then on")
-	w:button("Indoors: On"):Click()
+	w:select("Indoors").right:Click()
 	eq(w:db().indoors, "off", "on then off")
-	w:button("Indoors: Off"):Click()
+	w:select("Indoors").right:Click()
 	eq(w:db().indoors, "dim", "and back round")
 end)
 
@@ -157,9 +191,11 @@ it("cycles the volume channel rather than opening a menu", function()
 	local w = H.world()
 	w:open()
 	eq(w:db().channel, "Ambience", "starts on Ambience")
-	w:button("Channel: Ambience"):Click()
-	eq(w:db().channel, "SFX", "cycles to the next")
-	ok(w:button("Channel: SFX"), "and relabels itself")
+	w:select("Channel").right:Click()
+	eq(w:db().channel, "SFX", "steps to the next")
+	eq(reads(w, "Channel"), "SFX", "and says so")
+	w:select("Channel").left:Click()
+	eq(w:db().channel, "Ambience", "and back")
 end)
 
 it("applies a slider as it moves, and clamps where the parser clamps", function()
@@ -183,7 +219,8 @@ it("follows a typed command while it is open", function()
 	w:open()
 	w:slash("snow")
 	w:slash("blizzard")
-	eq(w:button("Blizzard").selected, true, "the window moved with the command")
+	eq(reads(w, "Weather"), "Snow", "the window moved with the command")
+	eq(reads(w, "Intensity"), "Blizzard", "both selectors did")
 	near(w:slider("Darkness"):GetValue(), w:db().gloom, 1e-9, "sliders too")
 end)
 
@@ -204,7 +241,7 @@ it("stays quiet when the window does it, and speaks when the player types it", f
 	local w = H.world()
 	w:open()
 	local before = #w.mock.printed
-	w:button("Snow"):Click()
+	w:select("Weather").right:Click()
 	eq(#w.mock.printed - before, 0, "clicking does not narrate itself into chat")
 
 	before = #w.mock.printed
@@ -215,10 +252,10 @@ end)
 it("teaches the command for whatever is under the cursor", function()
 	local w = H.world()
 	w:open()
-	local b = w:button("Snow")
+	local b = w:select("Weather").well
 	b:GetScript("OnEnter")(b)
 	local joined = table.concat(w.env.GameTooltip.lines, " | ")
-	contains(joined, "/comfy snow", "the tooltip names the command")
+	contains(joined, "/comfy rain", "the tooltip names the command")
 	b:GetScript("OnLeave")(b)
 	eq(w.env.GameTooltip:IsShown(), false, "and clears on the way out")
 end)
@@ -228,7 +265,7 @@ it("hides the time-of-day controls until time of day is on", function()
 	w:open()
 	eq(w:slider("Strength"):GetParent():IsShown(), false, "hidden while off")
 
-	w:button("Held"):Click()
+	choose(w, "Mode", "Held")
 	eq(w:db().timeMode, "fixed", "the mode changed")
 	eq(w:slider("Strength"):GetParent():IsShown(), true, "and the controls appeared")
 	eq(w:slider("Hold at Hour"):GetParent():IsShown(), true, "including the hour")
@@ -236,7 +273,7 @@ it("hides the time-of-day controls until time of day is on", function()
 	w:slider("Hold at Hour"):Drag(3)
 	eq(w:db().timeFixed, 3, "which sets the hour it holds")
 
-	w:button("Shifted"):Click()
+	choose(w, "Mode", "Shifted")
 	w:slider("Shift by Hours"):Drag(-5)
 	eq(w:db().timeMode, "offset", "shifted mode")
 	eq(w:db().timeOffset, -5, "and a negative shift, which needs the sign")
@@ -249,7 +286,7 @@ it("resets the settings and keeps the evidence", function()
 	w:slash("calib on")
 	w:db().calib = { { zone = "Elwynn" } }
 	w:open()
-	w:button("Snow"):Click()
+	choose(w, "Weather", "Snow")
 	w:slider("Visibility"):Drag(0.3)
 
 	w:button("Reset All"):Click()
@@ -272,9 +309,9 @@ it("sizes itself to what is actually on show", function()
 	local w = H.world()
 	local p = w:open()
 	local short = p:GetHeight()
-	w:button("Held"):Click()
+	choose(w, "Mode", "Held")
 	gt(p:GetHeight(), short, "the window grew for the time controls")
-	w:button("Off"):Click()
+	choose(w, "Mode", "Off")
 	near(p:GetHeight(), short, 1e-9, "and shrank back")
 end)
 
@@ -716,17 +753,21 @@ it("looks up the default by db key, not by the slider's name", function()
 	near(w:db().gloom, 1.0, 1e-9, "Darkness reset the gloom key")
 end)
 
-it("golds the number that has moved and greys the ones that have not", function()
+it("brightens the number that has moved and greys the ones that have not", function()
 	-- The second job the clickable value does: answering "what have I actually
 	-- changed in here" without pressing anything or reading a single tooltip.
+	-- The step is brightness, not hue. It was gold until 2026-10-19, and five
+	-- gold numbers down one side of the window was most of what "the weird
+	-- tellow is offputting" was pointing at.
 	local w = H.world()
 	local _, text = valueOf(w, "Wind")
 	eq(text.colour[1] < 0.8, true, "grey while it sits on the default")
 
 	w:slash("gust 0.25")
 	local _, moved = valueOf(w, "Wind")
-	near(moved.colour[1], 1.00, 1e-9, "gold once it has moved")
-	near(moved.colour[2], 0.82, 1e-9, "the heading gold, not a third colour")
+	near(moved.colour[1], 1.00, 1e-9, "white once it has moved")
+	near(moved.colour[2], 1.00, 1e-9, "white, not a colour of ours")
+	near(moved.colour[3], 1.00, 1e-9, "on all three channels")
 
 	valueOf(w, "Wind"):Click()
 	local _, back = valueOf(w, "Wind")
@@ -888,51 +929,52 @@ it("still draws a usable button on a client without that template", function()
 	eq(#w.mock.errors, 0, "and the absent template threw nothing at the client")
 end)
 
-it("shows a chosen option the way the client does, by holding it down", function()
-	-- Not by tinting it a colour of ours. A selected tab in this game looks
-	-- pressed in; a blue rectangle on top of stone art looks like a second
-	-- theme fighting the first.
+it("shows one value at a time, with an arrow either side of it", function()
+	-- What the pills could not do. Four buttons in a row have to say which one
+	-- is live using nothing but a difference in how the same button is drawn,
+	-- and both attempts were reported unreadable from live play: the pressed
+	-- bevel ("i cant tell if its on or off") and then a gold wash ("the weird
+	-- tellow is offputting"). There is nothing here to misread.
 	local w = H.world()
 	w:open()
-	w:button("Snow"):Click()
-	eq(w:button("Snow"):GetButtonState(), "PUSHED", "the chosen one is held down")
-	eq(w:button("Snow")._buttonLocked, true, "locked there, not just under the mouse")
-	eq(w:button("Rain"):GetButtonState(), "NORMAL", "and the other one is not")
+	local s = w:select("Intensity")
+	ok(s, "the intensity row is a selector")
+	ok(s.left and s.right, "with an arrow on each side")
+	eq(s.value.text, "Normal", "and the live value on its face, spelled out")
+
+	-- The well is a third place to press, because somebody who has worked out
+	-- that the row cycles will click the middle of it first.
+	s.well:Click()
+	eq(w:db().intensity, "heavy", "pressing the value steps it forward")
 end)
 
-it("lights the chosen option, because a bevel on its own is two pixels", function()
-	-- The pressed state above was the entire difference between the chosen
-	-- intensity and the other three, and from live play it was not visible:
-	-- "cant we maybe make things easier to understand whats selected". A
-	-- button's worth of warm light is, and it works on the flat-pill
-	-- fallback too, which has no bevel to shift.
+it("puts the weather's picture in the well beside its name", function()
+	-- The one icon left in the window. Rain and snow are the only pair a
+	-- player picks between by shape rather than by reading, and the whole
+	-- reason FrostShock won over the better-looking ChillingBlast: two icons
+	-- that reduce to the same thing at 14px are worse than none.
 	local w = H.world()
 	w:open()
-	w:button("Heavy"):Click()
-	local on, off = w:button("Heavy"), w:button("Light")
-	ok(on.glow and on.glow:IsShown(), "the chosen intensity is lit")
-	eq(on.glow.blend, "ADD", "with light, not with a flat panel over the art")
-	ok(not (off.glow and off.glow:IsShown()), "and the others are not")
-
-	w:button("Light"):Click()
-	ok(not on.glow:IsShown(), "the light follows the choice")
-	ok(off.glow and off.glow:IsShown(), "onto the new one")
+	local s = w:select("Weather")
+	ok(s.icon:IsShown(), "rain has a picture")
+	local rain = s.icon.texture
+	choose(w, "Weather", "Snow")
+	ok(s.icon.texture ~= rain, "and snow does not wear the same one")
 end)
 
-it("says the chosen option in gold, not in white", function()
-	-- White against the 62% grey of an unselected label is a contrast step
-	-- small enough to disappear on a dark button at this size, which is what
-	-- "the text colour is very difficult" was about. Gold is the client's own
-	-- colour for the live thing and is already this panel's headings.
+it("draws arrows a client has the art for, and letters when it has not", function()
 	local w = H.world()
 	w:open()
-	w:button("Heavy"):Click()
-	local c = w:button("Heavy").label.colour
-	near(c[1], 1.00, 1e-9, "gold red")
-	near(c[2], 0.82, 1e-9, "gold green")
-	near(c[3], 0.00, 1e-9, "gold blue")
-	near(w:button("Light").label.colour[1], 0.62, 1e-9,
-		"and an unchosen one stays dim")
+	ok(w:select("Intensity").right.art, "the game's own arrow")
+
+	local bare = H.world({ artPaths = {} })
+	bare:open()
+	local r = bare:select("Intensity").right
+	eq(r.art, nil, "no art on a client without the file")
+	eq(r._text, ">", "but something to press anyway")
+	r:Click()
+	eq(bare:db().intensity, "heavy", "and it still steps")
+	eq(#bare.mock.errors, 0, "with nothing thrown at the client")
 end)
 
 it("lays the real dialog stone over its own fill, never instead of it", function()
@@ -978,7 +1020,7 @@ it("comes up on a client with none of it: no templates, no art", function()
 	eq(p.GetBackdrop, nil, "with no backdrop, no close button and no stone")
 	ok(w:button("Turn It All Off"), "the buttons are still buttons")
 	ok(w:slider("Visibility"), "and the sliders are still sliders")
-	w:button("Snow"):Click()
+	choose(w, "Weather", "Snow")
 	eq(w:db().weather, "snow", "and clicking one still runs its command")
 	eq(#w.mock.errors, 0, "and nothing was thrown at the client")
 end)
@@ -997,81 +1039,58 @@ end)
 -- same shape as the rain icon beside it. Telling rain from snow is the one job
 -- this row has.
 
-local function iconOf(b)
-	return b and b.icon and b.icon:IsShown() and b.icon.texture or nil
-end
-
-it("puts a picture on each of the three weather buttons", function()
+it("gives the Weather selector a picture, and only that one", function()
+	-- Thunder and Gusts carried icons too until 2026-10-19. The client's own
+	-- Options window has no pictures on anything, matching it was the ask, and
+	-- a bolt beside a tick was two widgets saying one thing.
 	local w = H.world()
 	w:open()
-	ok(iconOf(w:button("Rain")), "Rain has one")
-	ok(iconOf(w:button("Snow")), "Snow has one")
-	ok(iconOf(w:button("Thunder")), "Thunder has one")
+	ok(w:select("Weather").icon:IsShown(), "the weather has one")
+	eq(w:button("Thunder").icon, nil, "and nothing else in the window does")
 end)
 
-it("never gives rain and snow the same picture", function()
-	-- The whole reason FrostShock won over the better-looking ChillingBlast.
-	-- Two icons that reduce to the same shape at 14px are worse than none.
-	local w = H.world()
+it("draws no picture and no hole on a client without the icon files", function()
+	-- A path this flavour lacks draws nothing, so a well laid out for a
+	-- picture would show an off-centre word with a gap beside it.
+	local w = H.world({ artPaths = {} })
 	w:open()
-	ok(iconOf(w:button("Rain")) ~= iconOf(w:button("Snow")),
-		"the two weathers do not wear the same shape")
+	local s = w:select("Weather")
+	eq(s.icon:IsShown(), false, "no picture was drawn")
+	eq(s.value._lastPoint.point, "CENTER", "and the word is centred in the well")
+	eq(w:button("Thunder").lamp:IsShown(), true, "the checkbox falls back to a lamp")
+	eq(w:button("Thunder").label._lastPoint.x, 19, "with the label beside it")
+	choose(w, "Weather", "Snow")
+	eq(w:db().weather, "snow", "and the controls still work")
+	eq(#w.mock.errors, 0, "with nothing thrown at the client")
 end)
 
-it("swaps the bolt for the wind when the weather turns to snow", function()
-	local w = H.world()
-	w:open()
-	local bolt = iconOf(w:button("Thunder"))
-	w:button("Snow"):Click()
-	local wind = iconOf(w:button("Gusts"))
-	ok(wind, "the renamed button still carries a picture")
-	ok(wind ~= bolt, "and it is not the lightning bolt any more")
-end)
-
-it("ticks the box and greys the picture when the toggle is off", function()
-	-- Until 2026-10-19 the picture carried the news alone on any toggle that
-	-- had one, and the lamp was hidden so as not to say it twice. Reported
-	-- from live play: "i cant tell if its on or off". A desaturated 14px icon
-	-- and a lit one are nearly the same picture. The tick is the state now and
-	-- the icon is back to saying only what the button is for.
+it("ticks the box, and clears it, on a checkbox with no picture to hide behind",
+function()
 	local w = H.world()
 	w:open()
 	local t = w:button("Thunder")
 	eq(t.tick:IsShown(), true, "on by default, so the box is ticked")
-	eq(t.icon:IsDesaturated(), false, "and the icon is in colour")
+	near(t.label.colour[1], 1, 1e-9, "and the word is white")
 
 	w:slash("thunder off")
 	eq(t.tick:IsShown(), false, "turned off, the tick clears")
-	eq(t.icon:IsDesaturated(), true, "and the icon goes grey with it")
+	near(t.label.colour[1], 0.62, 1e-9, "and the word goes grey")
 end)
 
-it("keeps the tick clear of a toggle's picture", function()
-	-- Both are drawn on a 97px pill, so the one failure mode is the box
-	-- sitting under the icon or the icon under the word.
+it("stands the checkbox on the panel, not on a button face", function()
+	-- "the button doesnt look right for zoom response" was this: a checkbox
+	-- drawn inside a UIPanelButton face, which is a promise that the face does
+	-- something separate from the box. The client's own options rows are a box
+	-- and a word on the background.
 	local w = H.world()
 	w:open()
-	local t = w:button("Thunder")
-	ok(t.icon:IsShown(), "the picture is there to collide with")
-	eq(t.icon._lastPoint.x, t.inset, "the icon starts right of the box")
-	eq(t.label._lastPoint.x, t.inset + 17, "and the word right of the icon")
-
-	local plain = w:button("Zoom Response")
-	eq(plain.label._lastPoint.x, plain.inset, "with no icon, the word sits on the box")
-end)
-
-it("centres its labels again on a client that has not got the icons", function()
-	-- A path this flavour lacks draws nothing, so a button laid out for an
-	-- icon would show an off-centre label with a hole beside it.
-	local w = H.world({ artPaths = {} })
-	w:open()
-	eq(iconOf(w:button("Rain")), nil, "no picture was drawn")
-	local lp = w:button("Rain").label._lastPoint
-	ok(lp and lp.point == "CENTER", "and the word is centred")
-	eq(w:button("Thunder").lamp:IsShown(), true, "the toggle gets its lamp back")
-	eq(w:button("Thunder").label._lastPoint.x, 19, "with the label beside it")
-	w:button("Snow"):Click()
-	eq(w:db().weather, "snow", "and the buttons still work")
-	eq(#w.mock.errors, 0, "with nothing thrown at the client")
+	local z = w:button("Zoom Response")
+	eq(z._template, nil, "no panel-button template under it")
+	eq(z.box._lastPoint.x, 0, "the box sits on the left edge of the row")
+	eq(z.label._lastPoint.x, z.inset, "with the word just right of it")
+	-- Sized to the words, so the hover highlight does not run to the panel
+	-- edge and read as a selected list item.
+	lt(z:GetWidth(), 200, "and the row is only as wide as it reads")
 end)
 
 --------------------------------------------------------------------------------
@@ -1125,7 +1144,7 @@ it("wraps its explanations instead of growing wider than the window", function()
 	-- it is explaining, which is invisible to any spec that reads only text.
 	local w = H.world()
 	w:open()
-	local rows = w:hover(w:button("Indoors: Dim"))
+	local rows = w:hover(w:select("Indoors").well)
 	local long
 	for _, r in ipairs(rows) do
 		if r.text and #r.text > 60 then long = r end
@@ -1149,9 +1168,9 @@ end)
 it("says on its face when the game's own volume slider is at zero", function()
 	local w = H.world({ cvars = { Sound_AmbienceVolume = 0 } })
 	w:open()
-	ok(w:says("Channel: Ambience%s+%(muted%)"), "the button admits it")
+	eq(w:select("Channel").value.text, "Ambience (muted)", "the row admits it")
 
-	local rows = w:hover(w:button("Channel: Ambience  (muted)"))
+	local rows = w:hover(w:select("Channel").well)
 	local warned
 	for _, r in ipairs(rows) do
 		if r.r == 1 and r.g and r.g < 0.5 then warned = r end
@@ -1166,7 +1185,7 @@ it("stops warning once the weather is moved to a channel that works", function()
 	ok(w:says("%(muted%)"), "muted to start with")
 	w:slash("channel master")
 	eq(w:says("%(muted%)"), nil, "and the warning goes with the move")
-	ok(w:says("Channel: Master"), "leaving the button reading plainly")
+	eq(reads(w, "Channel"), "Master", "leaving the row reading plainly")
 end)
 
 it("catches the master switch and the master slider, not just its own", function()
@@ -1340,4 +1359,43 @@ it("still remembers the way back after a reload", function()
 	two:load()
 	two:slash("undo")
 	near(two:db().scale, 0.3, 1e-9, "the way back survived the reload")
+end)
+
+--------------------------------------------------------------------------------
+-- Colour
+--------------------------------------------------------------------------------
+--
+-- Reported 2026-10-19, about a gold wash added that same day to make a chosen
+-- pill readable: "we did reload, now what, im confused, can u pleae fix the
+-- ui, the weird tellow is offputting.. why cant we make it like their options
+-- menu". Gold is the client's heading colour and this window now uses it for
+-- exactly what the client uses it for: headings, the title, and the one line
+-- that says what is being done to the screen. Nothing a player operates is
+-- gold, because a control that is gold is a control claiming to be a heading.
+
+it("keeps gold for headings and the status line, and off every control", function()
+	local w = H.world()
+	w:open()
+	w:slash("time +9")          -- every row on screen, including the hidden two
+	w:slash("gust 0.25")        -- and a slider knocked off its default
+	local gold = 0
+	for _, f in ipairs(w:hoverables()) do
+		for _, fs in ipairs(f._fontStrings or {}) do
+			local c = fs.colour
+			-- Gold is bright red, bright green, no blue. Grey and white both
+			-- have their three channels equal, so neither can trip this.
+			if c and c[1] > 0.9 and c[2] > 0.7 and c[2] < 0.95 and c[3] < 0.3 then
+				gold = gold + 1
+			end
+		end
+	end
+	H.eq(gold, 0, "no button, slider or selector in the window is gold")
+
+	-- The positive control. If the detector above cannot see gold where gold
+	-- IS, then zero means nothing.
+	local heading = w:says("^Weather$")
+	ok(heading, "the Weather heading is there to look at")
+	near(heading.colour[1], 1.00, 1e-9, "and it is gold")
+	near(heading.colour[2], 0.82, 1e-9, "on the channel the detector tests")
+	lt(heading.colour[3], 0.3, "with no blue in it")
 end)
