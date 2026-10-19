@@ -8,13 +8,18 @@
 --    already throws ADDON_ACTION_FORBIDDEN here, and whether a canvas category
 --    registers on build 70338 is still an open Phase 1 question. A settings
 --    window is the thing a non-power-user needs most, so it cannot be the one
---    part of the addon that depends on an API we have never seen work. Nothing
---    below uses a template, a Backdrop, or UIDropDownMenu either: every pixel
---    comes from CreateFrame, CreateTexture and CreateFontString, which the
---    weather overlay has already proven on this client. The two Blizzard
---    templates it does reach for, BackdropTemplate for the gold dialog edge and
---    UIPanelCloseButton for the X, are both probed with pcall and both have a
---    hand-drawn fallback, so a client without either still gets a usable window.
+--    part of the addon that depends on an API we have never seen work.
+--
+--    What it DOES use is the client's own furniture: the dialog border and its
+--    carved header plate, the close button, the stone dialog background, the
+--    panel-button art and the slider groove. All of it is reached by template
+--    name or by texture path, which means the art comes out of the player's own
+--    installation and nothing Blizzard made is inside this package. That is the
+--    line: using the interface is what the templates are for, shipping a copy
+--    of it is redistribution. Every one of them is probed first - templates with
+--    pcall, textures with GetFileIDFromPath - and every one has a hand-drawn
+--    fallback, so a client missing any of it still gets a usable window rather
+--    than a blank one.
 --
 -- 2. Every control issues a slash command through ComfyRainAPI.Command. Not one
 --    of them writes to the saved variables directly. So the window can never do
@@ -60,16 +65,69 @@ local BORDER_BACKDROP = {
 	insets   = { left = 11, right = 12, top = 12, bottom = 11 },
 }
 
--- BackdropTemplate carries SetBackdrop on modern clients and does not exist on
--- older ones, and an unknown template name raises. Asked once, with the answer
--- cached, and everything below has a hand-drawn path for "no".
-local backdropOK
-local function SupportsBackdrop()
-	if backdropOK == nil then
-		local ok, f = pcall(CreateFrame, "Frame", nil, UIParent, "BackdropTemplate")
-		backdropOK = (ok and f and type(f.SetBackdrop) == "function") or false
+-- The groove the client's own options sliders sit in: a tiled background inside
+-- an 8px edge. The numbers are OptionsSliderTemplate's, copied rather than
+-- inherited, because that template also brings three named font strings we do
+-- not want and would have to hunt down and hide.
+local SLIDER_BACKDROP = {
+	bgFile   = "Interface\\Buttons\\UI-SliderBar-Background",
+	edgeFile = "Interface\\Buttons\\UI-SliderBar-Border",
+	tile     = true,
+	tileSize = 8,
+	edgeSize = 8,
+	insets   = { left = 3, right = 3, top = 6, bottom = 6 },
+}
+
+-- Blizzard art referenced by path. The file is read out of the player's own
+-- installation at draw time; none of it is in this package.
+local ART = {
+	stone = "Interface\\DialogFrame\\UI-DialogBox-Background-Dark",
+	thumb = "Interface\\Buttons\\UI-SliderBar-Button-Horizontal",
+}
+
+-- An unknown template name raises inside CreateFrame, so each is asked for once
+-- and the answer cached. Which templates a client has cannot be read out of the
+-- binary at all - they are defined in FrameXML, which lives in the game's data
+-- archive and not in WowB.exe, which is why tools/api_surface.py has nothing to
+-- say about them - so asking the client itself is the only honest test.
+local templateOK = {}
+local function Supports(kind, name, probe)
+	local key = kind .. "/" .. name
+	if templateOK[key] == nil then
+		local ok, f = pcall(CreateFrame, kind, nil, UIParent, name)
+		templateOK[key] = (ok and f and (probe == nil or probe(f))) or false
+		-- Frames cannot be destroyed, so the probe's leftover is parked rather
+		-- than left floating over the middle of the screen.
+		if ok and f and f.Hide then f:Hide() end
 	end
-	return backdropOK
+	return templateOK[key]
+end
+
+local function SupportsBackdrop()
+	return Supports("Frame", "BackdropTemplate",
+		function(f) return type(f.SetBackdrop) == "function" end)
+end
+
+-- GetFileIDFromPath resolves a path against the player's own installed data and
+-- answers nil for art this build does not have. Only used where a missing file
+-- would leave nothing visible at all - the slider thumb is the whole grabbable
+-- part of the control, and an invisible one is a broken slider. Everywhere else
+-- the Blizzard texture is laid OVER a flat quad, so a path that does not
+-- resolve degrades to the old look on its own and needs no asking.
+local artOK = {}
+local function HasArt(path)
+	if artOK[path] == nil then
+		if type(GetFileIDFromPath) ~= "function" then
+			-- A client that cannot be asked gets a yes. These are paths the game
+			-- has shipped since 2004, and refusing to draw them because the
+			-- question was unavailable is the wrong way round.
+			artOK[path] = true
+		else
+			local ok, id = pcall(GetFileIDFromPath, path)
+			artOK[path] = (not ok) or (id ~= nil and id ~= 0)
+		end
+	end
+	return artOK[path]
 end
 
 local panel, rows, controls
@@ -132,16 +190,36 @@ local function Teach(widget, title, command, note)
 	widget:SetScript("OnLeave", function() GameTooltip:Hide() end)
 end
 
+-- Blizzard's own stone-and-gold button where the client has the template.
+-- Through the template rather than by painting UI-Panel-Button-Up by hand,
+-- because that file is one sheet that has to be cut into three and the slicing
+-- numbers live in FrameXML, where they are free and correct for whichever
+-- flavour is running. The flat pill stays as the fallback and is still what
+-- gets drawn on a client without the template.
 local function Pill(parent, label, onClick)
-	local b = CreateFrame("Button", nil, parent)
+	local native = Supports("Button", "UIPanelButtonTemplate")
+	local b = CreateFrame("Button", nil, parent,
+		native and "UIPanelButtonTemplate" or nil)
 	b:SetHeight(ROW - 4)
-	b.bg = Fill(b, PILL)
-	b.bg:SetAllPoints(b)
-	b.label = Text(b, "GameFontHighlightSmall", "CENTER")
-	b.label:SetPoint("CENTER")
-	-- Without this the button's own SetText has nothing to draw into, and
-	-- GetText would answer for a string nobody can see.
-	b:SetFontString(b.label)
+
+	-- The template brings its own font string, its own highlight and its own
+	-- pressed art. Asking for the font string is also the real test: a template
+	-- that exists by name but hands back a bare button would otherwise give us
+	-- a button with no text on it, which is worse than the flat pill.
+	b.label = native and b.GetFontString and b:GetFontString() or nil
+	b.native = b.label and true or false
+	if not b.native then
+		b.bg = Fill(b, PILL)
+		b.bg:SetAllPoints(b)
+		b.label = Text(b, "GameFontHighlightSmall", "CENTER")
+		b.label:SetPoint("CENTER")
+		-- Without this the button's own SetText has nothing to draw into, and
+		-- GetText would answer for a string nobody can see.
+		b:SetFontString(b.label)
+		local hi = Fill(b, { 1, 1, 1, 0.10 }, "HIGHLIGHT")
+		hi:SetAllPoints(b)
+		b:SetHighlightTexture(hi)
+	end
 	b:SetScript("OnClick", onClick)
 
 	-- The button's own text is kept in step with the font string it draws, so
@@ -152,14 +230,20 @@ local function Pill(parent, label, onClick)
 	end
 	b:SetLabel(label)
 
-	local hi = Fill(b, { 1, 1, 1, 0.10 }, "HIGHLIGHT")
-	hi:SetAllPoints(b)
-	b:SetHighlightTexture(hi)
-
 	function b:SetSelected(on)
 		self.selected = on and true or false
-		local c = on and PILL_ON or PILL
-		self.bg:SetColorTexture(c[1], c[2], c[3], c[4])
+		if self.native then
+			-- How the client shows a chosen tab: the button is locked in its own
+			-- pressed state rather than tinted a colour of ours, so a selected
+			-- option looks pressed in instead of looking like a second theme
+			-- sitting on top of Blizzard's art.
+			if self.SetButtonState then
+				self:SetButtonState(on and "PUSHED" or "NORMAL", on and true or false)
+			end
+		else
+			local c = on and PILL_ON or PILL
+			self.bg:SetColorTexture(c[1], c[2], c[3], c[4])
+		end
 		if on then
 			self.label:SetTextColor(1, 1, 1)
 		else
@@ -251,23 +335,36 @@ local function Slider(parent, label, lo, hi, step, fmt, apply, reset)
 	-- reason Pill does it.
 	row.value:SetFontString(row.valueText)
 
-	local s = CreateFrame("Slider", nil, row)
+	local s = CreateFrame("Slider", nil, row,
+		SupportsBackdrop() and "BackdropTemplate" or nil)
 	s:SetOrientation("HORIZONTAL")
 	s:SetPoint("TOPLEFT", row, "TOPLEFT", 0, -16)
 	s:SetWidth(WIDTH - PAD * 2)
-	s:SetHeight(14)
+	-- 17 rather than 14 because that is the height the client's own groove art
+	-- is cut for, and the row has the three pixels spare.
+	s:SetHeight(17)
 	s:SetMinMaxValues(lo, hi)
 	s:SetValueStep(step)
 	s:SetObeyStepOnDrag(true)
 
+	-- The flat bar is drawn first and kept. The groove goes over it, so a build
+	-- without the slider art shows a plain track instead of an empty gap.
 	local track = Fill(s, { 0.15, 0.16, 0.20, 1 }, "BACKGROUND")
 	track:SetHeight(3)
 	track:SetPoint("LEFT")
 	track:SetPoint("RIGHT")
+	if s.SetBackdrop then pcall(s.SetBackdrop, s, SLIDER_BACKDROP) end
 
 	local thumb = s:CreateTexture(nil, "ARTWORK")
-	thumb:SetColorTexture(ACCENT[1], ACCENT[2], ACCENT[3], 1)
-	thumb:SetSize(8, 14)
+	-- The one place a missing file would be fatal rather than plain: the thumb
+	-- is the part you grab, and an invisible one is a slider nobody can find.
+	if HasArt(ART.thumb) then
+		thumb:SetTexture(ART.thumb)
+		thumb:SetSize(32, 32)
+	else
+		thumb:SetColorTexture(ACCENT[1], ACCENT[2], ACCENT[3], 1)
+		thumb:SetSize(8, 14)
+	end
 	s:SetThumbTexture(thumb)
 
 	s:SetScript("OnValueChanged", function(self, v)
@@ -542,6 +639,16 @@ local function Build()
 		bg:SetAllPoints(panel)
 		Border(panel, EDGE)
 	end
+
+	-- The client's own dark dialog stone, tiled over the flat fill rather than
+	-- replacing it. Over, because a path this build does not have draws nothing
+	-- at all, and the window would go transparent rather than plain. This is the
+	-- single change that stops the panel reading as a flat rectangle sitting
+	-- inside a gold WoW frame.
+	local stone = panel:CreateTexture(nil, "BACKGROUND", nil, 1)
+	stone:SetTexture(ART.stone, "REPEAT", "REPEAT")
+	stone:SetAllPoints(bg)
+	stone:SetAlpha(0.9)
 
 	-- The carved plate the client hangs over the top edge of its own dialogs.
 	-- One texture, and the thing most responsible for a frame looking like it

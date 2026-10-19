@@ -35,6 +35,8 @@ PRESENT GetCameraZoom
 PRESENT GetCenter
 PRESENT GetCursorPosition
 PRESENT GetEffectiveScale
+PRESENT GetFileIDFromPath
+PRESENT GetFontString
 PRESENT GetFrameLevel
 PRESENT GetGameTime
 PRESENT GetHeight
@@ -69,6 +71,7 @@ PRESENT SetAllPoints
 PRESENT SetAlpha
 PRESENT SetAutoFocus
 PRESENT SetBlendMode
+PRESENT SetButtonState
 PRESENT SetCVar
 PRESENT SetClampedToScreen
 PRESENT SetColorTexture

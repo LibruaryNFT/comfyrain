@@ -845,3 +845,104 @@ it("the homepage in the Lua and the one in the TOC are the same URL", function()
 	local author = toc:match("##%s*Author:%s*(.-)%s*\n")
 	eq(author, "LibruaryNFT", "the shipped author is the GitHub handle")
 end)
+
+--------------------------------------------------------------------------------
+-- Blizzard's own furniture
+--------------------------------------------------------------------------------
+--
+-- Asked 2026-10-19: can the window look more like the game's own, or is that
+-- not allowed? It is allowed. The seven provisions of the UI Add-On
+-- Development Policy are about money, obfuscation, realm load, advertising,
+-- donations, content and the EULA, and not one of them touches using the
+-- interface the client ships - the templates exist to be inherited. What is not
+-- allowed is putting Blizzard's art INSIDE the package, which is why every
+-- piece below is a template name or a texture path: the file is read out of the
+-- player's own installation at draw time and this repo contains none of it.
+--
+-- These specs are about the other half of that. Templates and art live in the
+-- game's data archive rather than in WowB.exe, so there is no offline way to
+-- know which flavour has what - tools/api_surface.py is blind to both - and
+-- borrowed furniture must therefore never be the reason a window comes up
+-- blank.
+
+it("dresses its buttons in the client's own panel-button art", function()
+	local w = H.world()
+	w:open()
+	local b = w:button("Turn It All Off")
+	ok(b, "the button is there")
+	eq(b._template, "UIPanelButtonTemplate", "wearing Blizzard's own button")
+	ok(b:GetFontString(), "and the template's font string, not one we drew")
+end)
+
+it("still draws a usable button on a client without that template", function()
+	local w = H.world({ uiTemplates = { "BackdropTemplate", "UIPanelCloseButton" } })
+	w:open()
+	local b = w:button("Turn It All Off")
+	ok(b, "the button still exists")
+	eq(b._template, nil, "built bare instead")
+	ok(b:GetFontString(), "with a label of our own")
+	local painted = false
+	for _, t in ipairs(b._textures) do if t.colour then painted = true end end
+	ok(painted, "and a face, so it is not an invisible hit box")
+	eq(#w.mock.errors, 0, "and the absent template threw nothing at the client")
+end)
+
+it("shows a chosen option the way the client does, by holding it down", function()
+	-- Not by tinting it a colour of ours. A selected tab in this game looks
+	-- pressed in; a blue rectangle on top of stone art looks like a second
+	-- theme fighting the first.
+	local w = H.world()
+	w:open()
+	w:button("Snow"):Click()
+	eq(w:button("Snow"):GetButtonState(), "PUSHED", "the chosen one is held down")
+	eq(w:button("Snow")._buttonLocked, true, "locked there, not just under the mouse")
+	eq(w:button("Rain"):GetButtonState(), "NORMAL", "and the other one is not")
+end)
+
+it("lays the real dialog stone over its own fill, never instead of it", function()
+	local w = H.world()
+	local p = w:open()
+	local stone, flat
+	for _, t in ipairs(p._textures) do
+		if t.texture and t.texture:find("UI%-DialogBox%-Background") then stone = t end
+		if not flat and t.layer == "BACKGROUND" and t.colour then flat = t end
+	end
+	ok(stone, "the client's own dark dialog background is there")
+	eq(stone.wrapH, "REPEAT", "tiled, the way the client tiles it")
+	ok(flat, "and our own fill is still underneath")
+	-- The order is the whole point. A path this build does not have draws
+	-- nothing at all, and a window whose background was ONLY that path would
+	-- come up transparent with the controls floating over the world.
+	ok(stone.sublevel and stone.sublevel > (flat.sublevel or 0),
+		"with the stone on top, so a missing file leaves a plain panel")
+end)
+
+it("uses the client's slider knob, and draws one when the art is absent", function()
+	local w = H.world()
+	w:open()
+	local thumb = w:slider("Visibility")._thumb
+	ok(thumb and thumb.texture and thumb.texture:find("UI%-SliderBar%-Button"),
+		"the metal knob from the game's own options")
+
+	-- The one piece with no silent fallback. Everywhere else the Blizzard
+	-- texture sits over something we drew, so a path that does not resolve
+	-- degrades on its own; a thumb is the part you grab, and an invisible one
+	-- is a slider nobody can find. So this one is asked about.
+	local bare = H.world({ artPaths = {} })
+	bare:open()
+	local drawn = bare:slider("Visibility")._thumb
+	ok(drawn and drawn.colour, "a drawn knob when the client has not got the file")
+	eq(#bare.mock.errors, 0, "and no error for art it did not have")
+end)
+
+it("comes up on a client with none of it: no templates, no art", function()
+	local w = H.world({ uiTemplates = {}, artPaths = {} })
+	local p = w:open()
+	ok(p and p:IsShown(), "the window still opens")
+	eq(p.GetBackdrop, nil, "with no backdrop, no close button and no stone")
+	ok(w:button("Turn It All Off"), "the buttons are still buttons")
+	ok(w:slider("Visibility"), "and the sliders are still sliders")
+	w:button("Snow"):Click()
+	eq(w:db().weather, "snow", "and clicking one still runs its command")
+	eq(#w.mock.errors, 0, "and nothing was thrown at the client")
+end)

@@ -325,6 +325,22 @@ function M.reset(opts)
 	-- actually take a backdrop. True on every current client; a spec sets it
 	-- false to prove the hand-drawn border still comes up on one that cannot.
 	M.backdropTemplate       = pick(opts.backdropTemplate, true)
+	-- Which FrameXML templates this pretend client has. A real client RAISES on
+	-- a name it does not know, which is the only reason the addon pcalls for
+	-- every one of them, so the mock raises too: a mock that quietly accepted
+	-- any string would let the hand-drawn fallbacks rot untested. Templates are
+	-- defined in the game's data archive rather than in WowB.exe, so unlike the
+	-- function manifest there is no offline way to check this list - it is what
+	-- the client is being asked to pretend, not a claim about what it has.
+	M.uiTemplates = {}
+	for _, name in ipairs(opts.uiTemplates or
+			{ "BackdropTemplate", "UIPanelCloseButton", "UIPanelButtonTemplate" }) do
+		M.uiTemplates[name] = true
+	end
+	-- Texture paths GetFileIDFromPath will own up to. Same shape and the same
+	-- caveat: art lives in the archive, so this is a stand-in, and the addon is
+	-- written to survive the answer being no.
+	M.artPaths = opts.artPaths
 	M.screenshots = {}
 	M.soundKits = {}
 	for _, id in ipairs(opts.soundKits or { 567 }) do M.soundKits[id] = true end
@@ -351,6 +367,23 @@ local function newFrame(kind, name, parent, template)
 	-- SetBackdrop lives on the template, not on every frame: asking for it
 	-- without inheriting BackdropTemplate is the classic post-9.0 error, and a
 	-- mock that answered anyway would hide it.
+	if template and not M.uiTemplates[template] then
+		error("Unknown template '" .. tostring(template) .. "'", 2)
+	end
+
+	-- UIPanelButtonTemplate's whole value is that it arrives already dressed:
+	-- the nine-sliced stone art and a font string the client positioned. The
+	-- font string is what the addon tests for, because a template that exists
+	-- by name but hands back a bare button is a button with no label on it.
+	if template == "UIPanelButtonTemplate" then
+		local fs = setmetatable({ _parent = f, _shown = true,
+		                          fontObject = "GameFontNormal" }, FontString)
+		f._fontStrings = f._fontStrings or {}
+		f._fontStrings[#f._fontStrings + 1] = fs
+		f._templateFontString = fs
+		f._normalTexture = "Interface\\Buttons\\UI-Panel-Button-Up"
+	end
+
 	if template == "BackdropTemplate" and M.backdropTemplate then
 		f.SetBackdrop = function(self, b) self._backdrop = b end
 		f.GetBackdrop = function(self) return self._backdrop end
@@ -432,8 +465,22 @@ local function newFrame(kind, name, parent, template)
 		f.GetText = function(self) return self._text end
 		f.RegisterForClicks = function() end
 		f.SetFontString = function(self, fs) self._fontString = fs end
+		-- A templated button already has one; a bare button does not until the
+		-- addon gives it one. Telling those two apart is how the panel decides
+		-- whether it got Blizzard's art or has to draw its own.
+		f.GetFontString = function(self)
+			return self._fontString or self._templateFontString
+		end
 		f.SetNormalTexture = function(self, t) self._normalTexture = t end
+		f.SetPushedTexture = function(self, t) self._pushedTexture = t end
 		f.SetHighlightTexture = function(self, t) self._highlightTexture = t end
+		-- The second argument LOCKS the state, which is the difference between
+		-- a button that looks pressed while the mouse is down and one that is
+		-- showing you it is the chosen option.
+		f.SetButtonState = function(self, state, locked)
+			self._buttonState, self._buttonLocked = state, locked and true or false
+		end
+		f.GetButtonState = function(self) return self._buttonState or "NORMAL" end
 		f.Enable = function(self) self._enabled = true end
 		f.Disable = function(self) self._enabled = false end
 		f.IsEnabled = function(self) return self._enabled ~= false end
@@ -580,6 +627,19 @@ function M.install(env)
 	env.UIParent.GetScale = function(self) return self._scale end
 	env.UIParent.SetScale = function(self, s) self._scale = s end
 	M.frames[#M.frames + 1] = env.UIParent
+
+	-- Resolves a texture path against the client's data and answers nil for art
+	-- this build does not have. With no artPaths set every path resolves, which
+	-- is the normal case; a spec that wants to see a fallback names the ones
+	-- that exist and everything else comes back nil.
+	env.GetFileIDFromPath = function(path)
+		if M.artPaths and not M.artPaths[path] then return nil end
+		M.artAsked = M.artAsked or {}
+		M.artAsked[path] = true
+		-- A fileDataID, not the path back: code that treats the return value as
+		-- a string would pass against a mock that echoed one.
+		return 100000 + #path
+	end
 
 	env.CreateFrame = function(kind, name, parent, template)
 		return newFrame(kind, name, parent, template)
