@@ -1,40 +1,35 @@
 #!/usr/bin/env python3
-"""Generate ComfyRain's icon, in rain and snow.
+"""Generate ComfyRain's icon: a raindrop, and a snowflake.
 
 Three things read these files. The in-game addon list draws `icon.tga` next to
 the title (`## IconTexture` in the .toc), and the minimap button draws whichever
 of the two matches the current weather, so the art has to survive being seen at
 64px, at 20px, and inside a circular hole with its corners cut off.
 
-That last constraint is the one the previous two designs lost to.
+Each of those has killed a design.
 
-Design one was a dusk sky with rain streaks across it. Streaks are
+The first was a dusk sky with rain streaks across it. Streaks are
 high-frequency detail and high-frequency detail is the first thing a downsample
-throws away, so at minimap size it was grey noise with a pink line in it.
+throws away, so at minimap size it was grey noise with a pink line in it. Fixed
+by giving the icon one big subject and demoting the streaks to texture.
 
-Design two was a single large raindrop over a dusk horizon, which fixed the
-silhouette and failed on the frame. Its horizon and ground were straight bands
-running edge to edge, and a straight band inside a circular crop becomes a
-chord: the composition only worked as a square. It was also cold. Every colour
-in it was blue, for an addon called Comfy Rain.
+The second was a lit cottage window, which read as comfy and did not read as
+weather. "make it a rain icon or something", 2026-10-19. An icon's first job is
+to name the thing it opens, and a window names a house.
 
-Design three, this one, is what the name actually describes. Nobody calls rain
-comfy from outside in it. They call it comfy from indoors with a light on, and
-that is the picture: a warm lit window at dusk with the weather coming down in
-front of it.
+So: a single raindrop, filling most of the frame, dark-outlined, and a
+snowflake built the same way for the snow setting. A drop and a six-armed star
+are the two weather shapes with silhouettes distinctive enough to survive at
+20px, and they are distinguishable from each other at a glance, which matters
+because the button is the only place both ever appear.
 
-Why it survives all three sizes:
+Not a cloud, deliberately. A cloud at 20px is an indistinct blob and half the
+weather category already uses one.
 
-- The subject is one bright warm shape on one dark cool ground. That contrast
-  is the lowest-frequency thing in the frame, so it is the last thing a
-  downsample destroys - at 20px the panes and the rain are gone and a warm
-  glow in a dark circle is still legible, and still reads as the same icon.
-- Nothing load-bearing goes near the edge. The composition is radial: a bloom
-  around the window and a vignette into the corners, so cropping it to a circle
-  removes only vignette. No horizons, no ground line, no straight bands.
-- Rain and snow differ in the one layer that is allowed to be fine detail,
-  because by the time it is too small to resolve, the minimap button has the
-  tooltip and the panel to say which it is.
+The backdrop is radial: a glow behind the subject, falling off into the
+corners. It used to be a dusk horizon with a ground band under it, and a
+straight band inside a circular crop becomes a chord - that composition only
+worked as a square, and the minimap does not give it one.
 
 Nothing here is Blizzard's. Same rule as the rain sheets: every pixel is
 rasterised from a model rather than lifted from the client's art.
@@ -59,30 +54,26 @@ N = SIZE * SS
 SLANT_DEG = 7.5         # matches the rain sheets, so the two read as one addon
 SLANT = math.tan(math.radians(SLANT_DEG))
 
-# The window, in fractions of the frame. Centred, a little above the middle so
-# the sill and its spill have somewhere to go, and small enough that its corners
-# sit at 0.27 of the frame from the centre - comfortably inside the 0.5 the
-# minimap's circle cuts at, with room for the bloom to fall off before the edge.
-WIN_CX, WIN_CY = 0.500, 0.448
-WIN_HW, WIN_HH = 0.240, 0.205
-WIN_R = 0.045           # corner radius, so it reads as a cottage casement
-FRAME = 0.034           # how thick the dark surround is
-MULLION = 0.019         # the cross bar between the panes
+# Dusk, centre to corner. Never black: a near-black icon disappears against the
+# addon list's dark background and against an unexplored minimap.
+SKY_NEAR = (0.180, 0.205, 0.330)
+SKY_FAR = (0.045, 0.058, 0.110)
+WARM = (0.90, 0.58, 0.42)
 
-# Night outside. Cool, and never black: a near-black icon disappears against
-# the addon list's dark background and against an unexplored minimap.
-SKY_TOP = (0.105, 0.130, 0.225)
-SKY_LOW = (0.045, 0.060, 0.115)
+# The drop. Cooler than the sky it sits in, so it separates by hue as well as
+# by value - a greyscale-only separation vanishes for the ~8% of players with
+# a colour vision deficiency only if the values match, so the values differ too.
+DROP_DEEP = (0.129, 0.243, 0.392)
+DROP_PALE = (0.72, 0.88, 1.00)
+DROP_RIM = (0.58, 0.80, 1.00)
 
-# Inside. The warm end is the entire point of the icon, so it is allowed to be
-# the brightest thing in the frame by a wide margin.
-LAMP_CORE = (1.000, 0.880, 0.640)
-LAMP_EDGE = (0.960, 0.600, 0.230)
-BLOOM = (1.000, 0.640, 0.260)
-WOOD = (0.115, 0.085, 0.075)
+# The flake, built from the same three-stop recipe so the two icons are
+# obviously siblings: a deep end, a pale end and a rim light.
+FLAKE_DEEP = (0.400, 0.560, 0.720)
+FLAKE_PALE = (0.980, 0.995, 1.000)
+FLAKE_RIM = (0.780, 0.900, 1.000)
 
-RAIN = (0.820, 0.890, 1.000)
-SNOW = (1.000, 1.000, 1.000)
+OUTLINE = (0.016, 0.031, 0.063)
 
 
 def grid():
@@ -91,147 +82,207 @@ def grid():
     return (y + 0.5) / N, (x + 0.5) / N
 
 
-def rrect(yy, xx, cx, cy, hw, hh, r):
-    """Signed distance to a rounded rectangle, negative inside."""
-    dx = np.abs(xx - cx) - (hw - r)
-    dy = np.abs(yy - cy) - (hh - r)
-    outside = np.hypot(np.maximum(dx, 0.0), np.maximum(dy, 0.0))
-    inside = np.minimum(np.maximum(dx, dy), 0.0)
-    return outside + inside - r
-
-
 def coverage(sdf, softness=0.0035):
     """Antialiased 0..1 fill from a signed distance field."""
     return np.clip(0.5 - sdf / softness, 0.0, 1.0)
 
 
-def night(yy, xx):
-    """The dark outside: a cool vertical ramp, darkened towards the corners."""
-    t = np.clip(yy, 0.0, 1.0) ** 0.9
+def sky(yy, xx):
+    """A dusk glow behind the subject, falling off towards the corners.
+
+    The glow is doing real work and is not decoration. At 20 pixels the rain is
+    gone and all that survives is large-scale contrast, so the icon needs one
+    unmistakable light-to-dark field, and the subject is posed against it. It
+    is placed a little low and left of centre, which puts the brightest sky
+    behind the drop's widest part and keeps the whole thing from looking like a
+    sticker centred in a box.
+    """
+    d = np.hypot((xx - 0.44) / 0.62, (yy - 0.62) / 0.58)
+    t = np.clip(d, 0.0, 1.0) ** 1.15
     rgb = np.empty((N, N, 3), dtype=np.float64)
     for c in range(3):
-        rgb[..., c] = SKY_TOP[c] + (SKY_LOW[c] - SKY_TOP[c]) * t
+        rgb[..., c] = SKY_NEAR[c] + (SKY_FAR[c] - SKY_NEAR[c]) * t
+
+    # A warm core inside the cool glow, so the backdrop is evening rather than
+    # a blue vignette, and so the drop's blues have something to sit against.
+    warm = np.exp(-(((xx - 0.44) / 0.30) ** 2 + ((yy - 0.66) / 0.28) ** 2))
+    for c in range(3):
+        rgb[..., c] += (WARM[c] - rgb[..., c]) * warm * 0.42
     return rgb
 
 
-def glow(yy, xx, rgb):
-    """Lamplight spilling out through the glass.
+def streaks(rng, count=22):
+    """Background rain: slanted, low contrast, over the whole frame.
 
-    Two falloffs rather than one. The tight one is the halo that touches the
-    wall around the frame and gives the window a sense of being set into
-    something; the wide one is the only part of the icon still doing work at
-    20 pixels, where the frame, the panes and the weather have all gone and a
-    warm cloud in a dark circle is the whole picture.
-    """
-    d2 = ((xx - WIN_CX) / 0.44) ** 2 + ((yy - WIN_CY) / 0.40) ** 2
-    wide = np.exp(-d2 * 2.1) * 0.46
-    tight = np.exp(-(((xx - WIN_CX) / 0.26) ** 2
-                     + ((yy - WIN_CY) / 0.23) ** 2) * 2.0) * 0.34
-    g = np.clip(wide + tight, 0.0, 1.0)
-    for c in range(3):
-        rgb[..., c] += (BLOOM[c] - rgb[..., c]) * g
-    return rgb
-
-
-def window(yy, xx, rgb):
-    """The frame, the glass, the cross bar and the sill."""
-    outer = rrect(yy, xx, WIN_CX, WIN_CY, WIN_HW, WIN_HH, WIN_R)
-    glass = rrect(yy, xx, WIN_CX, WIN_CY,
-                  WIN_HW - FRAME, WIN_HH - FRAME, max(0.008, WIN_R - FRAME))
-
-    # Lit glass: brightest low and centre, where a lamp on a table would be,
-    # falling to the warmer orange at the top corners. A flat fill here reads
-    # as a sticker; this reads as a room.
-    lamp = np.exp(-((((xx - WIN_CX) / 0.17) ** 2
-                     + ((yy - (WIN_CY + 0.075)) / 0.15) ** 2)))
-    pane = np.empty_like(rgb)
-    for c in range(3):
-        pane[..., c] = LAMP_EDGE[c] + (LAMP_CORE[c] - LAMP_EDGE[c]) * lamp
-
-    rgb = rgb * (1.0 - coverage(outer)[..., None]) \
-        + np.array(WOOD) * coverage(outer)[..., None]
-    gi = coverage(glass)[..., None]
-    rgb = rgb * (1.0 - gi) + pane * gi
-
-    # The cross. Drawn after the glass and clipped to it, so the bars stop at
-    # the frame instead of poking into it.
-    gmask = coverage(glass)
-    bar = np.maximum(
-        coverage(np.abs(xx - WIN_CX) - MULLION / 2),
-        coverage(np.abs(yy - WIN_CY) - MULLION / 2),
-    ) * gmask
-    rgb = rgb * (1.0 - bar[..., None]) + np.array(WOOD) * bar[..., None]
-
-    # A sill, wider than the frame, with the light catching its upper face.
-    sill = rrect(yy, xx, WIN_CX, WIN_CY + WIN_HH + 0.028,
-                 WIN_HW + 0.040, 0.024, 0.011)
-    si = coverage(sill)
-    lit = np.clip((WIN_CY + WIN_HH + 0.028 - yy) / 0.048, 0.0, 1.0)
-    sill_rgb = np.empty_like(rgb)
-    for c in range(3):
-        sill_rgb[..., c] = WOOD[c] + (LAMP_EDGE[c] - WOOD[c]) * lit * 0.55
-    rgb = rgb * (1.0 - si[..., None]) + sill_rgb * si[..., None]
-    return rgb
-
-
-def rain(rng, rgb, count=26):
-    """Slanted streaks in front of everything, brighter across the glow.
-
-    Allowed to be fine detail because it is the layer whose job is done at
-    64px. At 20px it disappears, which is correct: what is left is the window,
-    and the window is the icon.
+    Demoted from subject to texture. These are what made the first icon mush at
+    minimap size, so they are drawn at a third of the old brightness: present
+    at 64px, invisible at 20px, and never competing with the subject.
     """
     acc = np.zeros((N, N), dtype=np.float64)
     for _ in range(count):
-        length = int(rng.integers(0.16 * N, 0.34 * N))
+        length = int(rng.integers(0.22 * N, 0.42 * N))
         x0 = rng.uniform(-0.1 * N, 1.1 * N)
-        y0 = rng.uniform(-0.25 * N, 0.95 * N)
-        bright = rng.uniform(0.45, 0.95)
-        half = max(1, int(round(0.007 * N)))
+        y0 = rng.uniform(-0.2 * N, 0.9 * N)
+        bright = rng.uniform(0.35, 0.75)
+        half = max(1, int(round(0.008 * N)))
         for i in range(length):
-            t = i / max(length - 1, 1)
             y = int(y0 + i)
             if not (0 <= y < N):
                 continue
+            t = i / max(length - 1, 1)
             x = x0 + SLANT * i
-            a = bright * (0.25 + 0.75 * t)
+            a = bright * (0.30 + 0.70 * t)
             for dx in range(-half, half + 1):
                 px = int(x) + dx
                 if 0 <= px < N:
                     acc[y, px] = max(acc[y, px], a)
-    return blend_weather(rgb, acc, RAIN, 0.55)
+    return acc
 
 
-def snow(rng, rgb, count=34):
-    """Round flakes, varied in size, with no slant. Same job, same layer."""
+def specks(rng, count=26):
+    """Background snow, playing the part the streaks play in the rain icon."""
     yy, xx = grid()
     acc = np.zeros((N, N), dtype=np.float64)
     for _ in range(count):
-        cx, cy = rng.uniform(0.02, 0.98), rng.uniform(0.02, 0.98)
-        r = rng.uniform(0.008, 0.019)
-        a = rng.uniform(0.45, 1.0)
+        cx, cy = rng.uniform(0.0, 1.0), rng.uniform(0.0, 1.0)
+        r = rng.uniform(0.007, 0.016)
+        a = rng.uniform(0.35, 0.75)
         acc = np.maximum(acc, coverage(np.hypot(xx - cx, yy - cy) - r) * a)
-    return blend_weather(rgb, acc, SNOW, 0.80)
+    return acc
 
 
-def blend_weather(rgb, acc, colour, strength):
-    a = (acc * strength)[..., None]
-    return rgb * (1.0 - a) + np.array(colour) * a
+def teardrop(yy, xx, cx=0.500, cy=0.572, r=0.287, apex=0.072):
+    """Signed coverage of a classic teardrop: a disc with a cone on top.
+
+    Built from the tangent lines rather than from a squashed curve, because the
+    join has to be exactly smooth - a teardrop with a visible kink in its
+    shoulder reads as a bad polygon, and at 64 pixels one wrong row is 1.5% of
+    the height. Returns distance in frame units, negative inside.
+
+    Sized to come within 0.14 of the frame edge at its widest, which is as big
+    as it can be and still keep its outline clear of the minimap's circular
+    crop at 0.5. "maybe bigger", 2026-10-19: it was r=0.258 before.
+    """
+    d = cy - apex                      # apex to circle centre
+    sin_t = r / d
+    cos_t = math.sqrt(max(1e-9, 1.0 - sin_t * sin_t))
+    y_tan = cy - r * sin_t             # where the cone meets the disc
+    slope = sin_t / cos_t              # half-width gained per unit of height
+
+    dx = np.abs(xx - cx)
+    dy = yy - apex
+
+    # Cone region: distance to the two tangent lines through the apex.
+    cone = (dx * cos_t - dy * sin_t)
+    # Behind the apex the nearest point of the cone is the apex itself.
+    cone = np.where(dy < 0, np.hypot(dx, dy), cone)
+
+    disc = np.hypot(xx - cx, yy - cy) - r
+
+    return np.where(yy < y_tan, cone, disc)
+
+
+def flake(yy, xx, cx=0.500, cy=0.500, r=0.335):
+    """Signed coverage of a six-armed snowflake.
+
+    Six rounded bars through the centre at 30 degree steps, each with a pair of
+    barbs two thirds of the way out, unioned by taking the minimum distance.
+    Deliberately fat: a botanically correct flake is all hairline detail and
+    turns to a grey smudge the moment it is resampled, so these arms are a
+    twelfth of the frame thick and the barbs are short. What has to survive at
+    20px is "a star, not a drop", and nothing finer than that.
+    """
+    def bar(ang, length, half, ox=0.0, oy=0.0):
+        ca, sa = math.cos(ang), math.sin(ang)
+        px, py = xx - cx - ox, yy - cy - oy
+        # Into the bar's own frame, then distance to a segment along its x axis.
+        u = px * ca + py * sa
+        v = -px * sa + py * ca
+        u = np.abs(u) - length
+        return np.hypot(np.maximum(u, 0.0), v) - half
+
+    d = None
+    for k in range(3):
+        ang = math.radians(k * 60)
+        arm = bar(ang, r, 0.046)
+        d = arm if d is None else np.minimum(d, arm)
+        # Barbs: a short bar at +-60 degrees, crossing each arm near its tip.
+        for s in (1, -1):
+            ox = math.cos(ang) * r * 0.60 * s
+            oy = math.sin(ang) * r * 0.60 * s
+            # Both barbs, not one. A single barb per tip makes the flake read
+            # as six bent arms rather than as a symmetric crystal, which at
+            # icon size looks like a mistake rather than like snow.
+            for b in (60, -60):
+                d = np.minimum(
+                    d, bar(ang + math.radians(b), r * 0.19, 0.030, ox, oy))
+    # A hub, so the six arms meet in a shape rather than a spike cluster.
+    return np.minimum(d, np.hypot(xx - cx, yy - cy) - 0.082)
+
+
+def glass(yy, xx, sdf, inside, deep, pale, rim_colour, lo, hi, spec_at, warmth=0.45):
+    """Shade a silhouette as a lit glassy solid.
+
+    Shared by the drop and the flake so the two read as one set: a vertical
+    ramp pale to deep, the warm backdrop reflected across the lower third, a
+    rim light down the side the glow is on, and exactly one specular. Two
+    highlights on a 64px icon is one too many.
+    """
+    g = np.clip((yy - lo) / (hi - lo), 0.0, 1.0)
+    body = np.empty((N, N, 3), dtype=np.float64)
+    for c in range(3):
+        body[..., c] = pale[c] + (deep[c] - pale[c]) * g ** 0.85
+
+    refl = np.exp(-(((yy - (lo + (hi - lo) * 0.82)) / 0.075) ** 2))
+    for c in range(3):
+        body[..., c] += (WARM[c] - body[..., c]) * refl * warmth
+
+    rim = coverage(sdf + 0.030)
+    rimband = np.clip(inside - rim, 0.0, 1.0) * np.clip((xx - 0.46) / 0.3, 0, 1)
+    for c in range(3):
+        body[..., c] += (rim_colour[c] - body[..., c]) * rimband * 0.75
+
+    sx, sy = spec_at
+    spec = np.exp(-((((xx - sx) / 0.055) ** 2 + ((yy - sy) / 0.090) ** 2)))
+    for c in range(3):
+        body[..., c] += (1.0 - body[..., c]) * spec * 0.80
+    return body
 
 
 def render(kind, seed):
     rng = np.random.default_rng(seed)
     yy, xx = grid()
-    rgb = night(yy, xx)
-    rgb = glow(yy, xx, rgb)
-    rgb = window(yy, xx, rgb)
-    rgb = rain(rng, rgb) if kind == "rain" else snow(rng, rgb)
+
+    rgb = sky(yy, xx)
+    weather = (streaks(rng) if kind == "rain" else specks(rng))[..., None]
+    tint = np.array((0.84, 0.90, 1.00))
+    rgb = rgb * (1.0 - weather * 0.45) + tint * weather * 0.45
+
+    if kind == "rain":
+        sdf = teardrop(yy, xx)
+        shade = (DROP_DEEP, DROP_PALE, DROP_RIM, 0.12, 0.74, (0.428, 0.320), 0.50)
+    else:
+        sdf = flake(yy, xx)
+        shade = (FLAKE_DEEP, FLAKE_PALE, FLAKE_RIM, 0.10, 0.90, (0.410, 0.330), 0.14)
+
+    inside = coverage(sdf)
+    # The outline is an annulus just outside the fill. It is the single most
+    # load-bearing element at minimap size: without it the subject's lower half
+    # sits on the glow at nearly the same value and the silhouette breaks.
+    ring = coverage(sdf - 0.022) - inside
+
+    deep, pale, rim_colour, lo, hi, spec_at, warmth = shade
+    body = glass(yy, xx, sdf, inside, deep, pale, rim_colour, lo, hi,
+                 spec_at, warmth)
+
+    rgb = rgb * (1.0 - inside[..., None]) + body * inside[..., None]
+    rgb = rgb * (1.0 - ring[..., None]) + np.array(OUTLINE) * ring[..., None]
 
     # Radial, not rectangular. The minimap cuts this to a circle and the addon
     # list does not, so the darkening has to be the same shape as the crop or
     # it shows as four dark corners in a round hole.
     r = np.hypot(yy - 0.5, xx - 0.5) / 0.5
-    vig = np.clip(1.0 - 0.80 * np.clip(r - 0.42, 0, None) ** 1.4, 0.0, 1.0)
+    vig = np.clip(1.0 - 0.75 * np.clip(r - 0.46, 0, None) ** 1.4, 0.0, 1.0)
     rgb = rgb * vig[..., None]
 
     # Fully opaque. An icon with soft edges looks like a rendering bug in the
@@ -257,13 +308,13 @@ def preview(images, path):
 
 
 def main():
-    args = [a for a in sys.argv[1:]]
+    args = sys.argv[1:]
     out = args[0].rstrip("/")
     images = []
     for kind, seed, name in (("rain", 11, "icon.tga"), ("snow", 7, "icon-snow.tga")):
         big = render(kind, seed)
-        small = big.resize((SIZE, SIZE), Image.LANCZOS)
-        small.save(f"{out}/{name}", format="TGA", compression=None)
+        big.resize((SIZE, SIZE), Image.LANCZOS).save(
+            f"{out}/{name}", format="TGA", compression=None)
         images.append(big)
         print(f"wrote {name} ({SIZE}x{SIZE} 32-bit TGA, rendered at {N}x{N})")
     if "--preview" in args:

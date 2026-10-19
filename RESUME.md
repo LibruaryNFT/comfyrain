@@ -97,13 +97,20 @@ button's own centre. The art was painted at `(-1, +1)`, a 2.5px error on a 20px 
 overhung the brass on the left and left a crescent of bare map on the right. Drawn at
 22px now, so the mask's soft edge tucks under the brass lip rather than meeting the map.
 
-**Comfy is a warm picture, not a blue one.** Nobody calls rain comfy from outside in it;
-they call it comfy from indoors with a light on. The icon is now a warm lit cottage
-window at dusk with the weather coming down in front of it — one bright warm shape on
-one dark cool ground, which is the lowest-frequency contrast in the frame and so the
-last thing a downsample destroys. The composition is radial (bloom plus vignette, no
-horizon, no ground band), because a straight band inside a circular crop becomes a
-chord: the old drop only worked as a square.
+**The icon is a raindrop, and a snowflake for snow.** A warm lit cottage window was
+tried first and rejected on sight — "make it a rain icon or something". It read as comfy
+and did not read as weather, and an icon's first job is to name the thing it opens. The
+drop is back, 11% larger than before (`r` 0.258 → 0.287, as big as it goes while keeping
+its outline clear of the minimap's crop), and the snow setting gets a six-armed crystal
+built from the same shading recipe so the two are obviously siblings. Both are one bold
+silhouette with a dark outline over a glow, which is the lowest-frequency contrast in
+the frame and so the last thing a downsample destroys.
+
+**The backdrop is radial now, not a horizon.** The old drop sat on a straight horizon
+band with ground under it, and a straight band inside a circular crop becomes a chord:
+that composition only worked as a square, and the minimap does not give it one. It is a
+warm glow behind the subject falling off into the corners, with the vignette following
+the same circle the crop does.
 
 Two renders now, `icon.tga` and `icon-snow.tga`, so the button keeps the live weather
 readout it had as quads; off is the same picture desaturated and dimmed. Reference
