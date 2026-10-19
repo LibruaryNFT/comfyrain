@@ -118,9 +118,13 @@ jobs:
           # symptom of the packager having lost the tag, and the invisible one
           # is that no GitHub release gets published.
           if [ -n "${TAG:-}" ]; then
-            if ! grep -qx "## Version: ${TAG}" /tmp/verify/Duskfall/Duskfall.toc; then
-              echo "::error::version is not the tag ${TAG}:"
-              grep '^## Version:' /tmp/verify/Duskfall/Duskfall.toc
+            # A .toc is a Windows file and the packager writes CRLF, so the
+            # line ends in \r and an exact match never fires. Strip it rather
+            # than matching loosely, or this check passes on a prefix.
+            got=$(grep '^## Version:' /tmp/verify/Duskfall/Duskfall.toc \
+                  | head -1 | tr -d '\r' | sed 's/^## Version: *//')
+            if [ "$got" != "$TAG" ]; then
+              echo "::error::version is '${got}', expected the tag '${TAG}'"
               missing=1
             fi
             case "$zip" in
