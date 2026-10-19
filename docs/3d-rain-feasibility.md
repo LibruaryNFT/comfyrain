@@ -105,3 +105,29 @@ ship `.ogg`, and `volumeOverride` gives per-sound level. **Nothing about sound
 is screen-space**, so the thing that is impossible for pixels indoors is free
 for audio: a muffled rain-on-the-roof bed while the room is visually dry is both
 achievable and the correct answer to the same wish.
+
+## Related: recolouring world objects for accessibility
+
+**Asked 2026-10-19, out of curiosity, with "don't do it" attached.** Could an
+addon make herb nodes a different colour for a visually impaired player?
+
+**Not herbs specifically.** A herb node is a GameObject in the 3D scene, and
+everything in the section above applies unchanged: no per-object tint API
+(`SetObjectColor`, `SetGameObjectTint`: **0 hits**), and `SetVertexColor` only
+ever reaches UI textures. Nothing an addon owns is in the scene.
+
+What the engine does expose, all drivable with `SetCVar`, same as
+`weatherDensity`:
+
+| CVar | What it does |
+|---|---|
+| `daltonize` | Whole-scene colourblindness **correction** post-process. Its own description: "Attempt to correct for color blindness" |
+| `colorblindSimulator` | Which type to correct for |
+| `colorblindWeaknessFactor` | Strength, 0.0 to 1.0, so protanomaly can be dialled in rather than only protanopia |
+| `SoftTargetIconGameObject` | Engine draws an icon over interactable GameObjects, herbs included, correctly projected and occluded |
+| `graphicsOutlineMode` | Engine silhouette outline, gated by `IsOutlineModeSupported`. Global and unit-oriented, not per-object |
+
+So the achievable accessibility story is **shift the whole scene's colour, or
+mark the object with the engine's own icon** - never "paint that herb purple".
+Minimap and world-map pins are a different matter entirely: those are our
+textures, and recolouring them is free.
