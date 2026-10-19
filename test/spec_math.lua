@@ -275,3 +275,46 @@ it("reuses one frame for the lightning instead of one per clap", function()
 	local after = #w.mock.frames
 	lt(after - before, 4, "a long storm built almost no new frames")
 end)
+
+it("can stop every clip it ever started, however long it has been raining",
+function()
+	-- "something is very wrong i couldnt turn off my weird sounds coming i had
+	-- toi disable audio and then reenable", 2026-10-19.
+	--
+	-- A bed loop is the clip relaunched just before it ends, so for BED_OVERLAP
+	-- seconds two copies run at once and the slot holds two handles. The third
+	-- launch pushed a third handle and dropped the oldest off the front of the
+	-- list to keep it at two - dropped, not stopped. Every relaunch from the
+	-- third onwards therefore leaked a running clip out of the only record the
+	-- addon had of it, and StopBed then stopped the two it could still see.
+	--
+	-- It is a slow leak and that is what made it so hard to believe: for the
+	-- first minute `sound off` works. The handles the mock has not been given a
+	-- length for stay live forever, which is exactly the client's behaviour for
+	-- a clip whose end we never arranged to wait for.
+	local function liveHandles(w)
+		local n = 0
+		for _ in pairs(w.mock.handles) do n = n + 1 end
+		return n
+	end
+
+	local w = H.world()
+	w:advance(300, 0.1)
+	gt(liveHandles(w), 0, "five minutes in, clips are running")
+	lt(liveHandles(w), 8, "and only the handful a three-layer bed needs, not a pile")
+
+	w:slash("sound off")
+	w:advance(1, 0.1)
+	eq(liveHandles(w), 0, "and every one of them stops when the sound is turned off")
+
+	-- Thunder had the same hole for a different reason: Strike() threw its
+	-- handle away at the call site, so a clap in flight was unstoppable by
+	-- construction however short the session had been.
+	w:slash("sound on")
+	w:slash("thunder on")
+	w:advance(600, 0.1)
+	gt(liveHandles(w), 0, "a long storm is making noise")
+	w:slash("off")
+	w:advance(1, 0.1)
+	eq(liveHandles(w), 0, "and /comfy off leaves nothing of ours playing")
+end)

@@ -133,7 +133,7 @@ def main():
             third = inner / 3
             pill(PAD, y, third - 3, "Rain", not snow)
             pill(PAD + third, y, third - 3, "Snow", snow)
-            pill(PAD + third * 2, y, third, "Weather on", False, lamp=True)
+            pill(PAD + third * 2, y, third, "Weather effects", False, lamp=True)
         elif kind == "pills":
             labels, sel = payload
             n = len(labels)

@@ -293,6 +293,11 @@ local zoomNorm = ZOOM_PIVOT
 local bedSlot   = { handles = {} }
 local underSlot = { handles = {} }
 local windSlot  = { handles = {} }
+-- Thunder is a one-shot and used to be played with no slot at all, its handle
+-- dropped at the call site. A clap is several seconds long and the loudest
+-- thing the addon makes, so that was the one sound that could never be stopped
+-- however briefly the player had been outside. It gets a slot like the rest.
+local thunderSlot = { handles = {} }
 -- loopedKey is what the running bed is a loop OF; bedIndoor is how loud it was
 -- told to be. Both have to be compared before deciding the bed is current,
 -- because volumeOverride is fixed at play time - see BedVolume.
@@ -1352,11 +1357,29 @@ local function Play(file, volume)
 	return ok, handle
 end
 
+-- Every handle this slot is given is either held or stopped, never simply
+-- forgotten. The old version trimmed the list back to two with table.remove,
+-- which dropped the oldest handle off the front WITHOUT stopping it - so from
+-- the third relaunch onwards each loop leaked one running clip out of the only
+-- record of it that existed, and StopBed could then only stop the last two.
+-- Five minutes of rain left twenty-six clips that nothing could reach:
+-- "i couldnt turn off my weird sounds ... i had toi disable audio", 2026-10-19.
+-- Trimming is still right - three live copies of one loop is a stack, not a
+-- loop - but the copy that comes off the front is finishing, so stop it.
 local function SlotPlay(slot, file, volume)
 	local ok, handle = Play(file, volume)
 	if not ok then return false end
-	slot.handles[#slot.handles + 1] = handle
-	while #slot.handles > 2 do table.remove(slot.handles, 1) end
+	-- A client that plays a clip but hands back no handle has given us
+	-- something we cannot stop. Nothing to store, and nothing is gained by
+	-- storing nil - but it must not push the real handles off the end either,
+	-- which is what appending nil silently did.
+	if handle then
+		slot.handles[#slot.handles + 1] = handle
+		while #slot.handles > 2 do
+			local old = table.remove(slot.handles, 1)
+			if old then StopSound(old) end
+		end
+	end
 	return true
 end
 
@@ -1468,6 +1491,14 @@ local function ApplySuppression()
 	end
 end
 
+-- Separate from StopBed deliberately. StartBed calls StopBed to relaunch the
+-- loops at a new gain, and a clap chopped off halfway because the player
+-- walked through a doorway sounds like a bug. Thunder is stopped only where
+-- silence is what was actually asked for.
+local function StopThunder()
+	SlotStop(thunderSlot)
+end
+
 local function StopBed()
 	SlotStop(bedSlot)
 	SlotStop(underSlot)
@@ -1576,9 +1607,9 @@ local function Strike()
 		-- down and leaves the thunder where it was is not a volume slider.
 		local list = w.oneShots
 		local vol = BedVolume(1)
-		local ok = Play(list[math.random(#list)], vol)
-		if not ok and w.fallbackOneShot then
-			Play(w.fallbackOneShot, vol)
+		if not SlotPlay(thunderSlot, list[math.random(#list)], vol)
+		   and w.fallbackOneShot then
+			SlotPlay(thunderSlot, w.fallbackOneShot, vol)
 		end
 	end)
 end
@@ -1640,6 +1671,7 @@ function ComfyRain_Refresh()
 		end
 	else
 		StopBed()
+		StopThunder()
 		-- Turning the weather off has to hand the realm its own loops back, or
 		-- a player who tried ComfyRain once is left with silent rain forever.
 		ApplySuppression()
@@ -1650,6 +1682,7 @@ function ComfyRain_Refresh()
 	elseif lightningTimer then
 		lightningTimer:Cancel()
 		lightningTimer = nil
+		StopThunder()
 	end
 
 	-- The window is a readout of what is HAPPENING, so it goes stale on

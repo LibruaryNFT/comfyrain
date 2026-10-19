@@ -1172,7 +1172,7 @@ it("lines every checkbox and every selector up in one column", function()
 	-- Every one of these is anchored off its row's RIGHT edge, so the column
 	-- is one number per control: how far in from that edge it begins.
 	local seen = {}
-	for _, name in ipairs({ "Weather on", "Zoom Response", "Sound", "Thunder" }) do
+	for _, name in ipairs({ "Weather effects", "Zoom Response", "Sound", "Thunder" }) do
 		local b = w:button(name)
 		ok(b, name .. " is a checkbox in the window")
 		seen[b.box._lastPoint.x] = true
@@ -1494,4 +1494,31 @@ it("keeps gold for headings and the status line, and off every control", functio
 	near(heading.colour[1], 1.00, 1e-9, "and it is gold")
 	near(heading.colour[2], 0.82, 1e-9, "on the channel the detector tests")
 	lt(heading.colour[3], 0.3, "with no blue in it")
+end)
+
+it("keeps the master switch's label still and lets the tick carry the state",
+function()
+	-- "checkboxes shouldnt work like whatever u did, weather off or on
+	-- shouldnt work like that, should be the same button but the checkbox
+	-- turns it on or off", 2026-10-19.
+	--
+	-- The label used to flip between "Weather on" and "Weather off" with the
+	-- setting, which makes the row unreadable: a ticked box next to the words
+	-- "Weather off" is either off, or it is on and the label is describing
+	-- what the box does, and nothing on screen says which. A checkbox already
+	-- has somewhere to put its state. The words are the name of the thing.
+	local w = H.world()
+	w:open()
+
+	local b = w:button("Weather effects")
+	ok(b, "the master switch is there with the weather on")
+	eq(b.on, true, "and it is ticked")
+
+	w:slash("off")
+	local off = w:button("Weather effects")
+	ok(off, "and it is still called the same thing with the weather off")
+	eq(off.on, false, "with the tick gone, which is the whole readout")
+
+	ok(not w:button("Weather off"), "there is no second label hiding anywhere")
+	ok(not w:button("Weather on"), "and no first one either")
 end)

@@ -77,6 +77,57 @@ Two still outside the route: #4 needs a full exit and relaunch with the flavour 
 staged into `_forever_`, and #5 is eyeballing the quads at several `UIParent:GetScale()`
 values, which cannot be done headlessly because the overlay is parented to `WorldFrame`.
 
+## 2026-10-19 — twenty-six clips nothing could stop, and a checkbox arguing with itself
+
+Two reports, both of a control that did not control anything.
+
+**"i couldnt turn off my weird sounds ... i had toi disable audio and then reenable."**
+A bed loop is the clip relaunched `BED_OVERLAP` seconds before it ends, so for a moment
+two copies run and the slot holds two handles. `SlotPlay` trimmed the list back to two
+with a bare `table.remove(slot.handles, 1)` — which dropped the oldest handle off the
+front **without stopping the clip it belonged to**. From the third relaunch onwards every
+loop leaked one running clip out of the only record of it that existed, and `StopBed`
+could then only stop the two it could still see.
+
+It is a slow leak, which is why it was so hard to believe: for the first minute `sound
+off` works perfectly. Measured in the mock, which only expires a handle when the spec
+gives the file a length:
+
+| after | clips live | still live after `sound off` |
+|---|---|---|
+| 5s | 2 | 0 |
+| 60s | 7 | 3 |
+| 300s | 30 | **26** |
+
+Thunder had the same hole for a different reason. `Strike()` called `Play()` and threw
+the handle away at the call site, so a clap — several seconds long and the loudest thing
+the addon makes — was unstoppable by construction, however briefly the player had been
+outside. It now goes through a `thunderSlot`, stopped by a `StopThunder()` that is kept
+separate from `StopBed` on purpose: `StartBed` calls `StopBed` to relaunch the loops at a
+new gain, and a clap chopped off halfway because somebody walked through a doorway sounds
+like a bug.
+
+`SlotPlay` also no longer appends a nil handle. Assigning nil to `t[#t+1]` is a no-op in
+Lua, so a client that plays a clip and hands back no handle used to silently push the
+real handles along by nothing — and if that ever happened the trim would have evicted
+live handles early.
+
+Covered by "can stop every clip it ever started, however long it has been raining" in
+`spec_math.lua`. Both halves mutation-checked: restoring the silent drop leaves 30 clips
+live, restoring the discarded thunder handle leaves 3 after `sound off`.
+
+**"should be the same button but the checkbox turns it on or off."** The master switch
+relabelled itself between "Weather on" and "Weather off" as it was clicked. A ticked box
+next to the words "Weather off" can be read as off, or as "off is ticked", and the two
+are opposites — the checkbox was arguing with itself. The label is now fixed and the tick
+carries the state, which is what a tick is for. It reads "Weather effects" rather than
+"Weather" because the section heading above it and the rain/snow selector below it are
+both already called that, and three things with one name in 330 pixels is worse than a
+slightly longer label. `tools/preview_panel.py` updated to match. Covered by "keeps the
+master switch's label still and lets the tick carry the state".
+
+259 specs green.
+
 ## 2026-10-19 — a new icon: a lit window, and a hole that was never centred
 
 > "can u make us a new comfyrain icon the current one doesnt fix in the circle

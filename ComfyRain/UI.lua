@@ -935,8 +935,13 @@ local function Refresh()
 
 	local weather = ComfyRainAPI.Weather[db.weather] or ComfyRainAPI.Weather.rain
 
+	-- The tick carries the state and the label never moves. It used to read
+	-- "Weather on" when it was on and "Weather off" when it was off, which is
+	-- a checkbox arguing with itself: a ticked box labelled "Weather off" can
+	-- be read as off, or as "off is ticked", and the two are opposites.
+	-- "should be the same button but the checkbox turns it on or off",
+	-- 2026-10-19.
 	controls.power:SetOn(db.enabled)
-	controls.power:SetLabel(db.enabled and "Weather on" or "Weather off")
 
 	controls.weather:SetValue(Title(db.weather), ICON[db.weather])
 	Teach(controls.weather.well, "Weather", "/comfy " .. db.weather,
@@ -1136,7 +1141,10 @@ local function Build()
 	-- that can make every other one in it do nothing. A Check is a full row of
 	-- its own now, so it is added directly rather than parked inside a spacer
 	-- frame; Relayout gives it the width and OnSizeChanged does the rest.
-	controls.power = add(Check(panel, "Weather on", "/comfy", function()
+	-- Not plain "Weather": the heading above it and the rain/snow selector
+	-- below it are both already called that, and three things with one name in
+	-- 330 pixels is worse than a slightly longer label.
+	controls.power = add(Check(panel, "Weather effects", "/comfy", function()
 		Run(DB().enabled and "off" or "on")
 	end))
 
