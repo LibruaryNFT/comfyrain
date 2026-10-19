@@ -969,8 +969,17 @@ end
 -- the thing that makes an inn feel like shelter rather than like a loading
 -- screen. So "dim" now means heard and not seen, which is also what Blizzard's
 -- own weather does.
+--
+-- INDOOR_HEAR was 0.35 and that was too quiet to be the point. The bed is a
+-- broadband hiss and the under-layer rides at 0.35 of it again, so indoors the
+-- quiet layer was landing near 0.12 of the Ambience channel - under an inn's
+-- own ambience, under its music, and on most players' Ambience slider that is
+-- not "muffled through a wall", it is nothing. "if we go indoors shouldnt we
+-- still hear the rain though - its not doing that now", 2026-10-19. The engine
+-- was playing it the whole time; the number was wrong. 0.55 is still a clear
+-- step down from standing in it and it is a step you can hear happen.
 local INDOOR_SEE  = 0.0
-local INDOOR_HEAR = 0.35
+local INDOOR_HEAR = 0.55
 
 -- kind is "hear" for anything that comes out of the speakers, nil for pixels.
 function IndoorFactor(kind)

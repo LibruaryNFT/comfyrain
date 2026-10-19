@@ -515,16 +515,25 @@ it("centres the icon on the ring's hole, not on the button", function()
 		if t.texture and t.texture:find("TrackingBorder") then border = t end
 	end
 	ok(border, "the button wears the client's own tracking ring")
-	eq(border:GetWidth(), 53, "at the size the hole's position is measured from")
-	eq(b:GetWidth(), 31, "on the button size it is measured against")
 
+	-- Asserted as ratios off the button's actual size rather than as the four
+	-- measured pixel values, because the button is no longer 31px - "we need
+	-- the minimap icon thing to be bigger circle", 2026-10-19 - and the whole
+	-- point of that measurement is that it is one piece of art, so it scales
+	-- as one piece. Pinning the literals would have made growing the button a
+	-- spec edit, which is how the art gets left behind off-centre.
+	local k = b:GetWidth() / 31
+	gt(k, 1.0, "and the button is bigger than LibDBIcon's cramped default")
+	near(border:GetWidth(), 53 * k, 1e-9, "the ring scales with it")
+
+	local holeWidth = 20 * k
 	for _, t in ipairs(b._textures) do
 		if t.layer == "ARTWORK" or t.layer == "BACKGROUND" then
 			local p = t._lastPoint
-			near(p.x, 1.5, 1e-9, "the art sits over the hole's centre in x")
-			near(p.y, 0.5, 1e-9, "and in y")
-			gt(t:GetWidth(), 20,
-				"drawn wider than the 20px hole, so its soft edge tucks under "
+			near(p.x, 1.5 * k, 1e-9, "the art sits over the hole's centre in x")
+			near(p.y, 0.5 * k, 1e-9, "and in y")
+			gt(t:GetWidth(), holeWidth,
+				"drawn wider than the hole, so its soft edge tucks under "
 				.. "the brass instead of showing a seam against the map")
 		end
 	end

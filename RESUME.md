@@ -77,6 +77,42 @@ Two still outside the route: #4 needs a full exit and relaunch with the flavour 
 staged into `_forever_`, and #5 is eyeballing the quads at several `UIParent:GetScale()`
 values, which cannot be done headlessly because the overlay is parented to `WorldFrame`.
 
+## 2026-10-19 — the indoor rain was playing all along, at 12%
+
+**"if we go indoors shouldnt we still hear the rain though - its not doing that now."**
+The engine was never wrong here: `ShouldRain()` stays true indoors, the bed relaunches on
+the doorstep, and the mock shows clips playing the whole time. The number was wrong.
+`INDOOR_HEAR` was 0.35, and the under-layer rides at 0.35 of the bed again, so the quiet
+layer landed at `0.35 x 0.35 = 0.12` of the Ambience channel. Under an inn's own ambience,
+under its music, and on top of whatever the player's Ambience slider is set to, that is
+not muffled rain, it is nothing.
+
+`INDOOR_HEAR` is now **0.55**. Still a clear step down from standing in it, and a step you
+can hear happen.
+
+The three specs that covered this all asserted a ceiling and no floor, which is why none
+of them noticed: `lt(v, 0.4)` is satisfied by 0.12 and by silence-but-for-a-whisper
+equally. They now assert a **band**. Quiet has a floor, or quiet is off with extra steps.
+
+**"we need the minimap icon thing to be bigger circle."** The button was 31px, LibDBIcon's
+default, with a 53px ring and a 20px hole. Those four numbers are one measurement of one
+piece of art, so there is now a single `MINIMAP_SCALE = 1.25` and everything derives from
+it: button 38.75, ring 66.25, hole 25, art 27.5, offset (1.875, 0.625). Nudging the button
+size on its own is exactly how the art ends up off-centre again, because the offset is a
+fraction of the button.
+
+The icon spec was asserting the four literals, which would have turned every size change
+into a spec edit. It now asserts the *ratios* against the button's actual width, plus
+`k > 1.0` so the button can never quietly shrink back to the cramped default. Mutation-
+checked three ways: dropping the duck to 0.12 fails, scale back to 1.0 fails, and growing
+the button while leaving the art offset at 1.5 fails on the centring.
+
+**The raindrop needs a full client restart, not `/reload`.** `icon.tga` is a new file and
+WoW reads the addon's file list once at startup; a texture added while the client is
+running silently does not load. That is why the drop had not appeared.
+
+259 specs green.
+
 ## 2026-10-19 — twenty-six clips nothing could stop, and a checkbox arguing with itself
 
 Two reports, both of a control that did not control anything.

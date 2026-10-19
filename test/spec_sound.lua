@@ -125,7 +125,13 @@ it("muffles the bed indoors instead of killing it, and restores it outside", fun
 		if v and (not quiet or v > quiet) then quiet = v end
 	end
 	ok(quiet, "something played indoors")
-	lt(quiet, 0.4, "and it played quietly")
+	-- A band, not a ceiling. The ceiling alone was satisfied by 0.12, which is
+	-- what the duck used to produce and is inaudible under an inn's own
+	-- ambience: "if we go indoors shouldnt we still hear the rain though - its
+	-- not doing that now", 2026-10-19. Quiet has a floor, or quiet is off with
+	-- extra steps.
+	gt(quiet, 0.35, "loudly enough to actually be heard through the wall")
+	lt(quiet, 0.8, "but clearly quieter than standing in it")
 
 	local before = #w.mock.sounds
 	w.mock.state.indoors = false
@@ -157,7 +163,7 @@ it("ducks the bed on the doorstep, not at the next relaunch", function()
 	gt(#played, 0, "stepping indoors relaunched the bed by itself")
 	for _, s in ipairs(played) do
 		if s.volumeOverride then
-			lt(s.volumeOverride, 0.4, "and the new clip is quiet")
+			lt(s.volumeOverride, 0.8, "and the new clip is quieter straight away")
 		end
 	end
 end)

@@ -322,7 +322,7 @@ it("still plays the weather bed indoors, quieter, while drawing nothing", functi
 	for _, s in ipairs(played) do
 		if s.volumeOverride then
 			gt(s.volumeOverride, 0, "audible indoors")
-			lt(s.volumeOverride, 0.5, "but ducked")
+			lt(s.volumeOverride, 0.8, "but ducked")
 		end
 	end
 end)

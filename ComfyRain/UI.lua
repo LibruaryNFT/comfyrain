@@ -1570,10 +1570,25 @@ local ICON_ART = "Interface\\AddOns\\ComfyRain\\icon"
 -- disc. It overhung the brass on the left and left a crescent of bare map
 -- showing on the right, which is "the current one doesnt fix in the circle
 -- properly".
-local HOLE_X, HOLE_Y = 1.5, 0.5
+--
+-- Those four numbers - button, border, hole, offset - are one measurement of
+-- one piece of art, so they scale together or not at all. MINIMAP_SCALE is the
+-- only one to touch: the ring is a texture and stretches, and every derived
+-- figure below follows it. Nudging the button size on its own is how the art
+-- ends up off-centre again, because the offset is a fraction of the button.
+local BUTTON_BASE, BORDER_BASE, HOLE_BASE = 31, 53, 20
+-- 31px is the LibDBIcon default and it is small - "we need the minimap icon
+-- thing to be bigger circle", 2026-10-19. A quarter up is noticeably bigger
+-- without crowding the ring, which already carries the clock and the tracking
+-- button on most setups.
+local MINIMAP_SCALE = 1.25
+
+local BUTTON_SIZE = BUTTON_BASE * MINIMAP_SCALE
+local BORDER_SIZE = BORDER_BASE * MINIMAP_SCALE
+local HOLE_X, HOLE_Y = 1.5 * MINIMAP_SCALE, 0.5 * MINIMAP_SCALE
 -- Two pixels wider than the hole, so the mask's soft edge lands under the
 -- brass lip instead of against the map, where it would read as a seam.
-local ICON_SIZE = 22
+local ICON_SIZE = (HOLE_BASE + 2) * MINIMAP_SCALE
 
 local icon = {}
 
@@ -1634,13 +1649,13 @@ end
 local function BuildMinimap()
 	if minimap or not Minimap then return end
 	minimap = CreateFrame("Button", "ComfyRainMinimapButton", Minimap)
-	minimap:SetSize(31, 31)
+	minimap:SetSize(BUTTON_SIZE, BUTTON_SIZE)
 	minimap:SetFrameStrata("MEDIUM")
 	minimap:SetFrameLevel(Minimap:GetFrameLevel() + 8)
 
 	local border = minimap:CreateTexture(nil, "OVERLAY")
 	border:SetTexture("Interface\\Minimap\\MiniMap-TrackingBorder")
-	border:SetSize(53, 53)
+	border:SetSize(BORDER_SIZE, BORDER_SIZE)
 	border:SetPoint("TOPLEFT")
 
 	BuildIcon(minimap)
