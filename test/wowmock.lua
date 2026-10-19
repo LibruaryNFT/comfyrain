@@ -65,13 +65,18 @@ function Region:SetAllPoints(target) self._anchor = target or self._parent end
 -- SetPoint has five legal shapes and the offsets are always the trailing pair
 -- of numbers, so they are picked out positionally rather than by signature.
 function Region:SetPoint(point, ...)
-	local nums = {}
+	local nums, rel = {}, nil
 	for i = 1, select("#", ...) do
 		local v = select(i, ...)
 		if type(v) == "number" then nums[#nums + 1] = v end
+		-- The anchor point ON THE OTHER FRAME, which is the only string in the
+		-- tail. It matters here because it is the difference between an offset
+		-- that survives the row being resized and one that does not.
+		if type(v) == "string" then rel = v end
 	end
 	self._lastPoint = {
 		point = point,
+		relPoint = rel or point,
 		x = nums[#nums - 1] or 0,
 		y = nums[#nums] or 0,
 	}

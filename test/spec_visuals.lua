@@ -251,16 +251,33 @@ it("fades the bottom of the rain layers but not the mist", function()
 	ok(l.mist.vertexColour ~= nil, "the mist layer is tinted")
 end)
 
-it("fades out rather than snapping when it is turned off", function()
+-- Two fade lengths, and the whole point is that they are different.
+--
+-- Both were 0.7s until 2026-10-19, when pressing Turn It All Off got "we
+-- clicked turn it all off and it didnt change quick enough". 0.7s is right
+-- for weather leaving the sky above you and wrong for a button: most of a
+-- second of nothing happening after a click reads as a click that missed,
+-- and the fix for that is not a faster fade everywhere, because the doorway
+-- fade is the thing that stops walking under an awning from being a pop.
+it("snaps off at the switch and eases off at the doorway", function()
 	local w = H.world()
 	w:advance(0.5)
 	w:slash("off")
 	w:advance(0.2)
-	local mid = w:overlay():GetAlpha()
-	lt(mid, 1, "started fading")
-	gt(mid, 0, "has not snapped to nothing")
-	w:advance(1.0)
-	eq(w:overlay():IsShown(), false, "hidden once the fade completes")
+	eq(w:overlay():IsShown(), false, "the switch is finished inside a fifth of a second")
+
+	-- The positive control, and the half that must NOT have been sped up. If
+	-- the doorway had been shortened too, the assertion above would pass for
+	-- the wrong reason and nobody would know the slow fade had been lost.
+	local v = H.world()
+	v:advance(0.5)
+	v.mock.state.indoors = true
+	v:advance(1.0)      -- past the 0.35s debounce, into the fade itself
+	local mid = v:overlay():GetAlpha()
+	lt(mid, 1, "the doorway has started fading")
+	gt(mid, 0, "and is still on its way down a fifth of a second later")
+	v:advance(1.0)
+	eq(v:overlay():IsShown(), false, "hidden once that fade completes too")
 end)
 
 it("stops drawing indoors but keeps the weather running, and fades back out", function()

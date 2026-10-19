@@ -311,7 +311,17 @@ local gust = 0
 local layerGust = { near = 0, far = 0, mist = 0 }
 local baseAlpha = { near = 0, far = 0, mist = 0 }
 local baseGloom = 0
-local fade, fadeTarget = 1, 1
+-- Two fade lengths, because a fade is answering two different questions.
+-- Walking under an awning is weather leaving the sky and wants the slow one.
+-- Pressing Turn It All Off is a button, and a button that takes most of a
+-- second to do anything reads as a button that did not work: "we clicked turn
+-- it all off and it didnt change quick enough". Anything the player switched
+-- deliberately gets the short one.
+local FADE_WALK, FADE_SWITCH = 0.7, 0.12
+local fade, fadeTarget, fadeTime = 1, 1, FADE_WALK
+-- What db.enabled was at the last Refresh, which is how the switch is told
+-- apart from the doorway without every caller having to say which it is.
+local lastEnabled
 local indoorTicker
 
 local function msg(text)
@@ -1084,7 +1094,7 @@ end
 
 local function OnUpdate(self, elapsed)
 	if fade ~= fadeTarget then
-		local step = elapsed / 0.7
+		local step = elapsed / fadeTime
 		fade = (fade < fadeTarget) and math.min(fadeTarget, fade + step)
 		                            or math.max(fadeTarget, fade - step)
 		self:SetAlpha(fade)
@@ -1587,6 +1597,16 @@ function ComfyRain_Refresh()
 	UpdateTimeOfDay()
 	local want = ShouldRain()
 	local draw = ShouldDraw()
+
+	-- Chosen before fadeTarget moves. The walk length is only restored once the
+	-- previous fade has landed, so a routine Refresh - the indoor poll runs one
+	-- every 0.3s - cannot slow a switch down halfway through it.
+	if lastEnabled ~= nil and lastEnabled ~= db.enabled then
+		fadeTime = FADE_SWITCH
+	elseif fade == fadeTarget then
+		fadeTime = FADE_WALK
+	end
+	lastEnabled = db.enabled
 
 	fadeTarget = draw and 1 or 0
 	if draw then

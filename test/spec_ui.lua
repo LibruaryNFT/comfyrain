@@ -1058,7 +1058,7 @@ it("draws no picture and no hole on a client without the icon files", function()
 	eq(s.icon:IsShown(), false, "no picture was drawn")
 	eq(s.value._lastPoint.point, "CENTER", "and the word is centred in the well")
 	eq(w:button("Thunder").lamp:IsShown(), true, "the checkbox falls back to a lamp")
-	eq(w:button("Thunder").label._lastPoint.x, 19, "with the label beside it")
+	eq(w:button("Thunder").label._lastPoint.x, 0, "with the label still at the row's left edge")
 	choose(w, "Weather", "Snow")
 	eq(w:db().weather, "snow", "and the controls still work")
 	eq(#w.mock.errors, 0, "with nothing thrown at the client")
@@ -1077,20 +1077,66 @@ function()
 	near(t.label.colour[1], 0.62, 1e-9, "and the word goes grey")
 end)
 
+-- Seen on screen 2026-10-19: "Everything off. Nothing here is to...". The
+-- status line had one fixed width, sized to leave room for the Turn It All
+-- Off button - and that button is hidden in exactly the state that produces
+-- the longest sentence the window ever shows, so the row was free and the
+-- sentence was cut anyway.
+it("gives the status line the whole row once there is nothing left to stop", function()
+	local w = H.world()
+	w:open()
+	local narrow = w:says("^Drawing"):GetWidth()
+	eq(w:button("Turn It All Off"):IsShown(), true, "the button is there to make room for")
+
+	w:slash("stop")
+	local line = w:says("^Everything off")
+	ok(line, "the window says everything is off")
+	eq(w:button("Turn It All Off"):IsShown(), false, "and the button has gone")
+	gt(line:GetWidth(), narrow, "so the sentence gets the room the button was holding")
+end)
+
 it("stands the checkbox on the panel, not on a button face", function()
 	-- "the button doesnt look right for zoom response" was this: a checkbox
 	-- drawn inside a UIPanelButton face, which is a promise that the face does
-	-- something separate from the box. The client's own options rows are a box
-	-- and a word on the background.
+	-- something separate from the box. The client's own options rows are a
+	-- word and a box on the background.
 	local w = H.world()
 	w:open()
 	local z = w:button("Zoom Response")
 	eq(z._template, nil, "no panel-button template under it")
-	eq(z.box._lastPoint.x, 0, "the box sits on the left edge of the row")
-	eq(z.label._lastPoint.x, z.inset, "with the word just right of it")
-	-- Sized to the words, so the hover highlight does not run to the panel
-	-- edge and read as a selected list item.
-	lt(z:GetWidth(), 200, "and the row is only as wide as it reads")
+	eq(z.label._lastPoint.x, 0, "the words start at the left edge of the row")
+	eq(z.box._lastPoint.relPoint, "RIGHT",
+		"and the box is placed off the right edge, so it holds its column "
+		.. "whatever width the row is given")
+end)
+
+-- Every control in the client's Options window starts at the same x, and that
+-- column is most of why a page of unrelated settings reads as one list. Ours
+-- had the checkboxes against the left edge and the selectors against the
+-- right: "it doesnt appear exactl like the wow options".
+it("lines every checkbox and every selector up in one column", function()
+	local w = H.world()
+	w:open()
+	w:slash("time +9")            -- every row on screen, hidden ones included
+
+	-- Every one of these is anchored off its row's RIGHT edge, so the column
+	-- is one number per control: how far in from that edge it begins.
+	local seen = {}
+	for _, name in ipairs({ "Weather on", "Zoom Response", "Sound", "Thunder" }) do
+		local b = w:button(name)
+		ok(b, name .. " is a checkbox in the window")
+		seen[b.box._lastPoint.x] = true
+	end
+	for _, name in ipairs({ "Weather", "Intensity", "Indoors", "Channel", "Mode" }) do
+		local s = w:select(name)
+		ok(s, name .. " is a selector in the window")
+		-- The well hangs off the right edge and the arrow hangs off the well,
+		-- so the start of the group is the two of them plus the gap between.
+		seen[s.well._lastPoint.x - s.well:GetWidth() - 2 - s.left:GetWidth()] = true
+	end
+	local n = 0
+	for _ in pairs(seen) do n = n + 1 end
+	eq(n, 1, "all nine controls start at the same x, not " .. n .. " columns")
 end)
 
 --------------------------------------------------------------------------------

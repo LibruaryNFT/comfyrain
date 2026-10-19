@@ -36,10 +36,15 @@
 
 local ADDON = "ComfyRain"
 
-local WIDTH    = 330
-local PAD      = 14
-local ROW      = 24
-local GAP      = 7
+-- Measured off the client's own Options window rather than picked. Its rows
+-- are a 12pt label on the left and a control in a right-hand column, with room
+-- around both; ours were a 10pt label and a control wherever it fitted, which
+-- is what "it doesnt appear exactl like the wow options ... size of fonts etc"
+-- was looking at. The window got 30px wider to pay for the bigger type.
+local WIDTH    = 360
+local PAD      = 16
+local ROW      = 26
+local GAP      = 8
 -- Room at the top for the carved header plate to sit over the frame edge.
 local TOP_INSET = 30
 
@@ -49,7 +54,12 @@ local TOP_INSET = 30
 -- chat-prefix colour, so it reads as ComfyRain's and not as a second theme.
 local GOLD     = { 1.00, 0.82, 0.00 }
 local ACCENT   = { 0.50, 0.72, 1.00 }
-local BG       = { 0.04, 0.05, 0.07, 0.94 }
+-- You can see the world through the client's Options window, and that is most
+-- of why it reads as part of the game rather than as a box on top of it. This
+-- fill plus the stone over it lands at about 85% opaque, which is where
+-- Blizzard's sits: enough to read 12pt white text on, not enough to feel like
+-- a lid. It was 94% plus stone at 90%, which is 99% - a solid black rectangle.
+local BG       = { 0.05, 0.06, 0.09, 0.72 }
 local EDGE     = { 0.50, 0.72, 1.00, 0.35 }
 local PILL     = { 0.16, 0.18, 0.23, 1 }
 local PILL_ON  = { 0.22, 0.42, 0.72, 1 }
@@ -208,8 +218,11 @@ local function Border(frame, colour)
 	edge("TOPRIGHT", "BOTTOMRIGHT", 1, nil)
 end
 
+-- GameFontHighlight, not GameFontHighlightSmall. The client labels every row
+-- in its own Options window at 12pt and this window was at 10, which is the
+-- difference between "an addon window" and "a page of the game's settings".
 local function Text(parent, inherits, justify)
-	local fs = parent:CreateFontString(nil, "OVERLAY", inherits or "GameFontHighlightSmall")
+	local fs = parent:CreateFontString(nil, "OVERLAY", inherits or "GameFontHighlight")
 	fs:SetJustifyH(justify or "LEFT")
 	return fs
 end
@@ -358,68 +371,94 @@ local function Title(s)
 	return (tostring(s):gsub("^%l", string.upper))
 end
 
--- A checkbox row, which is the single most common row in the client's own
--- Options window: a box on the left edge, a word beside it, and nothing else.
--- No button face. A face is a promise that pressing it does something separate
--- from the box, and on a row where the whole thing is one control that promise
--- is a lie - which is roughly what "the button doesnt look right for zoom
--- response" was describing.
+--------------------------------------------------------------------------------
+-- The control column
+--------------------------------------------------------------------------------
 --
--- Clicking anywhere on the row toggles it, the way the client's own rows work.
-local CHECK = 20
+-- Every row in the client's Options window is the same shape: words on the
+-- left, the thing you operate in a column on the right, and every control in
+-- that column starting at the same x. That alignment is most of what makes a
+-- long page of unrelated settings scan as one list. Ours had the checkboxes
+-- hard against the left edge and the selectors against the right, which is
+-- two columns facing away from each other.
+--
+-- COL_IN is how far in from the row's RIGHT edge that column starts. Measured
+-- from the right rather than the left because the right arrow is flush to the
+-- row end, so the whole group is built backwards from there, and because
+-- Relayout sets a row's width after it is built - an offset from the left
+-- would have to be recomputed every time the window resizes and an offset
+-- from the right never does.
+local SELECT_W = 130
+local ARROW = 20
+local CHECK = 24
+local COL_IN = ARROW * 2 + 4 + SELECT_W
+-- A slider's number sits outside the track, at the far right of the row, the
+-- way the client puts 5.5 after Mouse Look Speed.
+local VALUE_W = 44
 
+-- A checkbox row, which is the single most common row in the client's own
+-- Options window: the words on the left, the box in the control column, and
+-- nothing else. No button face. A face is a promise that pressing it does
+-- something separate from the box, and on a row where the whole thing is one
+-- control that promise is a lie - which is roughly what "the button doesnt
+-- look right for zoom response" was describing.
+--
+-- The box used to sit on the left with the word after it, which is how a
+-- checkbox is drawn when it is on its own somewhere. It is not how one is
+-- drawn in a settings list, and a list where some rows read left-to-right and
+-- the rest read right-to-left has no column at all. Clicking anywhere on the
+-- row toggles it, the way the client's own rows work.
 local function Check(parent, label, command, onClick)
 	local b = CreateFrame("Button", nil, parent)
 	b:SetHeight(ROW)
 
-	-- Asked about with HasArt because a missing box would leave a label
-	-- indented past nothing and the row saying nothing at all, which is the one
-	-- case the whole HasArt rule exists for. The hand-drawn well and lamp below
-	-- are what a client without the checkbox art gets, and are still a box with
-	-- a light in it rather than a different idea.
+	-- Asked about with HasArt because a missing box would leave the row saying
+	-- nothing at all, which is the one case the whole HasArt rule exists for.
+	-- The hand-drawn well and lamp below are what a client without the
+	-- checkbox art gets, and are still a box with a light in it rather than a
+	-- different idea.
 	b.boxed = HasArt(ART.check) and HasArt(ART.checkMark)
 	if b.boxed then
 		b.box = b:CreateTexture(nil, "ARTWORK")
 		b.box:SetTexture(ART.check)
 		b.box:SetSize(CHECK, CHECK)
-		b.box:SetPoint("LEFT", b, "LEFT", 0, 0)
+		b.box:SetPoint("LEFT", b, "RIGHT", -COL_IN, 0)
 		b.tick = b:CreateTexture(nil, "OVERLAY")
 		b.tick:SetTexture(ART.checkMark)
 		b.tick:SetSize(CHECK, CHECK)
 		b.tick:SetPoint("CENTER", b.box, "CENTER")
 	else
 		b.well = Fill(b, { 0, 0, 0, 0.45 }, "ARTWORK")
-		b.well:SetSize(14, 14)
-		b.well:SetPoint("LEFT", b, "LEFT", 2, 0)
+		b.well:SetSize(16, 16)
+		b.well:SetPoint("LEFT", b, "RIGHT", -COL_IN + 4, 0)
 		b.lamp = Fill(b, ACCENT, "OVERLAY")
-		b.lamp:SetSize(8, 8)
+		b.lamp:SetSize(9, 9)
 		b.lamp:SetPoint("CENTER", b.well, "CENTER")
 	end
-	b.inset = b.boxed and CHECK + 3 or 19
 
-	b.label = Text(b, "GameFontHighlightSmall", "LEFT")
-	b.label:SetPoint("LEFT", b, "LEFT", b.inset, 0)
+	b.label = Text(b, nil, "LEFT")
+	b.label:SetPoint("LEFT", b, "LEFT", 0, 0)
+	b.label:SetWordWrap(false)
 	b:SetFontString(b.label)
 
-	-- Only the box and the word light up, not the full width of the row. A
-	-- highlight stretched to the panel edge on a row whose text is three
-	-- characters long reads as a selected list item rather than as hover.
-	local hi = Fill(b, { 1, 1, 1, 0.10 }, "HIGHLIGHT")
-	hi:SetPoint("TOPLEFT", b, "TOPLEFT", 0, 0)
-	hi:SetPoint("BOTTOMLEFT", b, "BOTTOMLEFT", 0, 0)
-	hi:SetWidth(10)
+	-- The whole row lights up, because the whole row is the control now. That
+	-- is also what the client does: hovering a settings row highlights the row,
+	-- not the twenty pixels of box at the end of it.
+	local hi = Fill(b, { 1, 1, 1, 0.08 }, "HIGHLIGHT")
+	hi:SetAllPoints(b)
 	b:SetHighlightTexture(hi)
 	b.highlight = hi
+
+	-- The label is given the room left over beside the column and told not to
+	-- wrap, so a long one is cut off before the box rather than pushing a
+	-- second line into the row below it. Same rule as Select.
+	b:SetScript("OnSizeChanged", function(self, w)
+		self.label:SetWidth(math.max(10, (w or WIDTH) - COL_IN - 6))
+	end)
 
 	function b:SetLabel(text)
 		self.label:SetText(text)
 		self:SetText(text)
-		-- The hover highlight is sized to the words, so it has to be remeasured
-		-- whenever they change. Thunder becomes Gusts; Weather on becomes
-		-- Weather off, which is three characters longer.
-		local w = self.label:GetStringWidth() or 0
-		self.highlight:SetWidth(self.inset + w + 3)
-		self:SetWidth(self.inset + w + 3)
 	end
 	b:SetLabel(label)
 
@@ -459,10 +498,7 @@ end
 --
 -- It also costs four rows of height across the window and makes every group
 -- the same shape, which is the other half of "why cant we make it like their
--- options menu".
-local SELECT_W = 112
-local ARROW = 18
-
+-- options menu". SELECT_W, ARROW and the column they sit in are up with CHECK.
 local function Arrow(row, dir, onStep)
 	local b = CreateFrame("Button", nil, row)
 	b:SetSize(ARROW, ARROW)
@@ -520,11 +556,11 @@ local function Select(parent, label, onStep)
 	well:SetScript("OnClick", function() onStep(1) end)
 	row.well = well
 
-	row.value = Text(well, "GameFontHighlightSmall", "CENTER")
+	row.value = Text(well, nil, "CENTER")
 	well:SetFontString(row.value)
 
 	row.icon = well:CreateTexture(nil, "ARTWORK")
-	row.icon:SetSize(14, 14)
+	row.icon:SetSize(16, 16)
 	row.icon:SetPoint("LEFT", well, "LEFT", 5, 0)
 	row.icon:Hide()
 
@@ -537,7 +573,7 @@ local function Select(parent, label, onStep)
 	-- long one is cut off at the arrow rather than pushing a second line into
 	-- the row below it.
 	row:SetScript("OnSizeChanged", function(self, w)
-		self.label:SetWidth(math.max(10, (w or WIDTH) - SELECT_W - ARROW * 2 - 10))
+		self.label:SetWidth(math.max(10, (w or WIDTH) - COL_IN - 6))
 	end)
 	row.label:SetWordWrap(false)
 
@@ -577,16 +613,17 @@ end
 -- answerable at a glance without pressing anything.
 local function Slider(parent, label, lo, hi, step, fmt, apply, reset)
 	local row = CreateFrame("Frame", nil, parent)
-	row:SetHeight(36)
+	row:SetHeight(ROW)
 
 	row.label = Text(row)
-	row.label:SetPoint("TOPLEFT", row, "TOPLEFT", 0, 0)
+	row.label:SetPoint("LEFT", row, "LEFT", 0, 0)
 	row.label:SetText(label)
+	row.label:SetWordWrap(false)
 
 	row.value = CreateFrame("Button", nil, row)
-	row.value:SetSize(58, 14)
-	row.value:SetPoint("TOPRIGHT", row, "TOPRIGHT", 0, 0)
-	row.valueText = Text(row.value, "GameFontNormalSmall", "RIGHT")
+	row.value:SetSize(VALUE_W, 16)
+	row.value:SetPoint("RIGHT", row, "RIGHT", 0, 0)
+	row.valueText = Text(row.value, "GameFontNormal", "RIGHT")
 	row.valueText:SetPoint("RIGHT")
 	-- Without this the button's own SetText has nothing to draw into, the same
 	-- reason Pill does it.
@@ -595,8 +632,15 @@ local function Slider(parent, label, lo, hi, step, fmt, apply, reset)
 	local s = CreateFrame("Slider", nil, row,
 		SupportsBackdrop() and "BackdropTemplate" or nil)
 	s:SetOrientation("HORIZONTAL")
-	s:SetPoint("TOPLEFT", row, "TOPLEFT", 0, -16)
-	s:SetWidth(WIDTH - PAD * 2)
+	-- In the column with everything else, and on the same line as its label,
+	-- which is how the client draws Mouse Look Speed. The track used to be a
+	-- second line running the full width of the window: easier to aim at, and
+	-- 16px of height per slider, which over seven sliders is 112px of window
+	-- - the difference between a panel that fits on the screen and one that
+	-- does not. It also made the sliders the one row shape in here that was
+	-- not the client's.
+	s:SetPoint("RIGHT", row.value, "LEFT", -6, 0)
+	s:SetWidth(COL_IN - VALUE_W - 6)
 	-- 17 rather than 14 because that is the height the client's own groove art
 	-- is cut for, and the row has the three pixels spare.
 	s:SetHeight(17)
@@ -633,6 +677,11 @@ local function Slider(parent, label, lo, hi, step, fmt, apply, reset)
 	end)
 
 	row.slider = s
+
+	-- Cut off before the track rather than wrapping under it, same as Select.
+	row:SetScript("OnSizeChanged", function(self, w)
+		self.label:SetWidth(math.max(10, (w or WIDTH) - COL_IN - 6))
+	end)
 
 	if reset then
 		local hi = Fill(row.value, { 1, 1, 1, 0.10 }, "HIGHLIGHT")
@@ -692,9 +741,13 @@ end
 -- that takes the whole profile with it is one people learn not to press.
 local function Heading(parent, label, section)
 	local row = CreateFrame("Frame", nil, parent)
-	row:SetHeight(18)
-	local fs = Text(row, "GameFontNormalSmall")
-	fs:SetPoint("BOTTOMLEFT", row, "BOTTOMLEFT", 0, 2)
+	row:SetHeight(24)
+	-- Large, the way "Controls" and "Mouse" are drawn on the client's own
+	-- page. A heading set one point above its rows is a label; a heading set
+	-- four points above them is what makes a list of settings into sections
+	-- you can find your way around without reading.
+	local fs = Text(row, "GameFontNormalLarge")
+	fs:SetPoint("BOTTOMLEFT", row, "BOTTOMLEFT", 0, 3)
 	fs:SetText(label)
 	fs:SetTextColor(GOLD[1], GOLD[2], GOLD[3])
 	local line = Fill(row, { 1, 1, 1, 0.08 }, "ARTWORK")
@@ -705,9 +758,9 @@ local function Heading(parent, label, section)
 	if section then
 		local label = "Reset " .. Title(section)
 		local b = CreateFrame("Button", nil, row)
-		b:SetHeight(14)
-		b:SetWidth(76)
-		b:SetPoint("BOTTOMRIGHT", row, "BOTTOMRIGHT", 0, 2)
+		b:SetHeight(16)
+		b:SetWidth(90)
+		b:SetPoint("BOTTOMRIGHT", row, "BOTTOMRIGHT", 0, 4)
 		local t = Text(b, "GameFontDisableSmall", "RIGHT")
 		t:SetPoint("RIGHT")
 		t:SetText(label)
@@ -927,8 +980,10 @@ local function Refresh()
 	-- if it is on screen, pressing it changes something.
 	if db.enabled or db.timeMode ~= "off" then
 		controls.stop:Show()
+		controls.status:SetWidth(controls.statusNarrow)
 	else
 		controls.stop:Hide()
+		controls.status:SetWidth(controls.statusWide)
 	end
 
 	updating = false
@@ -981,14 +1036,14 @@ local function Build()
 	local stone = panel:CreateTexture(nil, "BACKGROUND", nil, 1)
 	stone:SetTexture(ART.stone, "REPEAT", "REPEAT")
 	stone:SetAllPoints(bg)
-	stone:SetAlpha(0.9)
+	stone:SetAlpha(0.45)
 
 	-- The carved plate the client hangs over the top edge of its own dialogs.
 	-- One texture, and the thing most responsible for a frame looking like it
 	-- shipped with the game rather than with an addon.
 	local header = panel:CreateTexture(nil, "ARTWORK")
 	header:SetTexture("Interface\\DialogFrame\\UI-DialogBox-Header")
-	header:SetSize(230, 64)
+	header:SetSize(250, 64)
 	header:SetPoint("TOP", panel, "TOP", 0, 12)
 
 	local title = Text(panel, "GameFontNormal", "CENTER")
@@ -1029,16 +1084,21 @@ local function Build()
 	-- never in different parts of the window.
 	local state = add(CreateFrame("Frame", nil, panel), { gap = 9 })
 	state:SetHeight(ROW)
-	local quarter = (WIDTH - PAD * 2) / 4
+	local STOP_W = 110
 	controls.status = Text(state, "GameFontHighlightSmall")
 	controls.status:SetPoint("LEFT", state, "LEFT", 0, 0)
-	controls.status:SetWidth(WIDTH - PAD * 2 - quarter * 1.5 - 8)
 	controls.status:SetWordWrap(false)
 	controls.status:SetText("")
+	-- Two widths, because the button beside it comes and goes. One fixed
+	-- width sized for the button being there is how "Everything off. Nothing
+	-- here is touching your screen." got cut to "Nothing here is to..." on the
+	-- one screen where the button is hidden and the whole row was free.
+	controls.statusWide = WIDTH - PAD * 2
+	controls.statusNarrow = WIDTH - PAD * 2 - STOP_W - 8
 
 	controls.stop = Pill(state, "Turn It All Off", function() Run("stop") end)
 	controls.stop:SetPoint("TOPRIGHT", state, "TOPRIGHT", 0, 0)
-	controls.stop:SetWidth(quarter * 1.5)
+	controls.stop:SetWidth(STOP_W)
 	Teach(controls.stop, "Turn It All Off", "/comfy stop",
 		"Weather, sound and the light grading, all off in one press. " ..
 		"Your settings are kept; this is a switch, not a reset.")
@@ -1046,13 +1106,12 @@ local function Build()
 	add(Heading(panel, "Weather", "look"), { gap = 4 })
 
 	-- The master switch first, because it is the one control in the section
-	-- that can make every other one in it do nothing.
-	local powerRow = add(CreateFrame("Frame", nil, panel))
-	powerRow:SetHeight(ROW)
-	controls.power = Check(powerRow, "Weather on", "/comfy", function()
+	-- that can make every other one in it do nothing. A Check is a full row of
+	-- its own now, so it is added directly rather than parked inside a spacer
+	-- frame; Relayout gives it the width and OnSizeChanged does the rest.
+	controls.power = add(Check(panel, "Weather on", "/comfy", function()
 		Run(DB().enabled and "off" or "on")
-	end)
-	controls.power:SetPoint("LEFT", powerRow, "LEFT", 0, 0)
+	end))
 
 	controls.weather = add(Select(panel, "Weather", function(d)
 		local order, db2 = WEATHERS, DB()
@@ -1110,11 +1169,8 @@ local function Build()
 	-- Camera distance is the only part of the world camera an addon can read,
 	-- and it is a judgement call rather than a correctness fix, so it gets a
 	-- switch. Full width: it has no natural partner on a row.
-	local zoomRow = add(CreateFrame("Frame", nil, panel))
-	zoomRow:SetHeight(ROW)
-	controls.zoom = Check(zoomRow, "Zoom Response", "/comfy zoom off",
-		function() Run(DB().zoom and "zoom off" or "zoom on") end)
-	controls.zoom:SetPoint("LEFT", zoomRow, "LEFT", 0, 0)
+	controls.zoom = add(Check(panel, "Zoom Response", "/comfy zoom off",
+		function() Run(DB().zoom and "zoom off" or "zoom on") end))
 	Teach(controls.zoom, "Zoom Response", "/comfy zoom off",
 		"Drops get bigger and faster the closer the camera is, finer and " ..
 		"denser when you pull back.")
@@ -1127,17 +1183,15 @@ local function Build()
 	Teach(controls.volume.slider, "Volume", "/comfy volume 0.5",
 		"ComfyRain's weather only. Your game volume is untouched.")
 
-	-- Two checkboxes on one row. The client stacks them one per row, and this
-	-- window has half its width and four more sections to fit.
-	local audio = add(CreateFrame("Frame", nil, panel))
-	audio:SetHeight(ROW)
-	controls.sound = Check(audio, "Sound", "/comfy sound off",
-		function() Run(DB().sound and "sound off" or "sound on") end)
-	controls.sound:SetPoint("LEFT", audio, "LEFT", 0, 0)
+	-- One checkbox per row, which is what the client does. These two shared a
+	-- row while the box was on the left of its label and the window was 330
+	-- wide; a box in the right-hand column cannot share a row with anything,
+	-- because there is only one column.
+	controls.sound = add(Check(panel, "Sound", "/comfy sound off",
+		function() Run(DB().sound and "sound off" or "sound on") end))
 
-	controls.thunder = Check(audio, "Thunder", "/comfy thunder off",
-		function() Run(DB().thunder and "thunder off" or "thunder on") end)
-	controls.thunder:SetPoint("LEFT", audio, "LEFT", (WIDTH - PAD * 2) / 2, 0)
+	controls.thunder = add(Check(panel, "Thunder", "/comfy thunder off",
+		function() Run(DB().thunder and "thunder off" or "thunder on") end))
 
 	-- Three states, which is why this is a selector and not a checkbox. "Dim"
 	-- is the default and the one most people want: weather you can still HEAR

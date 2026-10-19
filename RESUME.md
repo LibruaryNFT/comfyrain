@@ -77,6 +77,67 @@ Two still outside the route: #4 needs a full exit and relaunch with the flavour 
 staged into `_forever_`, and #5 is eyeballing the quads at several `UIParent:GetScale()`
 values, which cannot be done headlessly because the overlay is parented to `WorldFrame`.
 
+## 2026-10-19 — the column, the fonts, the glass, and a switch that waited
+
+> "we clicked turn it all off and it didnt change quick enough
+>
+> also please check the ui, it doesnt appear exactl like the wow options
+>
+> i think we needed it closer to the options menu we showed with the transparency
+> stuff etc and size of fonts etc"
+
+Second pass over the Options rebuild below, with the same two screenshots side by side.
+The first pass copied the row *vocabulary* and not the *page*. Measured off the client's
+Controls page this time:
+
+| | was | now |
+|---|---|---|
+| Row label font | GameFontHighlightSmall, 10pt | GameFontHighlight, 12pt |
+| Section heading | GameFontNormalSmall | GameFontNormalLarge, like "Controls" / "Mouse" |
+| Checkbox | left edge, label after it | label left, box in the control column |
+| Slider | label line + full-width track below, 42px | one row, track in the column, 26px |
+| Control column | none — boxes left, selectors right | one, 174px in from every row's right edge |
+| Background | fill 0.94 + stone 0.90 ≈ 99% opaque | fill 0.72 + stone 0.45 ≈ 85%, see-through |
+| Width / panel height | 330 / 739 | 360 / 759 |
+
+The column is the thing. Nine controls - four checkboxes and five selectors - now all
+begin at the same x, which is most of why a page of unrelated settings reads as one
+list rather than as a pile. A spec asserts it by collecting that x from all nine and
+failing if there is more than one distinct value, so a tenth control added in the wrong
+place cannot pass. Sound and Thunder stopped sharing a row, because a box that lives in
+the right-hand column cannot share one: there is only one column.
+
+Single-row sliders were not only fidelity. Seven sliders at 42px each was 112px of
+window, and the full set of rows was 871px tall - taller than UIParent is on a 1080p
+screen at the default scale, so the window would have been clamped and unusable. One row
+each brings the whole panel to 759, which is 20px more than before at 2pt bigger type.
+
+**Two fade lengths, which is the "didnt change quick enough".** Everything faded over
+0.7s. That is right for walking under an awning and wrong for a button: most of a second
+of nothing happening after a click reads as a click that missed. `FADE_SWITCH` is 0.12s
+and applies whenever `db.enabled` changed since the last `Refresh` — which is the switch,
+the checkbox and `/comfy stop`, and is not the doorway. `FADE_WALK` stays 0.7s and is
+only restored once the previous fade has landed, so the indoor poll (one `Refresh` every
+0.3s) cannot slow a switch down halfway through. The spec checks both halves in one test,
+each the other's positive control.
+
+The `golden_draw.txt` diff is one row, `### switched off`: the overlay's `OnUpdate`
+returns early once `fade` hits 0, so it now stops advancing the gust phase 0.58s sooner
+and the frozen gloom and scroll offsets differ in the third decimal. `overlay.shown` and
+`overlay.alpha` are unchanged. Nothing drawn moved.
+
+Also fixed: the status line read "Everything off. Nothing here is to..." on screen. It
+had one fixed width, sized to leave room for the Turn It All Off button — and that button
+is hidden in exactly the state that produces the longest sentence the window ever shows.
+Two widths now, picked in `Refresh` beside the Show/Hide that causes it.
+
+`wowmock.lua`'s `SetPoint` records `relPoint`, which it did not before. The column specs
+need it: an offset from a row's RIGHT edge survives `Relayout` setting the width and an
+offset from the left does not, and that is the difference the spec is asserting.
+
+`tools/preview_panel.py` is stale in another way again — it knows nothing about the
+control column, the single-row sliders or the checkbox being on the right.
+
 ## 2026-10-19 — the window is the client's Options window now
 
 > "we did reload, now what, im confused, can u pleae fix the ui, the weird tellow
