@@ -81,7 +81,8 @@ jobs:
         with:
           args: -d
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # GITHUB_OAUTH, not GITHUB_TOKEN. See the publish step below.
+          GITHUB_OAUTH: ${{ secrets.GITHUB_TOKEN }}
 
       # Check the ARTIFACT, not the working directory. The directory having the
       # files is what was true the last time this shipped empty - the assets
@@ -139,9 +140,34 @@ jobs:
       - name: Publish the release
         uses: BigWigsMods/packager@v2.6.1
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # GITHUB_OAUTH. Not GITHUB_TOKEN, which release.sh never reads:
+          #   [ -z "$github_token" ] && github_token=$GITHUB_OAUTH
+          #   [ -z "$github_token" ] && github_token=$GITHUB_API_TOKEN
+          # Those two names and a -w flag are the only ways in. With the wrong
+          # name the packager builds the zip, prints "Packaging complete", and
+          # returns 0 having uploaded nothing, because upload_github starts
+          # with `[[ -z "$github_token" ]] && return 0`. Two rehearsal tags
+          # went green and published nothing. The tell is in its own banner:
+          # it prints "GitHub: owner/repo [token set]" when the token is
+          # readable, and stops at the slug when it is not.
+          GITHUB_OAUTH: ${{ secrets.GITHUB_TOKEN }}
           # Unset until the CurseForge project exists. The packager skips the
           # CurseForge upload when it is absent and still publishes to GitHub,
           # so a tag pushed before the project is created still produces a
           # downloadable release rather than failing.
           CF_API_KEY: ${{ secrets.CF_API_KEY }}
+
+      # The packager returns 0 whether or not it uploaded anything, so success
+      # is not evidence that a release exists. Ask GitHub.
+      - name: Confirm the release is actually on GitHub
+        if: env.TAG != ''
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          zip=$(basename "$(ls .release/*.zip | head -1)")
+          assets=$(gh release view "$TAG" --json assets -q '.assets[].name')
+          echo "assets on $TAG:"; echo "$assets"
+          echo "$assets" | grep -qx "$zip" || {
+            echo "::error::$zip is not attached to release $TAG"
+            exit 1
+          }
