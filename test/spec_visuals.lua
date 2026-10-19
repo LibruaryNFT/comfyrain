@@ -204,27 +204,51 @@ it("fades out rather than snapping when it is turned off", function()
 	eq(w:overlay():IsShown(), false, "hidden once the fade completes")
 end)
 
-it("fades the weather down indoors rather than cutting it dead", function()
-	-- Changed 2026-10-15: the default used to hide everything the moment the
-	-- player stepped inside, and walking into an inn killed the rain mid-note.
-	-- You can see and hear weather from indoors, so the default is now "dim".
-	-- Walking under an arch should still not restart the whole effect, so the
-	-- poll has to hold for most of a second before it believes itself.
+it("stops drawing indoors but keeps the weather running, and fades back out", function()
+	-- Changed 2026-10-19, from live play in the Stormwind barbershop: "dim"
+	-- used to mean a 25% wash of rain still drawn under a solid roof, and it
+	-- read as the addon not noticing the ceiling rather than as weather
+	-- outside. So the two halves split - nothing is SEEN indoors, the bed is
+	-- still HEARD. Walking under an arch must still not restart the effect, so
+	-- the poll holds for most of a second before it believes itself.
 	local w = H.world()
 	w:slash("gust 0")   -- or the gust's own alpha wobble masks the comparison
 	w:advance(0.5)
 	local outside = w:layers().far:GetAlpha()
+	gt(outside, 0, "raining outdoors to begin with")
 	w.mock.state.indoors = true
 	w:advance(0.5)
 	near(w:layers().far:GetAlpha(), outside, 1e-9, "unchanged inside the debounce window")
-	w:advance(1.5)
-	eq(w:overlay():IsShown(), true, "still drawing once the debounce clears")
-	lt(w:layers().far:GetAlpha(), outside * 0.5, "but much fainter")
-	gt(w:layers().far:GetAlpha(), 0, "and not gone")
+	w:advance(2.0)
+	near(w:layers().far:GetAlpha(), 0, 1e-9, "nothing drawn once the debounce clears")
+	-- Not just invisible. A hidden frame gets no OnUpdate, so an inn costs no
+	-- frames at all, and asserting alpha alone would not have noticed.
+	eq(w:overlay():IsShown(), false, "and the overlay stopped ticking entirely")
 
 	w.mock.state.indoors = false
-	w:advance(2.0)
+	w:advance(3.0)
+	eq(w:overlay():IsShown(), true, "drawing again on the way out")
 	near(w:layers().far:GetAlpha(), outside, 1e-9, "back to full outdoors")
+end)
+
+it("still plays the weather bed indoors, quieter, while drawing nothing", function()
+	-- The other half of the split above, and the reason "dim" is not just
+	-- "off": silence in the inn is wrong. Rain through a wall is what makes an
+	-- inn feel like shelter.
+	local w = H.world()
+	w:advance(0.5)
+	local from = #w.mock.sounds
+	w.mock.state.indoors = true
+	w:advance(3.0)
+	local played = {}
+	for i = from + 1, #w.mock.sounds do played[#played + 1] = w.mock.sounds[i] end
+	gt(#played, 0, "the bed relaunched at the doorstep rather than going silent")
+	for _, s in ipairs(played) do
+		if s.volumeOverride then
+			gt(s.volumeOverride, 0, "audible indoors")
+			lt(s.volumeOverride, 0.5, "but ducked")
+		end
+	end
 end)
 
 it("indoors off still means off, and indoors on still means full", function()
@@ -388,4 +412,40 @@ it("gusts do not drag a layer past its own limits", function()
 		lt(c, 1 + 1e-9, "gloom channel " .. i .. " is not above one")
 	end
 	eq(#w.mock.errors, 0, "errors")
+end)
+
+it("reads camera distance, and makes the drops bigger and faster up close", function()
+	-- Asked from live play 2026-10-19: "if we zoom in or out shouldn't it change
+	-- how rain/snow looks?" It should, and GetCameraZoom is the only part of the
+	-- world camera an addon can read at all - there is no pitch and no yaw - so
+	-- this is the single 3D cue available to a 2D overlay. Measured on tilesY,
+	-- which is how many copies of the sheet fit on screen: more copies means
+	-- each drop is smaller.
+	local function tilesY(zoom)
+		local w = H.world()
+		w:slash("gust 0")
+		w.mock.state.cameraZoom = zoom
+		w:advance(3.0)                     -- past the zoom smoother
+		local c = w:layers().far.texCoord
+		return c[4] - c[3]
+	end
+
+	local out, close = tilesY(15), tilesY(0)
+	gt(out, close * 1.3, "pulled back, the same rain reads as finer and denser")
+	gt(close, 0, "and first person still has rain in it")
+end)
+
+it("leaves the field alone at any zoom once the zoom response is off", function()
+	-- The cue is a judgement call, not a correctness fix, so it has to be
+	-- switchable. Without this the setting could silently do nothing.
+	local function tilesY(zoom)
+		local w = H.world()
+		w:slash("gust 0")
+		w:slash("zoom off")
+		w.mock.state.cameraZoom = zoom
+		w:advance(3.0)
+		local c = w:layers().far.texCoord
+		return c[4] - c[3]
+	end
+	near(tilesY(15), tilesY(0), 1e-9, "identical with the response off")
 end)

@@ -138,6 +138,19 @@ it("toggles sound, gusts and indoors from the window", function()
 	eq(w:db().indoors, "dim", "and back round")
 end)
 
+it("switches the camera-zoom response from the window", function()
+	-- The one setting whose effect a player cannot see without moving the
+	-- camera, which is exactly why it needs to be visible in the window rather
+	-- than living only behind a slash command nobody will find.
+	local w = H.world()
+	w:open()
+	eq(w:db().zoom, true, "on by default")
+	w:button("Zoom Response"):Click()
+	eq(w:db().zoom, false, "the button turned it off")
+	w:button("Zoom Response"):Click()
+	eq(w:db().zoom, true, "and on again")
+end)
+
 it("cycles the volume channel rather than opening a menu", function()
 	-- UIDropDownMenu is a template, and templates are the part of the client
 	-- this addon deliberately does not depend on.

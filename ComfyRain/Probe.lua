@@ -394,6 +394,35 @@ local function Say(text)
 	msg("|cffffd100" .. text .. "|r")
 end
 
+-- Revised after the first run, 2026-10-19, which reported nothing in either
+-- stage and proved nothing by it:
+--
+--   * ModelSceneFrame is NOT a creatable frame type here. CreateFrame raised
+--     "Unknown frame type 'ModelSceneFrame'". The C++ class is in the binary
+--     (.?AVModelSceneFrame@@) and C_ModelInfo still takes one as an argument,
+--     but no Lua constructor is bound, so that stage was never a measurement.
+--     Dropped rather than repeated.
+--   * SetCameraDistance raised "Not using a custom camera", and because the
+--     whole setup sat inside ONE pcall, SetPosition and SetAnimation never
+--     ran. An M2 whose animation was never started has emitters that were
+--     never told to emit, so "I saw nothing" is what a correct API and a
+--     broken setup both look like. Every call now gets its own pcall.
+--   * There was no positive control. "Nothing rendered" is only evidence once
+--     something is known to render on the same surface, which is the whole of
+--     rule one and was simply missing.
+--
+-- So three stages, and the first two exist to make the third readable:
+--
+--   A  PlayerModel + SetUnit("player"), fullscreen. Does ANY 3D draw over the
+--      world from an addon, and is the empty part of the panel transparent?
+--   B  Model + LoginFX, a model that is nothing but particle emitters. Do
+--      emitters run inside a UI model frame at all?
+--   C  Model + the weather M2. The actual question.
+--
+-- Reading it: A nothing kills the route outright. A yes, B nothing means model
+-- frames render geometry but not particles, which also kills it. A and B yes,
+-- C nothing means this particular M2 is wrong and another is worth trying. Any
+-- stage black means the surface is opaque, which kills it hardest of all.
 local function Build3DPanel(kind)
 	local f = CreateFrame(kind, nil, WorldFrame)
 	f:SetFrameStrata("BACKGROUND")
@@ -401,60 +430,114 @@ local function Build3DPanel(kind)
 	return f
 end
 
+-- Each call on its own, so one unsupported method costs that method and not
+-- the rest of the setup. Returns the name if it raised, nil if it worked.
+local function soft(obj, method, ...)
+	if not obj or type(obj[method]) ~= "function" then return method .. ":absent" end
+	local ok, err = pcall(obj[method], obj, ...)
+	if ok then return nil end
+	return method .. ":" .. tostring(err):gsub("^.*%.lua:%d+:%s*", "")
+end
+
 local function Run3D(done)
 	store()
 	local notes = {}
 	local function note(s) notes[#notes + 1] = s end
+	-- select("#"), not ipairs on a packed table. soft() returns nil for a call
+	-- that worked, and ipairs stops dead at the first nil - so one successful
+	-- call early in the list would hide every failure after it and the stage
+	-- would report "clean" while half of it had raised. That is the exact
+	-- class of false negative this whole section exists to avoid.
+	local function fails(...)
+		local n, out = select("#", ...), {}
+		for i = 1, n do
+			local v = select(i, ...)
+			if v then out[#out + 1] = v end
+		end
+		return #out > 0 and table.concat(out, ", ") or "clean"
+	end
 
-	-- Stage 1: a plain Model frame, fullscreen, hosting the weather M2.
-	local m
-	local ok, err = pcall(function()
-		m = Build3DPanel("Model")
-		m:SetModel(WEATHER_M2)
-		if m.SetParticlesEnabled then m:SetParticlesEnabled(true) end
-		-- A pulled-back camera is the difference between standing inside one
-		-- emitter and seeing a volume of rain. The numbers are a guess; if the
-		-- player reports particles at all, they are worth tuning.
-		if m.SetCameraDistance then m:SetCameraDistance(12) end
-		if m.SetPosition then m:SetPosition(0, 0, -6) end
-		if m.SetAnimation then m:SetAnimation(0) end
-	end)
-	note(ok and ("Model frame built, GetModelFileID=" ..
-			tostring(m and m.GetModelFileID and m:GetModelFileID()))
-		or ("Model frame raised: " .. tostring(err)))
+	local function finish(f)
+		pcall(function() f:Hide() f:SetParent(nil) end)
+	end
 
-	Say("STAGE 1 of 2, 6 seconds. Watch the WORLD, not the chat window.")
-	Say("Is it unchanged, is it BLACK, or can you see falling particles?")
+	-- Stage A: the positive control.
+	local a, aerr = nil, nil
+	local okA = pcall(function() a = Build3DPanel("PlayerModel") end)
+	if okA then
+		aerr = fails(
+			soft(a, "SetUnit", "player"),
+			soft(a, "SetCamDistanceScale", 1.4),
+			soft(a, "SetPortraitZoom", 0),
+			soft(a, "RefreshUnit"))
+	else
+		aerr = "PlayerModel not creatable"
+	end
+	note("A PlayerModel: " .. aerr)
+
+	Say("STAGE A of C, 6 seconds. Watch the WORLD, not this window.")
+	Say("Your own character should be drawn huge over everything.")
 
 	C_Timer.After(6, function()
-		pcall(function() m:Hide() m:SetParent(nil) end)
+		if a then finish(a) end
 
-		-- Stage 2: ModelSceneFrame, which exists in this binary (.?AVModelSceneFrame@@)
-		-- and carries CreateActor. If an addon can create one, it is a strictly
-		-- better host than Model: real actors, a settable scene camera.
-		local s, actor
-		local ok2, err2 = pcall(function()
-			s = Build3DPanel("ModelSceneFrame")
-			if s.CreateActor then
-				actor = s:CreateActor()
-				if actor and actor.SetModelByFileID then actor:SetModelByFileID(WEATHER_M2)
-				elseif actor and actor.SetModel then actor:SetModel(WEATHER_M2) end
-			end
-		end)
-		note(ok2 and ("ModelSceneFrame built, CreateActor=" .. tostring(s and s.CreateActor ~= nil)
-				.. ", actor=" .. tostring(actor ~= nil))
-			or ("ModelSceneFrame raised: " .. tostring(err2)))
+		-- Stage B: a model that is nothing but particles.
+		local b, berr = nil, nil
+		local okB = pcall(function() b = Build3DPanel("Model") end)
+		if okB then
+			berr = fails(
+				soft(b, "SetModel", CONTROL_M2),
+				-- Order matters. A custom camera has to exist before any of
+				-- the camera setters will accept a value.
+				soft(b, "SetCustomCamera", 1),
+				soft(b, "SetCameraPosition", -14, 0, 0),
+				soft(b, "SetCameraTarget", 0, 0, 0),
+				soft(b, "SetParticlesEnabled", true),
+				soft(b, "SetModelScale", 3),
+				-- Without this the emitters are loaded and idle, which is the
+				-- mistake the first run made.
+				soft(b, "SetAnimation", 0),
+				soft(b, "SetSequence", 0))
+		else
+			berr = "Model not creatable"
+		end
+		note("B LoginFX " .. CONTROL_M2 .. ": " .. berr)
 
-		Say("STAGE 2 of 2, 6 seconds. Same question.")
+		Say("STAGE B of C, 6 seconds. Any particles at all?")
 
 		C_Timer.After(6, function()
-			pcall(function() s:Hide() s:SetParent(nil) end)
-			record("model_3d", "ask", table.concat(notes, " | "))
-			P.pendingEyes = "model_3d"
-			Say("Answer with ONE command:")
-			Say("/comfy probe saw <stage1> <stage2>")
-			Say("each word one of:  nothing  black  rain")
-			if done then done() end
+			if b then finish(b) end
+
+			-- Stage C: the real question, set up exactly like B.
+			local c, cerr = nil, nil
+			local okC = pcall(function() c = Build3DPanel("Model") end)
+			if okC then
+				cerr = fails(
+					soft(c, "SetModel", WEATHER_M2),
+					soft(c, "SetCustomCamera", 1),
+					soft(c, "SetCameraPosition", -14, 0, 0),
+					soft(c, "SetCameraTarget", 0, 0, 0),
+					soft(c, "SetParticlesEnabled", true),
+					soft(c, "SetModelScale", 3),
+					soft(c, "SetAnimation", 0),
+					soft(c, "SetSequence", 0))
+			else
+				cerr = "Model not creatable"
+			end
+			note("C weather " .. WEATHER_M2 .. ": " .. cerr)
+
+			Say("STAGE C of C, 6 seconds. Rain?")
+
+			C_Timer.After(6, function()
+				if c then finish(c) end
+				record("model_3d", "ask", table.concat(notes, " | "))
+				P.pendingEyes = "model_3d"
+				Say("Answer with ONE command:")
+				Say("/comfy probe saw <A> <B> <C>")
+				Say("each word one of:  nothing  black  yes")
+				Say("example:  /comfy probe saw yes nothing nothing")
+				if done then done() end
+			end)
 		end)
 	end)
 end
@@ -829,19 +912,34 @@ function ComfyRain_Probe(arg)
 		store()
 		local id = P.pendingEyes
 		if not id then msg("nothing is waiting on your eyes right now.") return end
-		local a, b = rest:match("^(%S+)%s+(%S+)$")
-		local VALID = { nothing = true, black = true, rain = true }
-		if not (a and VALID[a] and VALID[b]) then
-			msg("need two words, each one of |cffffd100nothing|r, |cffffd100black|r, " ..
-			    "|cffffd100rain|r. Example: |cffffd100/comfy probe saw black nothing|r")
+		local a, b, c = rest:match("^(%S+)%s+(%S+)%s+(%S+)$")
+		local VALID = { nothing = true, black = true, yes = true }
+		if not (a and VALID[a] and VALID[b] and VALID[c]) then
+			msg("need three words, each one of |cffffd100nothing|r, " ..
+			    "|cffffd100black|r, |cffffd100yes|r. Example: " ..
+			    "|cffffd100/comfy probe saw yes nothing nothing|r")
 			return
 		end
 		local r = P.results[id]
-		-- "rain" in either stage is the only outcome that reopens 3D. "black"
-		-- in either is proof the surface is opaque and the idea is dead.
-		local verdict = (a == "rain" or b == "rain") and "yes" or "no"
+		-- Stage A is the control and it decides whether the other two words
+		-- mean anything. Written here rather than worked out later, because a
+		-- result that gets interpreted after it arrives gets interpreted into
+		-- whatever was already believed.
+		local verdict, why
+		if a == "black" or b == "black" or c == "black" then
+			verdict, why = "no", "a fullscreen model panel is opaque"
+		elseif a ~= "yes" then
+			verdict, why = "unknown", "the control did not render, so nothing else is evidence"
+		elseif c == "yes" then
+			verdict, why = "yes", "the weather M2 emits over the world"
+		elseif b == "yes" then
+			verdict, why = "partial", "emitters run, but not this M2 - try another"
+		else
+			verdict, why = "no", "geometry renders, particle emitters do not"
+		end
 		record(id, verdict, (r and r.detail or "") ..
-			" |cffffffff[stage1=" .. a .. " stage2=" .. b .. "]|r")
+			string.format(" |cffffffff[A=%s B=%s C=%s: %s]|r", a, b, c, why))
+		msg("|cffffd100" .. why .. "|r")
 		P.pendingEyes = nil
 	elseif sub == "shots" then
 		RunShots(function()

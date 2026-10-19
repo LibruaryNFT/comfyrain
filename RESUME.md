@@ -68,6 +68,91 @@ The streaks survive as background texture at a third of their old contrast.
 
 159 specs, all green.
 
+## 2026-10-19 (later) — zoom response, the barbershop, and 3D probe round two
+
+Three things, all from live play on the beta client. **166 specs, all green**, every new
+spec mutation-checked.
+
+### 1. Camera zoom now changes the weather
+
+Asked: "if we zoom in or out shouldn't it change how rain/snow looks?" It should, and
+`GetCameraZoom()` is the **only** part of the world camera an addon can read — there is
+no pitch and no yaw (see the binary table below). So this is the single genuine 3D cue
+available to a 2D overlay, and it was not being used.
+
+| Camera distance | What the field does |
+|---|---|
+| 0 yd (first person) | ~0.64x sheet density: fewer, larger drops, +20% fall speed |
+| 9.75 yd (`ZOOM_PIVOT`) | exactly the tuned preset, unchanged |
+| 15 yd (fully out) | ~1.19x density: finer, denser, same speed |
+
+Carried on tiling, not on alpha, which is the opposite of how the gust does it. The note
+at `LAYERS` says changing `tilesY` mid-flight reads as the camera zooming; that is an
+artefact when nothing is zooming and the entire point when something is. Smoothed at
+`elapsed * 5` because mouse-wheel zoom arrives in discrete steps.
+
+`db.zoom`, default on, `/comfy zoom on|off`, and a **Zoom Response** toggle in the window.
+The mock's `cameraZoom` is parked at 9.75 so every other spec measures a neutral field.
+
+### 2. "Dim" indoors no longer draws anything
+
+Reported from the Stormwind barbershop, and from the Stormwind inn before that. `dim`
+used to mean a 25% wash of rain still drawn under a solid roof, and it reads as the addon
+not noticing the ceiling rather than as weather outside. The two halves are now separate
+numbers — `IndoorFactor("hear")` vs `IndoorFactor()`:
+
+| | Old `dim` | New `dim` |
+|---|---|---|
+| Seen indoors | 0.25 | **0.0** |
+| Heard indoors | 0.25 | **0.35** |
+
+Which is also what Blizzard's own weather does. `off` and `on` are unchanged. A new
+`ShouldDraw()` routes it through `fadeTarget`, so a doorway is a 0.7s fade and the
+overlay then **hides**, costing no `OnUpdate` at all inside — asserted directly, because
+asserting alpha alone passed either way.
+
+**`db.where`, a passive doorway log.** `/comfy where` asks him to type a command at the
+exact moment he is busy looking at the thing, and both reports came from memory
+afterwards. Every committed indoor/outdoor transition now appends `{zone, subzone,
+IsIndoors, IsOutdoors, Sheltered, mode}` to SavedVariables, capped at 300. He plays; the
+file gets read. This is the instrument that will finally say what Stormwind's streets
+report.
+
+### 3. `/comfy probe 3d`, round two
+
+First run returned `stage1=nothing stage2=nothing` and **proved nothing**:
+
+- `CreateFrame(): Unknown frame type 'ModelSceneFrame'`. The C++ class is in the binary
+  and `C_ModelInfo` still takes one as an argument, but **no Lua constructor is bound**.
+  That stage was never a measurement. Dropped.
+- `Model:SetCameraDistance(): Not using a custom camera` raised, and because the whole
+  setup sat inside ONE `pcall`, `SetPosition` and `SetAnimation` never ran. An M2 whose
+  animation was never started has emitters that were never told to emit, so "I saw
+  nothing" is what a correct API and a broken setup both look like.
+- **No positive control.** "Nothing rendered" is only evidence once something is known to
+  render on the same surface.
+
+Round two is three stages of six seconds, each call in its own `pcall`, and the first two
+exist to make the third readable:
+
+| Stage | Surface | Question |
+|---|---|---|
+| A | `PlayerModel` + `SetUnit("player")`, fullscreen | does ANY 3D draw over the world, and is the empty part transparent? |
+| B | `Model` + LoginFX `165433` | do particle emitters run in a UI model frame at all? |
+| C | `Model` + weather `166249` | the actual question |
+
+`/comfy probe saw <A> <B> <C>`, each word `nothing`, `black` or `yes`. **The verdict table
+is in the code, written before the answer exists:** any `black` → `no`, opaque surface.
+`A ~= yes` → `unknown`, the control did not render so nothing else is evidence. `C yes` →
+`yes`. `B yes, C nothing` → `partial`, wrong M2, try another. Otherwise `no`, geometry
+renders and emitters do not. The ceiling if it comes back `yes` is unchanged from below:
+no depth test, no readable pitch.
+
+Each stage now also records whether its setup ran **clean**, and a spec asserts that word.
+`fails()` originally walked its varargs with `ipairs` on a packed table, which stops at
+the first `nil` — one successful call early in the list would have hidden every failure
+after it and reported "clean" on a half-built frame. Fixed to `select("#", ...)`.
+
 ## 2026-10-19 — skybox and 3D rain, checked properly this time
 
 Asked again: can we do a skybox, or 3D rain like Blizzard's? The previous answer was
@@ -90,8 +175,11 @@ not evidence. Re-done against the binary directly, `WowB.exe` build `1.60.1.7042
 strings: `SetModelScale`, `SetCamera`, `SetCameraPosition`, `SetCameraTarget`,
 `SetPosition`, `SetFacing`, `SetPitch`, `SetRoll`, `SetTransform`, `SetViewTranslation`,
 `SetViewInsets`, `SetParticlesEnabled`, `SetAnimation`, `SetSpellVisualKit`,
-`SetDrawLayerEnabled`, `SetPaused`. **`ModelSceneFrame` exists as a frame type**
-(`.?AVModelSceneFrame@@`, `.?AVModelSceneFrameActor@@`, `CreateActor`).
+`SetDrawLayerEnabled`, `SetPaused`. `ModelSceneFrame` exists as a **C++ class**
+(`.?AVModelSceneFrame@@`, `.?AVModelSceneFrameActor@@`, `CreateActor`, and
+`C_ModelInfo.AddActiveModelSceneActor` takes one) but is **not a creatable Lua frame
+type** — `CreateFrame("ModelSceneFrame")` raised "Unknown frame type" on 1.60.1.70425,
+tested 2026-10-19. A class in the binary is not a bound constructor.
 
 ### The one thing the binary cannot answer
 
@@ -99,17 +187,18 @@ A Model frame is the only 3D surface an addon can create. Whether a *fullscreen*
 drawn over `WorldFrame` is transparent, and whether the M2's particle emitters emit
 inside it, is a question about rasterisation and nothing in the API reports it.
 
-`/comfy probe 3d` answers it: two stages of six seconds, a plain `Model` then a
-`ModelSceneFrame`, each fullscreen on `WorldFrame` at `BACKGROUND` hosting
-`WEATHER_M2 = 166249`, then one question. Answer with
-`/comfy probe saw <stage1> <stage2>`, each word one of `nothing`, `black`, `rain`.
-A junk answer is refused rather than recorded, which has a mutation-checked spec.
+`/comfy probe 3d` answers it. **Superseded by the three-stage version — see the later
+section above.** The two-stage original ran 2026-10-19 and returned nothing in both
+stages, which proved nothing: one stage used a frame type that cannot be created, the
+other aborted its setup before starting the model's animation, and there was no positive
+control.
 
 **Interpreting the result in advance, so the answer is not rationalised after the fact:**
 
-- `black` in either stage — the surface is opaque, 3D over the world is dead, done.
-- `nothing` in both — emitters do not run in a UI model frame. Dead.
-- `rain` in either — **it reopens**, but it is still not Blizzard's rain. There is no
+- `black` in any stage — the surface is opaque, 3D over the world is dead, done.
+- `nothing` everywhere with the control rendering — emitters do not run in a UI model
+  frame. Dead.
+- particles in C — **it reopens**, but it is still not Blizzard's rain. There is no
   depth test, so terrain and buildings will never occlude it, and there is no readable
   world camera pitch, so the volume cannot track the view when the player looks up or
   down. The honest ceiling is "3D-looking particles with correct internal parallax,

@@ -347,6 +347,7 @@ local function Refresh()
 	controls.volume:Set(db.volume)
 
 	controls.sound:SetOn(db.sound)
+	controls.zoom:SetOn(db.zoom)
 	controls.thunder:SetOn(db.thunder)
 	-- Rain has lightning, snow has gusts, and the button must say which.
 	controls.thunder:SetLabel(weather.flash and "Thunder" or "Gusts")
@@ -494,6 +495,19 @@ local function Build()
 	Teach(controls.gust.slider, "Wind", "/comfy gust 0.5",
 		"How hard it gusts. 0 is dead calm: one fixed rate, no wind.")
 
+	-- Camera distance is the only part of the world camera an addon can read,
+	-- and it is a judgement call rather than a correctness fix, so it gets a
+	-- switch. Full width: it has no natural partner on a row.
+	local zoomRow = add(CreateFrame("Frame", nil, panel))
+	zoomRow:SetHeight(ROW)
+	controls.zoom = Toggle(zoomRow, "Zoom Response", "/comfy zoom off",
+		function() Run(DB().zoom and "zoom off" or "zoom on") end)
+	controls.zoom:SetPoint("TOPLEFT", zoomRow, "TOPLEFT", 0, 0)
+	controls.zoom:SetWidth(third - 3)
+	Teach(controls.zoom, "Zoom Response", "/comfy zoom off",
+		"Drops get bigger and faster the closer the camera is, finer and " ..
+		"denser when you pull back.")
+
 	add(Heading(panel, "Sound"), { gap = 4 })
 
 	controls.volume = add(Slider(panel, "Volume", 0, 1, 0.05, "%.2f",
@@ -514,8 +528,8 @@ local function Build()
 	controls.thunder:SetWidth(third - 3)
 
 	-- Three states, so a cycling pill rather than a lamp. "Dim" is the default
-	-- and the one most people want: weather you can still hear and faintly see
-	-- from inside, instead of it vanishing the moment you cross a threshold.
+	-- and the one most people want: weather you can still HEAR from inside but
+	-- cannot see, instead of either silence or rain falling through the roof.
 	controls.indoors = Pill(audio, "Indoors: Dim", function()
 		local order = { off = "dim", dim = "on", on = "off" }
 		Run("indoors " .. (order[INDOORS(DB())] or "dim"))
@@ -523,8 +537,8 @@ local function Build()
 	controls.indoors:SetPoint("TOPLEFT", audio, "TOPLEFT", third * 2, 0)
 	controls.indoors:SetWidth(third)
 	Teach(controls.indoors, "Indoors", "/comfy indoors dim",
-		"Off hides it. Dim keeps it quiet and faint, the way weather is from " ..
-		"inside. On draws it at full strength.")
+		"Off stops it dead. Dim keeps the sound and draws nothing, the way " ..
+		"weather is from inside. On draws it at full strength.")
 
 	-- A cycling button rather than a dropdown: UIDropDownMenu is a template,
 	-- and five options do not need a menu.

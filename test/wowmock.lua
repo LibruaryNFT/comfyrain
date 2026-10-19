@@ -289,6 +289,11 @@ function M.reset(opts)
 		gameHour = 12, gameMinute = 0,   -- the realm clock
 		facing = 0.0,
 		speed = 0.0,
+		-- Camera distance in yards. 0 is first person, 15 is classic's default
+		-- ceiling. Parked exactly on the addon's ZOOM_PIVOT (0.65 * 15) so the
+		-- zoom response is neutral by default and every other spec measures the
+		-- preset it thinks it is measuring. Specs that care set it themselves.
+		cameraZoom = 9.75,
 		indoors = false,
 		sheltered = false,   -- under a roof the engine does not call a room
 		zone = "Elwynn Forest",
@@ -358,6 +363,35 @@ local function newFrame(kind, name, parent, template)
 		f.SetModel = function(self, id) self._model = id end
 		f.GetModelFileID = function(self) return self._model end
 		f.SetCamDistanceScale = function() end
+		f.SetParticlesEnabled = function(self, v) self._particles = v end
+		f.SetModelScale = function(self, s) self._modelScale = s end
+		f.SetAnimation = function(self, a) self._animation = a end
+		f.SetSequence = function(self, s) self._sequence = s end
+		f.SetCustomCamera = function(self, i) self._customCamera = i end
+		-- These raise on the live client until SetCustomCamera has been called,
+		-- with "Not using a custom camera", and that raise is what silently ate
+		-- the rest of the first 3D probe's setup. Modelling it means a spec can
+		-- tell the difference between a frame that was configured and one that
+		-- threw halfway through being configured.
+		for _, name in ipairs({ "SetCameraPosition", "SetCameraTarget",
+		                        "SetCameraDistance", "SetPosition" }) do
+			f[name] = function(self, ...)
+				if not self._customCamera then
+					error(name .. "(): Not using a custom camera", 2)
+				end
+				self["_" .. name] = { ... }
+			end
+		end
+	end
+
+	-- The control surface for the 3D probe: a frame type that is certain to
+	-- draw something, so "nothing rendered" on a Model frame can mean anything
+	-- at all.
+	if kind == "PlayerModel" then
+		f.SetUnit = function(self, u) self._unit = u end
+		f.SetCamDistanceScale = function(self, s) self._camScale = s end
+		f.SetPortraitZoom = function(self, z) self._portraitZoom = z end
+		f.RefreshUnit = function() end
 	end
 
 	-- A Button is only a button because it can be clicked, and a spec that
@@ -603,6 +637,7 @@ function M.install(env)
 
 	env.GetPlayerFacing = function() return M.state.facing end
 	env.GetUnitSpeed = function(unit) return (unit == "player") and M.state.speed or 0 end
+	env.GetCameraZoom = function() return M.state.cameraZoom end
 	-- These are NOT complements on the real client. Under an awning, a cave
 	-- mouth or a doorway both return false, and modelling them as opposites is
 	-- what let the rain-through-roofs bug live in a green test suite. `sheltered`

@@ -133,30 +133,70 @@ it("asks the player's eyes about 3D particles, and refuses a junk answer", funct
 	-- from Lua. Recording anything but "ask" here would be inventing a result.
 	local w = H.world()
 	w:slash("probe 3d")
-	w:advance(20)
+	w:advance(30)
 	eq(results(w).model_3d.verdict, "ask", "verdict before the player answers")
 	eq(w:db().probe.pendingEyes, "model_3d", "and it knows what it is waiting on")
 
+	-- Every setup call has to have actually landed, or the stage measured a
+	-- half-built frame and the player's answer is about the wrong thing. The
+	-- first version of this probe set the camera before creating one, raised,
+	-- and skipped the animation - so the model it showed had emitters that
+	-- were never started. The word to look for is "clean".
+	contains(results(w).model_3d.detail, "C weather 166249: clean",
+		"the real stage was fully configured before the player was asked")
+	contains(results(w).model_3d.detail, "B LoginFX 165433: clean",
+		"and so was the particle control")
+
 	-- A typo must not be silently recorded as a finding. This is the whole
-	-- reason the answer is two constrained words and not free text.
+	-- reason the answer is three constrained words and not free text.
 	w:slash("probe saw maybe")
 	eq(results(w).model_3d.verdict, "ask", "one word is not an answer")
-	w:slash("probe saw rain sideways")
+	w:slash("probe saw yes nothing sideways")
 	eq(results(w).model_3d.verdict, "ask", "an unknown word is not an answer")
-	eq(w:db().probe.pendingEyes, "model_3d", "still waiting after both")
+	w:slash("probe saw yes nothing")
+	eq(results(w).model_3d.verdict, "ask", "two words is the old format and is not an answer")
+	eq(w:db().probe.pendingEyes, "model_3d", "still waiting after all three")
 
-	w:slash("probe saw black nothing")
-	eq(results(w).model_3d.verdict, "no", "black or nothing kills the idea")
-	contains(results(w).model_3d.detail, "stage1=black stage2=nothing", "recorded verbatim")
+	w:slash("probe saw yes nothing nothing")
+	eq(results(w).model_3d.verdict, "no", "control rendered, particles did not")
+	contains(results(w).model_3d.detail, "A=yes B=nothing C=nothing", "recorded verbatim")
 	eq(w:db().probe.pendingEyes, nil, "nothing left waiting")
+end)
 
-	-- Rain in EITHER stage is what reopens it, because the two stages are two
-	-- different widgets and only one of them has to work.
+it("will not call a 3D result either way when the control did not render", function()
+	-- The whole point of stage A. Without it, "nothing in B and C" reads as
+	-- "particles are impossible" when it may only mean nothing an addon
+	-- creates draws over the world at all, which is a different finding with a
+	-- different fix. The first run of this probe had no control and its two
+	-- empty stages were worth nothing.
+	local w = H.world()
+	w:slash("probe 3d")
+	w:advance(30)
+	w:slash("probe saw nothing nothing nothing")
+	eq(results(w).model_3d.verdict, "unknown", "no control, no conclusion")
+	contains(results(w).model_3d.detail, "the control did not render", "and it says why")
+end)
+
+it("separates 'no particles anywhere' from 'not this particular model'", function()
+	local w = H.world()
+	w:slash("probe 3d")
+	w:advance(30)
+	w:slash("probe saw yes yes nothing")
+	eq(results(w).model_3d.verdict, "partial", "emitters work, this M2 does not")
+
 	local w2 = H.world()
 	w2:slash("probe 3d")
-	w2:advance(20)
-	w2:slash("probe saw nothing rain")
-	eq(results(w2).model_3d.verdict, "yes", "particles in stage 2 alone is still a yes")
+	w2:advance(30)
+	w2:slash("probe saw yes yes yes")
+	eq(results(w2).model_3d.verdict, "yes", "the weather M2 itself emits over the world")
+
+	-- Opaque beats everything, including the control, because a panel that
+	-- clears to black cannot be used no matter what renders inside it.
+	local w3 = H.world()
+	w3:slash("probe 3d")
+	w3:advance(30)
+	w3:slash("probe saw yes yes black")
+	eq(results(w3).model_3d.verdict, "no", "black anywhere is fatal")
 end)
 
 it("restores the music cvar it changed", function()

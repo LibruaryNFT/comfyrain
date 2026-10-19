@@ -247,6 +247,7 @@ local DEFAULTS = {
 	-- is a different thing from fog nobody asked for and cannot disable.
 	gloom     = 1.0,
 	gust      = 1.0,       -- multiplies how hard the wind gusts; 0 is dead calm
+	zoom      = true,      -- let camera distance change drop size and fall speed
 	sound     = true,
 	volume    = 1.0,       -- 0..1 over the weather bed only; 0 is silent
 	minimap   = true,      -- show the minimap button
@@ -269,11 +270,20 @@ local LAYERS = {
 	{ key = "near", tilesY = 1.5, speed = 2.30, blend = "ADD",   layer = "ARTWORK"    },
 }
 
+-- Camera distance at which the view counts as fully pulled back. Classic's
+-- default ceiling is 15 yards and cameraDistanceMaxZoomFactor can raise it, so
+-- this normalises and clamps rather than assuming the player left it alone.
+local ZOOM_FULL  = 15
+local ZOOM_PIVOT = 0.65   -- the zoom most people play at; left exactly as tuned
+local ZOOM_RANGE = 0.55   -- how far sheet density swings across the whole range
+local ZOOM_RATE  = 0.20   -- extra fall speed at the first-person end
+
 local db
 local overlay, flash, gloom, whiteout
 local tod, todDim, todLift, todTicker
 local textures, offsets = {}, {}
 local lastFacing, turnDelta, runSpeed = nil, 0, 0
+local zoomNorm = ZOOM_PIVOT
 -- Two loop slots. A blizzard is a snow bed with a wind loop running under it,
 -- and one slot would mean choosing between them when the point is the mix.
 local bedSlot   = { handles = {} }
@@ -722,21 +732,38 @@ function IndoorMode()
 	return v
 end
 
--- How much of the effect survives being indoors.
-local INDOOR_SCALE = 0.25
+-- How much of the effect survives being indoors, and the two halves are NOT the
+-- same number. Reported twice from live play, most recently from the Stormwind
+-- barbershop: a 25% wash of rain under a solid roof does not read as "weather
+-- outside", it reads as the addon failing to notice there is a ceiling. The ear
+-- has no such problem - muffled rain through a wall is exactly right, and it is
+-- the thing that makes an inn feel like shelter rather than like a loading
+-- screen. So "dim" now means heard and not seen, which is also what Blizzard's
+-- own weather does.
+local INDOOR_SEE  = 0.0
+local INDOOR_HEAR = 0.35
 
-function IndoorFactor()
+-- kind is "hear" for anything that comes out of the speakers, nil for pixels.
+function IndoorFactor(kind)
 	if not indoorsNow then return 1 end
 	local m = IndoorMode()
 	if m == "on" then return 1 end
 	if m == "off" then return 0 end
-	return INDOOR_SCALE
+	return kind == "hear" and INDOOR_HEAR or INDOOR_SEE
 end
 
 local function ShouldRain()
 	if not db.enabled or cinematic then return false end
 	if indoorsNow and IndoorMode() == "off" then return false end
 	return true
+end
+
+-- Whether anything is DRAWN, as opposed to whether the weather is running at
+-- all. Splitting these is what lets the bed keep playing in the inn while the
+-- quads fade out, and routing it through fadeTarget rather than through Hide()
+-- means walking through a door is a 0.7s fade instead of a pop.
+local function ShouldDraw()
+	return ShouldRain() and IndoorFactor() > 0
 end
 
 -- Indoor state has no reliable event of its own, so it is polled.
@@ -767,6 +794,33 @@ end
 -- flickering: coming back needs a full ENTER_OUT seconds of clear sky.
 local ENTER_IN, ENTER_OUT = 0.35, 1.2
 
+-- Every committed transition, written down. `/comfy where` asks the player to
+-- type a command at the exact moment he is busy looking at the thing, and two
+-- of the places that got this wrong - the Stormwind inn and the barbershop -
+-- were reported from memory afterwards rather than from a reading. This costs
+-- one table per doorway and turns "it was wrong somewhere in Stormwind" into a
+-- row with a subzone on it. Capped, because it runs for the life of the
+-- character and SavedVariables is read on every login.
+local WHERE_MAX = 300
+local function WhereLog(reason)
+	if not db then return end
+	db.where = db.where or {}
+	while #db.where >= WHERE_MAX do table.remove(db.where, 1) end
+	db.where[#db.where + 1] = {
+		at        = time(),
+		reason    = reason,
+		zone      = GetRealZoneText(),
+		subzone   = GetSubZoneText(),
+		-- All three, because the bug has always been in the gap between the
+		-- first two, and a log that stored only the conclusion could not show
+		-- which of the two APIs produced it.
+		indoors   = IsIndoors() and true or false,
+		outdoors  = IsOutdoors() and true or false,
+		sheltered = Sheltered() and true or false,
+		mode      = IndoorMode(),
+	}
+end
+
 local function PollIndoors()
 	local inside = Sheltered()
 	if inside ~= indoorsNow then
@@ -774,6 +828,7 @@ local function PollIndoors()
 		if GetTime() - indoorsSince > (inside and ENTER_IN or ENTER_OUT) then
 			indoorsNow = inside
 			indoorsSince = nil
+			WhereLog(inside and "entered" or "left")
 			ComfyRain_Refresh()
 		end
 	else
@@ -819,10 +874,33 @@ local function OnUpdate(self, elapsed)
 	local spd = Readable(GetUnitSpeed("player")) or 0
 	runSpeed = runSpeed + (math.min(spd / 7, 2.2) - runSpeed) * math.min(1, elapsed * 3)
 
+	-- Camera zoom. The world camera's pitch and yaw are not exposed to addons
+	-- at all, so distance is the only thing it will tell us - and it happens to
+	-- be the one that changes what the weather ought to look like. First person
+	-- puts the player inside the field: fewer drops, larger, falling faster.
+	-- Fully pulled back puts fifteen yards of air between camera and character,
+	-- and the same rain has to read finer and denser to still be the same rain.
+	--
+	-- Carried on tiling, which is the opposite of how the gust does it. The note
+	-- on tilesY below says changing it mid-flight reads as the camera zooming.
+	-- That is an artefact when nothing is zooming and it is the entire point
+	-- when something is. Smoothed hard, because mouse-wheel zoom arrives in
+	-- discrete steps and an unsmoothed jump would pop the whole field.
+	local zoom = Readable(GetCameraZoom and GetCameraZoom())
+	if zoom then
+		local target = zoom / ZOOM_FULL
+		if target < 0 then target = 0 elseif target > 1 then target = 1 end
+		zoomNorm = zoomNorm + (target - zoomNorm) * math.min(1, elapsed * 5)
+	end
+
 	local aspect = w / h
 	local weather, p = W(), Preset()
 	local rate = p.speed * db.speed * (1 + runSpeed * 0.3)
 	local density = p.density
+	if db.zoom then
+		density = density * (1 + (zoomNorm - ZOOM_PIVOT) * ZOOM_RANGE)
+		rate = rate * (1 + (1 - zoomNorm) * ZOOM_RATE)
+	end
 	local slant = p.slant or weather.slant
 
 	-- Step the gust, then let each layer chase it at its own pace. The noise is
@@ -1033,7 +1111,7 @@ end
 -- and cannot be changed afterwards, so moving the slider only affects clips
 -- that start after it moves - StartBed is re-run on change to make it immediate.
 local function BedVolume(base)
-	local v = (base or 1) * (db.volume or 1) * IndoorFactor()
+	local v = (base or 1) * (db.volume or 1) * IndoorFactor("hear")
 	v = v * (1 + (math.random() * 2 - 1) * BED_VOL_JITTER)
 	-- Held inside 0..1. The wobble can lift a full-volume bed to 1.07, and what
 	-- an out-of-range volumeOverride does on this client is not something we
@@ -1160,7 +1238,7 @@ local function StartBed()
 
 	if Preset().wind then PlayWindClip() end
 	loopedKey = db.weather .. "/" .. db.intensity
-	bedIndoor = IndoorFactor()
+	bedIndoor = IndoorFactor("hear")
 end
 
 --------------------------------------------------------------------------------
@@ -1262,9 +1340,10 @@ function ComfyRain_Refresh()
 	if not overlay then return end
 	UpdateTimeOfDay()
 	local want = ShouldRain()
+	local draw = ShouldDraw()
 
-	fadeTarget = want and 1 or 0
-	if want then
+	fadeTarget = draw and 1 or 0
+	if draw then
 		overlay:Show()
 		overlay:SetAlpha(fade)
 	end
@@ -1280,7 +1359,7 @@ function ComfyRain_Refresh()
 		-- the player has usually walked back out again.
 		if not bedSlot.ticker
 		   or loopedKey ~= db.weather .. "/" .. db.intensity
-		   or bedIndoor ~= IndoorFactor() then
+		   or bedIndoor ~= IndoorFactor("hear") then
 			StartBed()
 		end
 	else
@@ -1521,9 +1600,23 @@ local function HandleSlash(input, source)
 		msg(string.format("IsIndoors %s  IsOutdoors %s  -> %s",
 			yn(IsIndoors()), yn(IsOutdoors()),
 			Sheltered() and "SHELTERED" or "open sky"))
-		msg(string.format("addon state: %s, effect at |cffffd100%d%%|r (mode %s)",
-			indoorsNow and "indoors" or "outdoors",
-			math.floor(IndoorFactor() * 100 + 0.5), IndoorMode()))
+		msg(string.format("addon state: %s, mode %s - seen |cffffd100%d%%|r, heard |cffffd100%d%%|r",
+			indoorsNow and "indoors" or "outdoors", IndoorMode(),
+			math.floor(IndoorFactor() * 100 + 0.5),
+			math.floor(IndoorFactor("hear") * 100 + 0.5)))
+		local sub = GetSubZoneText()
+		msg(string.format("   %s%s   zoom %.1f yd",
+			GetRealZoneText() or "?",
+			(sub and sub ~= "") and (" / " .. sub) or "",
+			Readable(GetCameraZoom and GetCameraZoom()) or -1))
+		WhereLog("asked")
+		msg(string.format("logged; %d doorway readings saved so far", #(db.where or {})))
+		return
+	elseif cmd == "zoom" then
+		if arg == "on" or arg == "off" then db.zoom = (arg == "on") end
+		msg(string.format("camera zoom changes the rain: |cffffd100%s|r (now %.1f yd)",
+			db.zoom and "on" or "off",
+			Readable(GetCameraZoom and GetCameraZoom()) or -1))
 		return
 	elseif cmd == "calib" or cmd == "calibrate" then
 		if arg == "off" then
