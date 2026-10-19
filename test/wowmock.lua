@@ -167,6 +167,7 @@ function FontString:SetJustifyH(j) self.justifyH = j end
 function FontString:SetJustifyV(j) self.justifyV = j end
 function FontString:SetFontObject(o) self.fontObject = o end
 function FontString:SetFont(f, size) self.font, self.fontSize = f, size end
+function FontString:SetWordWrap(v) self.wordWrap = v and true or false end
 
 --------------------------------------------------------------------------------
 -- Frames
@@ -394,6 +395,36 @@ local function newFrame(kind, name, parent, template)
 		f.RefreshUnit = function() end
 	end
 
+	-- An EditBox is the only way to get a string OUT of an addon and into the
+	-- clipboard, so the share box is a real frame type here rather than a
+	-- stand-in. Focus and selection are recorded because "the text is there but
+	-- you have to drag across it" is the exact failure the box exists to avoid.
+	if kind == "EditBox" then
+		f._text = ""
+		f.SetText = function(self, t) self._text = tostring(t or "") end
+		f.GetText = function(self) return self._text end
+		f.SetAutoFocus = function(self, v) self._autoFocus = v and true or false end
+		f.SetFocus = function(self) self._focused = true end
+		f.ClearFocus = function(self) self._focused = false end
+		f.HasFocus = function(self) return self._focused == true end
+		f.HighlightText = function(self, a, b) self._highlighted = { a or 0, b } end
+		f.SetFontObject = function(self, o) self._fontObject = o end
+		f.SetMultiLine = function(self, v) self._multiLine = v and true or false end
+		f.SetMaxLetters = function(self, n) self._maxLetters = n end
+		f.SetTextInsets = function() end
+		f.SetCursorPosition = function(self, p) self._cursor = p end
+		-- What a player does: types (or pastes) and presses a key.
+		f.Type = function(self, t)
+			self:SetText(t)
+			local fn = self._scripts.OnTextChanged
+			if fn then fn(self, true) end
+		end
+		f.Press = function(self, which)
+			local fn = self._scripts[which]
+			if fn then fn(self) end
+		end
+	end
+
 	-- A Button is only a button because it can be clicked, and a spec that
 	-- cannot click one is testing the layout rather than the panel.
 	if kind == "Button" or kind == "CheckButton" then
@@ -557,6 +588,11 @@ function M.install(env)
 	-- Escape-to-close is a list of frame NAMES, which is why the panel has to
 	-- have one. A spec can assert membership and that is the whole contract.
 	env.UISpecialFrames = {}
+
+	-- A real global font object in the client. An EditBox with no font object
+	-- draws no characters, so the share box has to set one, and a mock without
+	-- this would make that line look optional.
+	env.ChatFontNormal = { _font = "ChatFontNormal" }
 
 	-- The minimap. Real enough to parent a button to and to compute a position
 	-- against: the addon reads GetCenter, GetEffectiveScale and GetFrameLevel

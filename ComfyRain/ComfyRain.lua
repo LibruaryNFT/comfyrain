@@ -373,6 +373,29 @@ local ENUM = {
 	indoors  = { off = true, dim = true, on = true },
 }
 
+-- Which settings belong to which part of the window. Used by the per-section
+-- Reset buttons and by sharing, and it is the only place the grouping is
+-- written down, so a new setting that is in DEFAULTS and in none of these is a
+-- setting no Reset button can reach and no shared profile carries. A spec walks
+-- a fresh db against this table for exactly that reason, so the omission fails
+-- the suite rather than shipping quietly.
+local SECTIONS = {
+	look  = { "enabled", "weather", "intensity", "scale", "speed",
+	          "gloom", "gust", "zoom", "indoors" },
+	sound = { "sound", "volume", "channel", "thunder", "suppress" },
+	time  = { "timeMode", "timeOffset", "timeFixed", "timeStrength" },
+}
+local SECTION_ORDER = { "look", "sound", "time" }
+
+-- Everything a shared profile carries. Deliberately NOT where the window was
+-- dragged to, which minimap angle it sits at, or whether the first-run notice
+-- has been seen: those are this installation's furniture, and importing
+-- somebody else's would move things on screen for no reason they asked for.
+local PROFILE_KEYS = {}
+for _, name in ipairs(SECTION_ORDER) do
+	for _, k in ipairs(SECTIONS[name]) do PROFILE_KEYS[#PROFILE_KEYS + 1] = k end
+end
+
 local function SanitiseProfile()
 	for k, default in pairs(DEFAULTS) do
 		local v = db[k]
@@ -399,6 +422,92 @@ local function SanitiseProfile()
 	-- Deliberately last, and deliberately not in ENUM: which intensities exist
 	-- depends on the weather, which the loop above may just have corrected.
 	NormaliseIntensity()
+end
+
+--------------------------------------------------------------------------------
+-- Sharing a profile
+--
+-- Plain text rather than a serialised-and-encoded blob, and that is a choice.
+-- There is no base64 or deflate in the client's Lua, so an encoded format means
+-- shipping a copy of LibDeflate for a string that holds about twenty numbers;
+-- and the plain version has a property the compressed one does not, which is
+-- that a player can READ it before pasting it and see that it only contains
+-- weather settings. An addon string that nobody can inspect is a thing people
+-- are right to be wary of pasting.
+--
+-- Nothing here can run code. Import never touches the keys it was not given, is
+-- restricted to PROFILE_KEYS, coerces every value to the type DEFAULTS declares,
+-- and then runs the whole profile through SanitiseProfile, which clamps every
+-- number and rejects every unknown enum. The worst a hostile string can do is
+-- set rain to heavy.
+--------------------------------------------------------------------------------
+
+local PROFILE_TAG = "ComfyRain1"
+
+local function ExportProfile()
+	local out = {}
+	for _, k in ipairs(PROFILE_KEYS) do
+		local v = db[k]
+		if type(v) == "boolean" then v = v and "1" or "0"
+		elseif type(v) == "number" then v = ("%g"):format(v)
+		elseif type(v) ~= "string" then v = nil end
+		if v then out[#out + 1] = k .. "=" .. v end
+	end
+	return PROFILE_TAG .. ":" .. table.concat(out, ";")
+end
+
+-- Case is not carried by a profile string. The slash parser lowercases what it
+-- is given, forums and Discord mangle case, and "comfyrain1:" arriving from a
+-- client that lowercased it is a correct paste that must not be refused over a
+-- capital letter. So everything is matched case-insensitively and the CANONICAL
+-- spelling is recovered from PROFILE_KEYS and ENUM rather than from the input.
+local CANON_KEY, CANON_ENUM = {}, {}
+for _, k in ipairs(PROFILE_KEYS) do CANON_KEY[k:lower()] = k end
+for k, set in pairs(ENUM) do
+	CANON_ENUM[k] = {}
+	for v in pairs(set) do CANON_ENUM[k][v:lower()] = v end
+end
+
+-- Returns the number of settings applied, or nil and a reason.
+local function ImportProfile(text)
+	if type(text) ~= "string" then return nil, "nothing to read" end
+	text = text:gsub("%s", "")
+	local head, body = text:match("^([^:]*):(.*)$")
+	if head == nil or head:lower() ~= PROFILE_TAG:lower() then
+		-- Naming the tag we DID find is the difference between a user fixing a
+		-- truncated paste and giving up. Chat links and addon strings get cut.
+		return nil, (head and head ~= "")
+			and ("that is a " .. head .. " string, not a ComfyRain one")
+			or "that does not look like a ComfyRain profile"
+	end
+
+	local pending, unknown = {}, 0
+	for rawKey, v in body:gmatch("([%w_]+)=([^;]*)") do
+		local k = CANON_KEY[rawKey:lower()]
+		if not k then
+			unknown = unknown + 1
+		else
+			local default = DEFAULTS[k]
+			if type(default) == "boolean" then
+				pending[k] = (v == "1" or v:lower() == "true")
+			elseif type(default) == "number" then
+				pending[k] = tonumber(v)
+			elseif CANON_ENUM[k] then
+				pending[k] = CANON_ENUM[k][v:lower()]
+			else
+				pending[k] = v
+			end
+		end
+	end
+
+	local n = 0
+	for k, v in pairs(pending) do
+		if v ~= nil then db[k] = v; n = n + 1 end
+	end
+	if n == 0 then return nil, "no settings in it that this version understands" end
+	-- Every value above came from a stranger. This is what makes that safe.
+	SanitiseProfile()
+	return n, unknown
 end
 
 --------------------------------------------------------------------------------
@@ -1430,6 +1539,9 @@ local function Help()
 	print("  |cffffd100/comfy indoors on|off|r - draw it inside buildings too")
 	print("  |cffffd100/comfy sound on|off|r, |cffffd100/comfy thunder on|off|r (gusts, in snow)")
 	print("  |cffffd100/comfy channel Ambience|SFX|Master|r - which volume slider owns it")
+	print("  |cffffd100/comfy stop|r - everything off, including the light, in one go")
+	print("  |cffffd100/comfy reset|r - back to defaults; |cffffd100reset look|sound|time|r for one part")
+	print("  |cffffd100/comfy share|r - a string to send someone; |cffffd100/comfy import|r to paste theirs")
 	print("  |cffffd100/comfy density|r - is the client even allowed to draw real weather?")
 	print("  |cffffd100/comfy calib on|r - log real weather so the defaults stop being guesses")
 	print("  |cffffd100/comfy probe|r - answer the client-gated questions before the beta dies")
@@ -1440,7 +1552,13 @@ end
 -- The second argument a real slash handler receives is the chat edit box, a
 -- table, so the sentinel can never collide with it.
 local function HandleSlash(input, source)
-	input = (input or ""):lower():gsub("^%s+", ""):gsub("%s+$", "")
+	-- Keep the original case of the argument as well as the lowercased one. Every
+	-- command here wants the lowercase version, except import, whose argument is
+	-- a profile string somebody else generated: lowercasing it would turn
+	-- channel=Ambience into a value no enum has and silently reset their sound.
+	local raw = (input or ""):gsub("^%s+", ""):gsub("%s+$", "")
+	local rawArg = raw:match("^%S*%s*(.-)$")
+	input = raw:lower()
 	local cmd, arg = input:match("^(%S*)%s*(.-)$")
 
 	if cmd == "" then
@@ -1661,8 +1779,55 @@ local function HandleSlash(input, source)
 		-- Only the settings the panel owns. The calibration log and the probe
 		-- results are evidence, not preferences, and a reset button that threw
 		-- away a week of weather observations would be a bug with a label on it.
-		for k, v in pairs(DEFAULTS) do db[k] = v end
-		msg("settings reset to defaults.")
+		local part = arg:match("^%S*") or ""
+		if part == "" or part == "all" then
+			for k, v in pairs(DEFAULTS) do db[k] = v end
+			msg("every setting reset to defaults.")
+		elseif SECTIONS[part] then
+			-- One section at a time, because "I have the sound how I want it
+			-- and the look is a mess" is the normal case, and a single Reset
+			-- that takes the sound with it is a button people learn not to
+			-- press.
+			for _, k in ipairs(SECTIONS[part]) do db[k] = DEFAULTS[k] end
+			msg(part .. " settings reset to defaults.")
+		else
+			msg("usage: |cffffd100/comfy reset|r, or " ..
+			    "|cffffd100/comfy reset look|sound|time|r")
+			return
+		end
+	elseif cmd == "stop" then
+		-- The one command that means everything, which is what somebody looking
+		-- at a screen they cannot explain actually wants. /comfy off used to
+		-- leave the light grading up; it does not any more, but a player who
+		-- has been bitten once needs a switch they can believe in rather than a
+		-- promise that the other one is fixed now.
+		db.enabled, db.timeMode = false, "off"
+		msg("everything off: no weather, no sound, the realm's own light.")
+	elseif cmd == "export" or cmd == "share" then
+		-- The window, if it loaded, puts the string in a box that is already
+		-- selected, because a chat line cannot be copied out of the chat frame
+		-- without dragging across it. pcall for the same reason as `changed`
+		-- below: a broken window must not take the command line with it.
+		local text = ExportProfile()
+		if not (ComfyRainAPI.share and pcall(ComfyRainAPI.share, text)) then
+			msg("copy this line:")
+			msg(text)
+		end
+		return
+	elseif cmd == "import" then
+		if arg == "" then
+			if ComfyRainAPI.share and pcall(ComfyRainAPI.share, nil) then return end
+			msg("usage: |cffffd100/comfy import ComfyRain1:...|r")
+			return
+		end
+		local n, why = ImportProfile(rawArg)
+		if not n then
+			msg("|cffff6666" .. tostring(why) .. "|r")
+			return
+		end
+		msg(string.format("imported %d settings%s.", n,
+			(type(why) == "number" and why > 0)
+				and (", ignored " .. why .. " this version does not know") or ""))
 	elseif cmd == "status" then
 		Status()
 		return
@@ -1685,10 +1850,16 @@ end
 -- never drift apart, and the whole settings surface stays under the slash
 -- parser's existing tests.
 ComfyRainAPI = {
-	Weather = WEATHER,
-	Command = function(input) HandleSlash(input, "ui") end,
-	DB      = function() return db end,
-	Status  = function() Status() end,
+	Weather      = WEATHER,
+	Command      = function(input) HandleSlash(input, "ui") end,
+	DB           = function() return db end,
+	Status       = function() Status() end,
+	-- The window needs the section map to put a Reset beside each heading, and
+	-- the export string to put in a box. Both are read-only to it: importing
+	-- still goes through the slash parser like everything else.
+	Sections     = SECTIONS,
+	SectionOrder = SECTION_ORDER,
+	Export       = function() return ExportProfile() end,
 }
 
 --------------------------------------------------------------------------------

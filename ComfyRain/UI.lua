@@ -260,7 +260,11 @@ local function Slider(parent, label, lo, hi, step, fmt, apply)
 	return row
 end
 
-local function Heading(parent, label)
+-- A section heading, and - when it names a section - the Reset that belongs to
+-- it. Per-section rather than one Reset at the bottom, because "the sound is
+-- how I want it and the look is a mess" is the normal case, and a single button
+-- that takes the whole profile with it is one people learn not to press.
+local function Heading(parent, label, section)
 	local row = CreateFrame("Frame", nil, parent)
 	row:SetHeight(18)
 	local fs = Text(row, "GameFontNormalSmall")
@@ -271,6 +275,26 @@ local function Heading(parent, label)
 	line:SetHeight(1)
 	line:SetPoint("BOTTOMLEFT", row, "BOTTOMLEFT", 0, 0)
 	line:SetPoint("BOTTOMRIGHT", row, "BOTTOMRIGHT", 0, 0)
+
+	if section then
+		local label = "Reset " .. Title(section)
+		local b = CreateFrame("Button", nil, row)
+		b:SetHeight(14)
+		b:SetWidth(76)
+		b:SetPoint("BOTTOMRIGHT", row, "BOTTOMRIGHT", 0, 2)
+		local t = Text(b, "GameFontDisableSmall", "RIGHT")
+		t:SetPoint("RIGHT")
+		t:SetText(label)
+		b:SetFontString(t)
+		b:SetText(label)
+		b:SetScript("OnClick", function() Run("reset " .. section) end)
+		local hi = Fill(b, { 1, 1, 1, 0.10 }, "HIGHLIGHT")
+		hi:SetAllPoints(b)
+		b:SetHighlightTexture(hi)
+		Teach(b, label, "/comfy reset " .. section,
+			"Put just this section back to its defaults. Nothing else moves.")
+		row.reset = b
+	end
 	return row
 end
 
@@ -316,6 +340,39 @@ local TIME_MODES = {
 	{ key = "fixed",  label = "Held",     cmd = "time 21",
 	  note = "Hold one hour, all session. Permanent dusk." },
 }
+
+-- What is still changing the screen, in one sentence.
+--
+-- This exists because of a real report: "my screen is too dark and i cant reset
+-- it easily, like i want to turn off the changes it made but i cant". The time
+-- of day grading is the one ComfyRain effect with no weather attached to it, so
+-- a player who turns the weather off and still has a dark world has no way to
+-- connect the two. Naming the held hour, in the window, every refresh, is what
+-- turns an unexplained dark screen into a setting with an off switch next to it.
+local function LightPhrase(db)
+	if db.timeMode == "off" then return nil end
+	if db.timeMode == "local" then return "light on your own clock" end
+	if db.timeMode == "offset" then
+		return string.format("light shifted %+g h", db.timeOffset)
+	end
+	return string.format("light held at %02d:00", db.timeFixed)
+end
+
+local function StatusPhrase(db)
+	local light = LightPhrase(db)
+	local weather = db.enabled and (db.intensity .. " " .. db.weather) or nil
+	if weather and light then
+		return "Drawing " .. weather .. ", " .. light .. ".", GOLD
+	elseif weather then
+		return "Drawing " .. weather .. ".", GOLD
+	elseif light then
+		-- The dangerous state, and the one that generated the report: the
+		-- weather is off, so the player believes the addon is off, and the
+		-- world is still being graded.
+		return "Weather off, but " .. light .. ".", GOLD
+	end
+	return "Everything off. Nothing here is touching your screen.", DIM
+end
 
 local function Refresh()
 	if not panel or not panel:IsShown() then return end
@@ -365,6 +422,17 @@ local function Refresh()
 		controls.hour:Set(db.timeFixed)
 	end
 	controls.strength:Set(db.timeStrength)
+
+	local phrase, colour = StatusPhrase(db)
+	controls.status:SetText(phrase)
+	controls.status:SetTextColor(colour[1], colour[2], colour[3])
+	-- Hidden when there is nothing left to stop, so the button is never a lie:
+	-- if it is on screen, pressing it changes something.
+	if db.enabled or db.timeMode ~= "off" then
+		controls.stop:Show()
+	else
+		controls.stop:Hide()
+	end
 
 	updating = false
 	Relayout()
@@ -447,6 +515,29 @@ local function Build()
 		return frame
 	end
 
+	-- The state line comes before any control, because the first question
+	-- somebody opens this window with is "what is this doing to my screen", and
+	-- the answer has to be readable without understanding a single widget below
+	-- it. The stop button sits on the same line so the answer and the undo are
+	-- never in different parts of the window.
+	local state = add(CreateFrame("Frame", nil, panel), { gap = 9 })
+	state:SetHeight(ROW)
+	local quarter = (WIDTH - PAD * 2) / 4
+	controls.status = Text(state, "GameFontHighlightSmall")
+	controls.status:SetPoint("LEFT", state, "LEFT", 0, 0)
+	controls.status:SetWidth(WIDTH - PAD * 2 - quarter * 1.5 - 8)
+	controls.status:SetWordWrap(false)
+	controls.status:SetText("")
+
+	controls.stop = Pill(state, "Turn It All Off", function() Run("stop") end)
+	controls.stop:SetPoint("TOPRIGHT", state, "TOPRIGHT", 0, 0)
+	controls.stop:SetWidth(quarter * 1.5)
+	Teach(controls.stop, "Turn It All Off", "/comfy stop",
+		"Weather, sound and the light grading, all off in one press. " ..
+		"Your settings are kept; this is a switch, not a reset.")
+
+	add(Heading(panel, "Weather", "look"), { gap = 4 })
+
 	-- Weather, and the master switch, on one line: the two things somebody
 	-- opening this window for the first time is looking for.
 	local top = add(CreateFrame("Frame", nil, panel))
@@ -508,7 +599,7 @@ local function Build()
 		"Drops get bigger and faster the closer the camera is, finer and " ..
 		"denser when you pull back.")
 
-	add(Heading(panel, "Sound"), { gap = 4 })
+	add(Heading(panel, "Sound", "sound"), { gap = 4 })
 
 	controls.volume = add(Slider(panel, "Volume", 0, 1, 0.05, "%.2f",
 		function(v) Run(string.format("volume %.2f", v)) end))
@@ -551,7 +642,7 @@ local function Build()
 		"Which of the game's volume sliders owns the weather. Ambience keeps " ..
 		"it out of the way of music.")
 
-	add(Heading(panel, "Time of Day"), { gap = 4 })
+	add(Heading(panel, "Time of Day", "time"), { gap = 4 })
 
 	controls.timeMode = add(PillRow(panel, 4))
 	for i, pill in ipairs(controls.timeMode.pills) do
@@ -581,17 +672,27 @@ local function Build()
 
 	local foot = add(CreateFrame("Frame", nil, panel))
 	foot:SetHeight(ROW)
-	local half = (WIDTH - PAD * 2) / 2
 	local commands = Pill(foot, "Commands", function() Run("help") end)
 	commands:SetPoint("TOPLEFT", foot, "TOPLEFT", 0, 0)
-	commands:SetWidth(half - 3)
+	commands:SetWidth(third - 3)
 	Teach(commands, "Commands", "/comfy help", "Print every command to chat.")
 
-	local reset = Pill(foot, "Reset", function() Run("reset") end)
-	reset:SetPoint("TOPLEFT", foot, "TOPLEFT", half, 0)
-	reset:SetWidth(half)
-	Teach(reset, "Reset", "/comfy reset",
-		"Back to defaults. Settings only; the calibration log is kept.")
+	-- Share is one button for both directions. Sending somebody your weather and
+	-- pasting theirs are the same box with the text selected or empty, and two
+	-- buttons for one box is how a 330px window stops being readable.
+	local share = Pill(foot, "Share", function() Run("share") end)
+	share:SetPoint("TOPLEFT", foot, "TOPLEFT", third, 0)
+	share:SetWidth(third - 3)
+	Teach(share, "Share", "/comfy share",
+		"A short line of text holding every setting. Send it to someone, or " ..
+		"paste theirs in to use it.")
+
+	local reset = Pill(foot, "Reset All", function() Run("reset") end)
+	reset:SetPoint("TOPLEFT", foot, "TOPLEFT", third * 2, 0)
+	reset:SetWidth(third)
+	Teach(reset, "Reset All", "/comfy reset",
+		"Every section back to defaults. Settings only; the calibration log " ..
+		"is kept.")
 
 	local hint = add(CreateFrame("Frame", nil, panel), { gap = 2 })
 	hint:SetHeight(14)
@@ -623,6 +724,110 @@ function ComfyRain_Panel(mode)
 	end
 	panel:Show()
 	Refresh()
+end
+
+--------------------------------------------------------------------------------
+-- The share box
+--
+-- An EditBox is the only route a string has out of an addon and into the
+-- clipboard: there is no SetClipboard in the client's Lua. So sharing is a box
+-- with the text already in it and already selected, and the one thing that
+-- would make it useless is making the player drag across the text first.
+--
+-- The same box reads as well as writes. Export arrives with text, selected;
+-- import arrives empty, focused, and Enter applies whatever is in it. Two
+-- buttons for one box is how a 330px window stops being readable.
+--------------------------------------------------------------------------------
+
+local shareBox
+
+local function BuildShare()
+	local f = CreateFrame("Frame", "ComfyRainShare", UIParent,
+		SupportsBackdrop() and "BackdropTemplate" or nil)
+	f:SetWidth(WIDTH)
+	f:SetHeight(104)
+	f:SetFrameStrata("FULLSCREEN_DIALOG")
+	f:SetToplevel(true)
+	f:EnableMouse(true)
+	f:SetMovable(true)
+	f:SetClampedToScreen(true)
+	f:RegisterForDrag("LeftButton")
+	f:SetScript("OnDragStart", function(self) self:StartMoving() end)
+	f:SetScript("OnDragStop", function(self) self:StopMovingOrSizing() end)
+	f:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
+	f:Hide()
+
+	local bg = Fill(f, BG)
+	if f.SetBackdrop and pcall(f.SetBackdrop, f, BORDER_BACKDROP) then
+		bg:SetPoint("TOPLEFT", f, "TOPLEFT", 10, -11)
+		bg:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -11, 10)
+	else
+		bg:SetAllPoints(f)
+		Border(f, EDGE)
+	end
+
+	local title = Text(f, "GameFontNormalSmall")
+	title:SetPoint("TOPLEFT", f, "TOPLEFT", PAD + 4, -PAD - 2)
+	title:SetText("Share a Profile")
+	title:SetTextColor(GOLD[1], GOLD[2], GOLD[3])
+
+	f.note = Text(f, "GameFontDisableSmall")
+	f.note:SetPoint("TOPLEFT", f, "TOPLEFT", PAD + 4, -PAD - 18)
+	f.note:SetWidth(WIDTH - PAD * 2 - 8)
+
+	local well = CreateFrame("Frame", nil, f)
+	well:SetPoint("TOPLEFT", f, "TOPLEFT", PAD + 4, -PAD - 34)
+	well:SetWidth(WIDTH - PAD * 2 - 8)
+	well:SetHeight(26)
+	local wellBG = Fill(well, { 0.10, 0.11, 0.14, 1 })
+	wellBG:SetAllPoints(well)
+	Border(well, EDGE)
+
+	f.edit = CreateFrame("EditBox", nil, well)
+	f.edit:SetPoint("TOPLEFT", well, "TOPLEFT", 6, -4)
+	f.edit:SetPoint("BOTTOMRIGHT", well, "BOTTOMRIGHT", -6, 4)
+	f.edit:SetAutoFocus(false)
+	f.edit:SetMultiLine(false)
+	-- ChatFontNormal rather than a font path: an EditBox with no font object
+	-- draws no characters at all, and a hardcoded path is the kind of thing
+	-- that breaks on a client we have not seen.
+	f.edit:SetFontObject(ChatFontNormal or "ChatFontNormal")
+	f.edit:SetTextInsets(0, 0, 0, 0)
+	f.edit:SetScript("OnEscapePressed", function(self)
+		self:ClearFocus()
+		f:Hide()
+	end)
+	f.edit:SetScript("OnEnterPressed", function(self)
+		-- Enter applies whatever is in the box, including the string we just
+		-- put there. Re-importing your own profile is a no-op, so one key does
+		-- the sensible thing in both directions and there is nothing to learn.
+		Run("import " .. (self:GetText() or ""))
+		self:ClearFocus()
+		f:Hide()
+	end)
+
+	local close = Pill(f, "Close", function() f:Hide() end)
+	close:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -PAD - 4, PAD)
+	close:SetWidth(80)
+	Teach(close, "Close", nil, "Escape closes it too.")
+
+	tinsert(UISpecialFrames, "ComfyRainShare")
+	shareBox = f
+end
+
+-- text = the profile to hand out, or nil to open the box empty for a paste.
+local function ShowShare(text)
+	if not shareBox then BuildShare() end
+	shareBox.edit:SetText(text or "")
+	shareBox.note:SetText(text
+		and "Ctrl-C copies it. Anyone running ComfyRain can paste it back."
+		or "Paste a profile here and press Enter.")
+	shareBox:Show()
+	shareBox.edit:SetFocus()
+	-- Selected on open: the whole point is that copying it costs one keystroke
+	-- rather than a drag across a 200-character line.
+	if text then shareBox.edit:HighlightText() end
+	return true
 end
 
 --------------------------------------------------------------------------------
@@ -827,4 +1032,10 @@ local function Changed()
 	PaintIcon()
 end
 
-if ComfyRainAPI then ComfyRainAPI.changed = Changed end
+if ComfyRainAPI then
+	ComfyRainAPI.changed = Changed
+	-- /comfy share prints the string to chat if this is missing, which is what a
+	-- client that failed to load the window gets. A chat line can be read; it
+	-- just cannot be copied without dragging.
+	ComfyRainAPI.share = ShowShare
+end

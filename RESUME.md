@@ -7,6 +7,78 @@ because the client cannot be told to actually change the weather.
 Stormwind. v2 switches all audio and the drop sprite to Blizzard's own assets and stops
 the rain indoors; needs `/reload` to pick up (no new files, so no client restart).
 
+## 2026-10-19 (later still) — a visible off switch, per-section resets, sharing
+
+From live play: *"we are asking for a UI way to make it clear to turn things off etc,
+also we need reset buttons for settings etc.. maybe even a way to share a profile or
+setting.."* — the follow-on to the dark-screen trap below. The bug there was fixed; the
+reason it was unfindable was not.
+
+**1. The window now states what it is doing to the screen, before any control.** A line
+at the top of the panel, refreshed every time anything changes:
+
+| State | What it says |
+|---|---|
+| weather + light | `Drawing heavy rain, light held at 21:00.` |
+| weather only | `Drawing heavy rain.` |
+| **light only** | `Weather off, but light held at 21:00.` |
+| neither | `Everything off. Nothing here is touching your screen.` |
+
+The third row is the whole point. Time-of-day grading is the one effect with no weather
+attached to it, so a player who switches the weather off and still has a dark world has
+nothing to connect it to. Naming the held hour, in the window, is what turns an
+unexplained dark screen into a setting with an off switch next to it.
+
+**2. `/comfy stop`, and a `Turn It All Off` button on that same line.** Sets
+`db.enabled = false` AND `db.timeMode = "off"` in one action. It is a **switch, not a
+reset**: weather, intensity, sliders and the held hour are all kept for when it comes
+back on. The button is hidden when nothing is on, so it is never a lie — if it is on
+screen, pressing it changes something.
+
+**3. Per-section resets.** `SECTIONS` in `ComfyRain.lua` is the single place the grouping
+is written down (`look` / `sound` / `time`), and `Heading(parent, label, section)` hangs a
+`Reset Look` / `Reset Sound` / `Reset Time` button off the right of each heading.
+`/comfy reset <section>` does the same from chat; bare `/comfy reset` is still everything.
+Rationale: "the sound is how I want it and the look is a mess" is the normal case, and one
+button that takes the whole profile with it is one people learn not to press.
+
+A spec walks every key in a fresh `db` against `SECTIONS` plus a hand-written furniture
+allowlist, so **a new setting that belongs to no section fails the suite** rather than
+shipping as a setting no Reset can reach.
+
+**4. Sharing: `/comfy share` and `/comfy import <string>`.**
+`ComfyRain1:enabled=1;weather=snow;intensity=blizzard;...` — plain text, not a base64
+blob, and that is a choice. There is no base64 or deflate in the client's Lua, so an
+encoded format means embedding LibDeflate for a string holding about twenty numbers; and
+the plain version has a property the compressed one does not, which is that **a player can
+read it before pasting it** and see it contains nothing but weather settings.
+
+Nothing in import can run code. It is restricted to `PROFILE_KEYS`, coerces each value to
+the type `DEFAULTS` declares, recovers enum values by name, and then runs the whole profile
+through `SanitiseProfile`, which clamps every number and rejects every unknown enum. The
+worst a hostile string can do is set rain to heavy. There is a spec that feeds it
+`minimapAngle=0;migrated=0;scale=99;weather=goats` and asserts all four are refused.
+
+Two case traps, both handled: the slash parser lowercases its input (so `import` is handed
+the **untouched** argument, or `channel=Ambience` would silently reset their sound), and
+Discord/forums mangle case anyway (so keys and enum values are matched case-insensitively
+and the canonical spelling is recovered from `PROFILE_KEYS` / `ENUM`, never from the input).
+
+**5. The share box.** There is no `SetClipboard` in the client's Lua, so an EditBox is the
+only route a string has out of an addon. `ComfyRainShare` opens with the text already in it
+and **already selected** — a box you have to drag across is not sharing. The same box reads
+as well as writes: export arrives with text selected, import arrives empty and focused, and
+Enter applies whatever is in it either way. If `UI.lua` failed to load, `/comfy share`
+prints the string to chat instead; there is a spec for that path.
+
+**Suite: 182 passing** (was 168). Ten mutations checked, all caught. The mock gained an
+`EditBox` frame type with focus and selection recorded, and `ChatFontNormal` — an EditBox
+with no font object draws no characters, so that line is not optional.
+
+One latent weakness found and fixed while mutation-checking: `mock.printedMatching` returns
+a **table**, so `ok(printedMatching(x))` is always true. Every other spec in the repo
+already used `#... > 0`; the two new ones now do too.
+
 ## 2026-10-19 — renamed to Comfy Rain, and two audio bugs from live play
 
 **Name, third and final: AlwaysRain -> Duskfall -> Comfy Rain.** Settled before any
@@ -365,12 +437,15 @@ at launch. Later Lua edits need only `/reload`.
 
 ## The settings window
 
-`/duskfall` (or `/duskui`, or `/dusk ui|config|options|settings`) opens it. `/dusk` on its own
-still toggles the weather, because nobody types eight letters to flip a switch. It opens itself
-**once, ever**, four seconds after a first install, and records `db.seenUI` so it never does it
-again — the onboarding hole both consult models flagged.
+`/comfyrain` (or `/comfyui`, or `/comfy ui|config|options|settings`) opens it. `/comfy` on its
+own still toggles the weather, because nobody types eight letters to flip a switch. It opens
+itself **once, ever**, four seconds after a first install, and records `db.seenUI` so it never
+does it again — the onboarding hole both consult models flagged.
 
-Three things about it are deliberate and should not be "simplified" later:
+Top to bottom: the state line and `Turn It All Off`, then **Weather** / **Sound** / **Time of
+Day**, each heading carrying its own Reset, then a footer of `Commands` · `Share` · `Reset All`.
+
+Four things about it are deliberate and should not be "simplified" later:
 
 1. **It is a frame we draw ourselves, not a Blizzard Settings panel.** The Settings API is not
    known to work on this client: `AddSearchTags` already throws `ADDON_ACTION_FORBIDDEN` here,
@@ -380,12 +455,16 @@ Three things about it are deliberate and should not be "simplified" later:
    UIDropDownMenu** — every pixel is `CreateFrame` / `CreateTexture` / `CreateFontString`, which
    the weather overlay has already proven on this client. The channel picker is a cycling button
    for that reason, and the checkboxes draw their own lamp.
-2. **Every control issues a slash command** through `DuskfallAPI.Command`, and none of them writes
-   a setting directly. So the window can never do something the command line cannot, the two can
-   never disagree, and the entire settings surface stays behind the slash parser's existing tests.
-   `HandleSlash(input, "ui")` suppresses the chat status line; a typed command still reports.
+2. **Every control issues a slash command** through `ComfyRainAPI.Command`, and none of them
+   writes a setting directly. So the window can never do something the command line cannot, the
+   two can never disagree, and the entire settings surface stays behind the slash parser's
+   existing tests. `HandleSlash(input, "ui")` suppresses the chat status line; a typed command
+   still reports.
 3. **Every tooltip names the command it runs.** The window is not a replacement for the commands,
-   it is how you learn them: drag the slider, read `/dusk alpha 0.75`, type it next time.
+   it is how you learn them: drag the slider, read `/comfy alpha 0.75`, type it next time.
+4. **The state line is not decoration.** It is the only thing in the window that answers "what
+   is this doing to my screen" without reading a single widget, and it exists because a player
+   could not find the one effect that had no weather attached to it.
 
 There is no OK / Apply / Cancel. The weather is drawn live behind the window.
 
@@ -394,13 +473,27 @@ without it falls back to printing the command list, and there is a spec for each
 
 ## Commands
 
-`/dusk` toggle · `/dusk rain|snow` · `/dusk light|normal|heavy` · `/dusk monsoon` ·
-`/dusk blizzard` · `/dusk auto` · `/dusk alpha 0.75` · `/dusk speed 1.4` · `/dusk dim 0.5` ·
-`/dusk indoors on|off` · `/dusk sound on|off` · `/dusk thunder on|off` ·
-`/dusk channel Ambience|SFX|Master` · `/dusk density` · `/dusk status` ·
-`/dusk probe` · `/dusk calib on|off|wipe` · `/dusk reset` (settings only, keeps the calib log)
+`/comfy` toggle · `/comfy rain|snow` · `/comfy light|normal|heavy` · `/comfy monsoon` ·
+`/comfy blizzard` · `/comfy auto` · `/comfy alpha 0.75` · `/comfy speed 1.4` ·
+`/comfy dim 0.5` · `/comfy gust 0.5` · `/comfy zoom on|off` ·
+`/comfy indoors off|dim|on` · `/comfy sound on|off` · `/comfy thunder on|off` ·
+`/comfy volume 0.5` · `/comfy channel Ambience|SFX|Master|Music|Dialog` ·
+`/comfy time local|+9|21|off` · `/comfy time strength 0.7` · `/comfy where` ·
+`/comfy density` · `/comfy status` · `/comfy probe` · `/comfy calib on|off|wipe`
 
-`/rain` is a permanent alias for `/dusk`. `/duskfall` and `/duskui` open the settings window.
+**Off, reset and share:**
+
+| Command | What it does |
+|---|---|
+| `/comfy off` | weather off; the light grading is left as it was |
+| `/comfy stop` | **everything** off, weather and light, settings kept |
+| `/comfy reset` | every setting back to defaults (keeps the calib log) |
+| `/comfy reset look\|sound\|time` | one section only, nothing else moves |
+| `/comfy share` | the profile string, in a box, already selected |
+| `/comfy import <string>` | apply someone else's; bare `import` opens an empty box |
+
+`/rain` is a permanent alias for `/comfy`. `/comfyrain` and `/comfyui` open the settings
+window.
 
 `monsoon` and `blizzard` each name a weather as well as an intensity, so they switch both:
 nobody typing `/dusk blizzard` wants rain. Switching weather at the top of one scale lands at

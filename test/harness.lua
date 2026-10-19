@@ -195,6 +195,24 @@ function H.world(opts)
 		end
 	end
 
+	-- Anything the window is currently SAYING, found by a pattern over the text
+	-- rather than by walking to a widget. A status line is read, not clicked, so
+	-- the spec should find it the way the player's eye does.
+	function w:says(pattern)
+		for _, f in ipairs(mock.frames) do
+			for _, fs in ipairs(f._fontStrings or {}) do
+				if fs.text and fs.text:match(pattern) then return fs end
+			end
+		end
+	end
+
+	function w:shareBox() return mock.frameNamed("ComfyRainShare") end
+	function w:editBox()
+		for _, f in ipairs(mock.frames) do
+			if f._kind == "EditBox" then return f end
+		end
+	end
+
 	function w:slider(label)
 		for _, f in ipairs(mock.frames) do
 			if f._kind == "Slider" and f._parent then

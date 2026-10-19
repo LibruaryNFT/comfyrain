@@ -252,7 +252,7 @@ it("resets the settings and keeps the evidence", function()
 	w:button("Snow"):Click()
 	w:slider("Visibility"):Drag(0.3)
 
-	w:button("Reset"):Click()
+	w:button("Reset All"):Click()
 	eq(w:db().weather, "rain", "weather back to default")
 	near(w:db().scale, 1.0, 1e-9, "alpha back to default")
 	eq(#w:db().calib, 1, "the calibration log is untouched")
@@ -470,4 +470,202 @@ it("draws its own minimap icon and repaints it with the weather", function()
 	ok(lit[1] ~= dark[1] or lit[3] ~= dark[3],
 		"the sky greys out when the weather is off")
 	ok(dark[3] <= dark[1] + 0.02, "no blue left in it")
+end)
+
+--------------------------------------------------------------------------------
+-- Turning it off, resetting it, and handing it to somebody else
+--------------------------------------------------------------------------------
+
+it("names every change it is making to the screen, in the window", function()
+	-- From a live report: "my screen is too dark and i cant reset it easily,
+	-- like i want to turn off the changes it made but i cant". The time of day
+	-- grading has no weather attached to it, so a player who switched the
+	-- weather off and still has a dark world has nothing to connect it to.
+	local w = H.world()
+	w:slash("time 21")
+	w:slash("off")
+	w:open()
+
+	ok(w:says("Weather off"), "it says the weather is off")
+	ok(w:says("21:00"), "and names the hour the light is being held at")
+end)
+
+it("says nothing is on when nothing is on, and hides the stop button", function()
+	local w = H.world()
+	w:slash("off")
+	w:open()
+	ok(w:says("Everything off"), "the all-clear is stated, not implied")
+
+	local stop = w:button("Turn It All Off")
+	eq(stop:IsShown(), false, "nothing left to stop, so no button to press")
+
+	w:slash("on")
+	ok(stop:IsShown(), "and it comes back the moment something is on")
+end)
+
+it("turns off the weather AND the light in one press", function()
+	local w = H.world()
+	w:slash("time 21")
+	w:open()
+	ok(w:db().enabled, "weather on to start with")
+
+	w:button("Turn It All Off"):Click()
+	eq(w:db().enabled, false, "the weather stopped")
+	eq(w:db().timeMode, "off", "and so did the light grading")
+	eq(w:tod():IsShown(), false, "nothing is left over the world")
+end)
+
+it("keeps the settings when it stops: it is a switch, not a reset", function()
+	local w = H.world()
+	w:slash("snow")
+	w:slash("alpha 0.4")
+	w:slash("time 21")
+	w:slash("stop")
+
+	eq(w:db().weather, "snow", "the weather it chose is still chosen")
+	near(w:db().scale, 0.4, 1e-9, "and the slider it moved has not moved back")
+	eq(w:db().timeFixed, 21, "the hour is remembered for when it comes back on")
+end)
+
+it("resets one section without touching the others", function()
+	local w = H.world()
+	w:slash("alpha 0.4")
+	w:slash("volume 0.2")
+	w:slash("time 21")
+	w:open()
+
+	w:button("Reset Sound"):Click()
+	near(w:db().volume, 1.0, 1e-9, "the sound went back to default")
+	near(w:db().scale, 0.4, 1e-9, "the look did not")
+	eq(w:db().timeMode, "fixed", "and neither did the time of day")
+end)
+
+it("has a Reset for every section a setting can live in", function()
+	-- The guard against a new setting being added to DEFAULTS and to no section:
+	-- it would be a setting no Reset button can reach and no shared profile
+	-- carries. Furniture is listed here deliberately, so adding to THAT list is
+	-- a decision somebody makes on purpose.
+	local w = H.world()
+	w:open()
+
+	local FURNITURE = { minimap = true, minimapAngle = true, ui = true,
+	                    migrated = true, calib = true, calibrating = true,
+	                    probe = true, where = true, seen = true, seenUI = true }
+	local covered = {}
+	for _, name in ipairs(w.env.ComfyRainAPI.SectionOrder) do
+		ok(w:button("Reset " .. name:gsub("^%l", string.upper)),
+			name .. " has a Reset button")
+		for _, k in ipairs(w.env.ComfyRainAPI.Sections[name]) do covered[k] = true end
+	end
+	for k in pairs(w:db()) do
+		ok(covered[k] or FURNITURE[k], k .. " belongs to a section")
+	end
+end)
+
+it("hands out a profile string, already selected, in a box", function()
+	-- There is no SetClipboard in the client's Lua, so an EditBox is the only
+	-- route out. A box the player has to drag across is not sharing.
+	local w = H.world()
+	w:slash("snow")
+	w:slash("alpha 0.4")
+	w:open()
+	w:button("Share"):Click()
+
+	local box = w:editBox()
+	ok(box, "a box opened")
+	ok(box:HasFocus(), "with the cursor already in it")
+	ok(box._highlighted, "and the text already selected")
+	contains(box:GetText(), "ComfyRain1:", "it is tagged as ours")
+	contains(box:GetText(), "weather=snow", "and carries the settings")
+	contains(box:GetText(), "scale=0.4", "including the ones off a slider")
+end)
+
+it("applies a profile pasted into the box and closes it", function()
+	local w = H.world()
+	w:slash("snow")
+	w:open()
+	w:button("Share"):Click()
+
+	local box = w:editBox()
+	box:Type("ComfyRain1:weather=rain;intensity=heavy;volume=0.25")
+	box:Press("OnEnterPressed")
+
+	eq(w:db().weather, "rain", "the pasted weather took")
+	eq(w:db().intensity, "heavy", "and the intensity with it")
+	near(w:db().volume, 0.25, 1e-9, "and the numbers")
+	eq(w:shareBox():IsShown(), false, "the box got out of the way")
+end)
+
+it("round-trips: what it hands out is what it reads back", function()
+	local w = H.world()
+	w:slash("snow")
+	w:slash("blizzard")
+	w:slash("alpha 0.65")
+	w:slash("volume 0.3")
+	w:slash("channel master")
+	w:slash("time 21")
+	w:slash("sound off")
+	local text = w.env.ComfyRainAPI.Export()
+
+	local v = H.world()
+	v:slash("import " .. text)
+	for _, k in ipairs({ "weather", "intensity", "scale", "volume", "channel",
+	                     "timeMode", "timeFixed", "sound", "enabled" }) do
+		eq(tostring(v:db()[k]), tostring(w:db()[k]), k .. " survived the trip")
+	end
+end)
+
+it("takes a capitalised value exactly as the sender wrote it", function()
+	-- /comfy lowercases what it is given, because every other command wants
+	-- that. channel=Ambience is not every other command, so import is handed
+	-- the untouched argument - and the enum is recovered by name as well, so
+	-- the setting survives either way.
+	local w = H.world()
+	w:slash("channel sfx")
+	w:slash("import ComfyRain1:channel=Ambience")
+	eq(w:db().channel, "Ambience", "the capital survived")
+end)
+
+it("reads a profile that something else lowercased on the way", function()
+	-- Discord, forums and chat all mangle case, and refusing a correct paste
+	-- over a capital letter is a bug the player cannot diagnose.
+	local w = H.world()
+	w:slash("channel sfx")
+	w:slash("import comfyrain1:channel=ambience;weather=snow")
+	eq(w:db().channel, "Ambience", "the canonical spelling is recovered")
+	eq(w:db().weather, "snow", "and the rest of it still applied")
+end)
+
+it("refuses a string that is not ours, and says what it was", function()
+	local w = H.world()
+	w:slash("snow")
+	w.mock.printed = {}
+	w:slash("import WeakAuras:abc123")
+
+	eq(w:db().weather, "snow", "nothing was touched")
+	gt(#w.mock.printedMatching("WeakAuras"), 0,
+		"and it named the tag it found, so a truncated paste is fixable")
+end)
+
+it("cannot be made to set anything a profile does not own", function()
+	-- The safety property. Import is restricted to the section keys, coerced to
+	-- the type DEFAULTS declares, and then sanitised, so the worst a hostile
+	-- string can do is set rain to heavy.
+	local w = H.world()
+	local before = w:db().migrated
+	w:slash("import ComfyRain1:minimapAngle=0;migrated=0;scale=99;weather=goats")
+
+	eq(w:db().minimapAngle, 196, "furniture is not a setting a stranger can move")
+	eq(w:db().migrated, before, "and neither is bookkeeping")
+	near(w:db().scale, 1.5, 1e-9, "an out-of-range number is clamped, not taken")
+	eq(w:db().weather, "rain", "and an invented enum falls back to the default")
+end)
+
+it("prints the string to chat when the window did not load", function()
+	-- A client that failed to build the panel still has to be able to share.
+	local w = H.world()
+	w.env.ComfyRainAPI.share = nil
+	w.mock.printed = {}
+	w:slash("share")
+	gt(#w.mock.printedMatching("ComfyRain1:"), 0, "the string went to chat instead")
 end)
