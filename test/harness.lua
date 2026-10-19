@@ -84,6 +84,15 @@ end
 function H.world(opts)
 	opts = opts or {}
 
+	-- Every world starts from the same seed unless a spec sets its own after
+	-- this call. The addon is full of deliberate jitter - lightning intervals,
+	-- gust phase, bed relaunch offsets - and specs that assert "a strike
+	-- happened within 200 seconds" are sampling a log-normal with a 3.2x
+	-- ceiling, so an unseeded suite fails a few percent of the time on code
+	-- that is perfectly correct. A fixed seed makes a red CI run mean
+	-- something. Specs that need a different draw reseed themselves.
+	math.randomseed(20261019)
+
 	package.loaded[prefix .. "wowmock"] = nil
 	local mock = require(prefix .. "wowmock")
 	mock.reset(opts)

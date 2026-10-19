@@ -139,6 +139,44 @@ it("muffles the bed indoors instead of killing it, and restores it outside", fun
 	gt(loud, 0.8, "and comes back up outdoors")
 end)
 
+it("ducks the bed on the doorstep, not at the next relaunch", function()
+	-- Reported from live play: hearthed to Stormwind, walked into the inn, and
+	-- the rain stayed at full volume. The spec above hid this, because it ran
+	-- `/dusk heavy` to "force a relaunch so a new gain is computed" - and the
+	-- relaunch is the entire thing under test. A player walking through a door
+	-- types nothing. Without one, the indoor gain was not applied until the bed
+	-- looped on its own, which is up to 30 seconds for rain and 50 for snow.
+	local w = H.world()
+	w:advance(0.5)
+
+	local from = #w.mock.sounds
+	w.mock.state.indoors = true
+	w:advance(3.0)                 -- past ENTER_IN, no slash command at all
+
+	local played = playsOf(w.mock, from)
+	gt(#played, 0, "stepping indoors relaunched the bed by itself")
+	for _, s in ipairs(played) do
+		if s.volumeOverride then
+			lt(s.volumeOverride, 0.4, "and the new clip is quiet")
+		end
+	end
+end)
+
+it("rebuilds the bed after a loading screen", function()
+	-- A loading screen stops every sound the client is playing, underneath the
+	-- addon: no event, no error, the handles simply go quiet. The Lua side
+	-- survives it intact, so bedSlot.ticker is still there and Refresh used to
+	-- conclude the bed was running and leave it alone. Hearth into a city
+	-- during rain and the rain was silent until the next natural relaunch.
+	local w = H.world()
+	w:advance(2.0)
+
+	local from = #w.mock.sounds
+	w.mock.fire("PLAYER_ENTERING_WORLD")
+	gt(#playsOf(w.mock, from), 0, "the bed starts again on the far side")
+	eq(#w.mock.errors, 0, "errors")
+end)
+
 it("indoors off still silences the bed completely", function()
 	local w = H.world()
 	w:slash("indoors off")

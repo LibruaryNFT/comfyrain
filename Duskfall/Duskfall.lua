@@ -279,7 +279,10 @@ local lastFacing, turnDelta, runSpeed = nil, 0, 0
 local bedSlot   = { handles = {} }
 local underSlot = { handles = {} }
 local windSlot  = { handles = {} }
-local bedFallback, loopedKey = false, nil
+-- loopedKey is what the running bed is a loop OF; bedIndoor is how loud it was
+-- told to be. Both have to be compared before deciding the bed is current,
+-- because volumeOverride is fixed at play time - see BedVolume.
+local bedFallback, loopedKey, bedIndoor = false, nil, nil
 local lightningTimer
 local appliedTextures
 local drift = 0
@@ -1127,6 +1130,7 @@ local function StopBed()
 	SlotStop(windSlot)
 	if underSlot.start then underSlot.start:Cancel() underSlot.start = nil end
 	loopedKey = nil
+	bedIndoor = nil
 end
 
 local function StartBed()
@@ -1156,6 +1160,7 @@ local function StartBed()
 
 	if Preset().wind then PlayWindClip() end
 	loopedKey = db.weather .. "/" .. db.intensity
+	bedIndoor = IndoorFactor()
 end
 
 --------------------------------------------------------------------------------
@@ -1266,7 +1271,16 @@ function Duskfall_Refresh()
 	ApplyAlphas()
 
 	if want and db.sound then
-		if not bedSlot.ticker or loopedKey ~= db.weather .. "/" .. db.intensity then
+		-- bedIndoor is checked alongside loopedKey, and leaving it out is why
+		-- walking into an inn did not quieten the rain. volumeOverride is set
+		-- once, at play time, so the gain of a clip that is already running
+		-- cannot be changed - the only way to apply the indoor duck is to
+		-- relaunch. Without this the duck waited for the next natural relaunch,
+		-- which is up to 30 seconds for rain and 50 for snow, by which point
+		-- the player has usually walked back out again.
+		if not bedSlot.ticker
+		   or loopedKey ~= db.weather .. "/" .. db.intensity
+		   or bedIndoor ~= IndoorFactor() then
 			StartBed()
 		end
 	else
@@ -1495,6 +1509,22 @@ local function HandleSlash(input, source)
 			msg("Probe.lua is not installed.")
 		end
 		return
+	elseif cmd == "where" then
+		-- Two API calls and what the addon concluded from them. This exists
+		-- because IsIndoors() and IsOutdoors() are not complements and the
+		-- third state - neither one true - is the whole difficulty: it is a
+		-- real awning in the open world and it may also be an open street in a
+		-- city built as one big WMO. Those want opposite answers and no amount
+		-- of reading the source settles which this client reports where.
+		-- Type this inside and then outside and the question is answered.
+		local function yn(v) return v and "|cff66ff66yes|r" or "|cffff6666no|r" end
+		msg(string.format("IsIndoors %s  IsOutdoors %s  -> %s",
+			yn(IsIndoors()), yn(IsOutdoors()),
+			Sheltered() and "SHELTERED" or "open sky"))
+		msg(string.format("addon state: %s, effect at |cffffd100%d%%|r (mode %s)",
+			indoorsNow and "indoors" or "outdoors",
+			math.floor(IndoorFactor() * 100 + 0.5), IndoorMode()))
+		return
 	elseif cmd == "calib" or cmd == "calibrate" then
 		if arg == "off" then
 			CalibStop()
@@ -1640,6 +1670,19 @@ boot:SetScript("OnEvent", function(_, event, arg1)
 		Refresh()
 	else
 		if not db then return end
+
+		-- A loading screen stops every sound the client is playing, and it does
+		-- it below us: no event, no error, the handles simply stop making
+		-- noise. The Lua side survives it untouched, so bedSlot.ticker is still
+		-- there and Refresh concludes the bed is already running and leaves it
+		-- alone. Result: hearth into a city during rain and the rain is silent
+		-- until the ticker's next relaunch, which is up to 30 seconds for rain
+		-- and 50 for snow. Reported from live play after a hearth to Stormwind.
+		--
+		-- Tearing the bed down first is what makes Refresh rebuild it, rather
+		-- than adding a second way to start one.
+		if event == "PLAYER_ENTERING_WORLD" then StopBed() end
+
 		indoorsNow = Sheltered()
 		indoorsSince = nil
 		Refresh()
