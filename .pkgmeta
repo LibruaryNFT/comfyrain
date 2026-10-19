@@ -1,0 +1,41 @@
+# BigWigs packager manifest. https://github.com/BigWigsMods/packager
+package-as: Duskfall
+
+# The packager copies the whole repo into .release/Duskfall/, but this repo
+# keeps the addon one level down in Duskfall/, so without this the player would
+# unzip to Interface/AddOns/Duskfall/Duskfall/ and the game would find nothing.
+# This lifts the inner folder up to become the addon folder itself.
+move-folders:
+    Duskfall/Duskfall: Duskfall
+
+enable-nolib-creation: no
+
+# Everything here is a developer tool, a research artifact or a build input.
+# None of it belongs in a player's AddOns folder, and the markdown alone is a
+# meaningful share of the download.
+#
+# The generated .tga and .ogg assets are deliberately NOT listed: they are
+# gitignored, so they are not in the checkout at all. The release workflow runs
+# the build scripts to place them inside Duskfall/ before the packager runs,
+# and then asserts they are there - because the failure mode if that step is
+# ever dropped is not a broken build, it is a zip that installs cleanly and
+# has no rain and no sound.
+ignore:
+    - .github
+    - build
+    - test
+    - tools
+    - listfile
+    - probe-results
+    - install.sh
+    - RESUME.md
+    - consult-prompt-visual-quality.md
+    - dr-prompt.md
+    - dr-prompt-product.md
+    - dr-prompt-name-and-scope.md
+    - dr-prompt-is-this-worth-building.md
+    - Duskfall/Probe.lua
+
+manual-changelog:
+    filename: CHANGELOG.md
+    markup-type: markdown

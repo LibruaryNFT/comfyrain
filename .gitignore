@@ -1,5 +1,17 @@
-build/rain-preview.png
+# Generated art and audio. The scripts in build/ are the source of truth and
+# their output is deterministic, so the binaries stay out of history.
+#
+# Consequence worth knowing before you touch the release workflow: the BigWigs
+# packager skips anything git is ignoring, so building these into Duskfall/ is
+# NOT enough to get them into the zip. The workflow force-adds them. Dropping
+# that step produces a release that installs cleanly with no rain and no sound.
 *.tga
 *.ogg
+build/rain-preview.png
+
+# Packager output.
+.release/
+
+# Local research artifacts, never committed.
 listfile/
 probe-results/

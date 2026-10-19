@@ -103,6 +103,52 @@ it("derives horizontal tiling from the real aspect ratio", function()
 	near(n[2] - n[1], 3.0 * (1920 / 1080), 1e-6, "far tilesX at 16:9")
 end)
 
+it("keeps drops the same shape from 4:3 to 32:9", function()
+	-- The invariant underneath the tile counts, stated once so it holds for
+	-- resolutions nobody here owns. A drop is the right shape when the tiles
+	-- per screen on each axis are in the same ratio as the screen itself; if
+	-- that ever stops being true the rain is stretched or squashed, which is
+	-- the kind of thing only the person with the odd monitor ever reports.
+	local sizes = {
+		{ 1024,  768, "4:3" },
+		{ 1280, 1024, "5:4" },
+		{ 1920, 1080, "16:9" },
+		{ 2560, 1080, "21:9" },
+		{ 5120, 1440, "32:9" },
+		{ 3840, 2160, "4K" },
+	}
+	for _, s in ipairs(sizes) do
+		local w = H.world({ width = s[1], height = s[2] })
+		w:advance(0.1)
+		for name, tex in pairs(w:layers()) do
+			local c = tex.texCoord
+			local tilesX, tilesY = c[2] - c[1], c[4] - c[3]
+			gt(tilesY, 0, s[3] .. " " .. name .. " has vertical tiling")
+			near(tilesX / tilesY, s[1] / s[2], 1e-6,
+				s[3] .. " " .. name .. " drop shape")
+		end
+		eq(#w.mock.errors, 0, "errors at " .. s[3])
+	end
+end)
+
+it("covers the whole screen with every fullscreen quad", function()
+	-- The gloom, whiteout and grade quads are flat colour over the entire
+	-- view. A quad anchored by size rather than by its parent's edges leaves a
+	-- visible unlit band on a resolution the author never ran, and there is no
+	-- way to see that from here except to assert the anchoring.
+	local w = H.world({ width = 5120, height = 1440 })
+	w:advance(0.1)
+	local overlay, tod = w:overlay(), w:tod()
+	eq(overlay._anchor, w.env.WorldFrame, "overlay fills WorldFrame")
+	eq(tod._anchor, w.env.WorldFrame, "grade fills WorldFrame")
+	for _, t in ipairs(overlay._textures) do
+		ok(t._anchor ~= nil, "every overlay texture is anchored to its parent")
+	end
+	for _, t in ipairs(tod._textures) do
+		ok(t._anchor ~= nil, "every grade texture is anchored to its parent")
+	end
+end)
+
 it("scrolls every layer downwards, the near one fastest", function()
 	local w = H.world()
 	w:advance(0.2)

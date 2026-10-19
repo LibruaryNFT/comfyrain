@@ -888,16 +888,79 @@ and both were real.
 
 Everything here is mechanical. None of it needs a running client.
 
-1. **Default the MOD darken quad to off.** One line, and it is the single change the fog
-   backlash argues for.
-2. `README.md` and an MIT `LICENSE`.
-3. TOC fixes: a real `## Author`, `## Version`, an `## IconTexture`, and drop `Probe.lua`
-   from the shipped file list.
-4. `.pkgmeta` plus a release workflow pinned to `BigWigsMods/packager@v2.6.1`. **The
-   workflow must run `build/make_*.py` before packaging** — the `.tga` and `.ogg` files are
-   gitignored, so a naive package ships with no rain and no sound.
-5. Public GitHub repo, and a tag.
-6. One 10-second looping GIF for CurseForge, Reddit and Discord.
+**Done 2026-10-18:**
+
+2. `README.md` (player-facing, states the screen-space limits up front) and an MIT `LICENSE`
+   that says in words that Blizzard's sounds are played by FileDataID, not redistributed.
+3. TOC: real `## Author`, `## Version: @project-version@`, `## IconTexture`, `X-Website`,
+   `X-License`, `X-Category`. `Probe.lua` is wrapped in `#@do-not-package@` so it stays
+   installed for local work and never reaches a player.
+4. `.pkgmeta`, `CHANGELOG.md`, `.github/workflows/release.yml` (pinned
+   `BigWigsMods/packager@v2.6.1`) and `.github/workflows/ci.yml` (luac syntax check, the
+   156-spec suite, and a build of all four asset generators).
+   - `build/make_icon_tga.py` is new: a 64x64 dusk-and-rain icon, checked legible at 20px.
+   - `install.sh` now substitutes `@project-version@` with `dev-<sha>` and builds the icon.
+
+**The packaging finding, which cost a silently broken release.** The BigWigs packager
+**honours `.gitignore`**. Running `build/make_*.py` into `Duskfall/` before it is therefore
+*not* enough: the assets sit on disk, every one of them is skipped, and the zip installs
+perfectly with no rain and no sound. This was caught only by downloading the pinned packager
+and running it locally, then unzipping the artifact. Two consequences, both load-bearing:
+
+- The workflow `git add -f`s the `.tga`/`.ogg` files into the throwaway CI checkout before
+  packaging. That force-add is the entire mechanism by which assets reach the archive.
+- The verify step **unzips the artifact** and asserts 11 non-empty files, no `Probe.lua`, and
+  no unsubstituted `@project-version@`. Checking the working directory would have passed on
+  the broken build, because the directory was never the thing that was wrong.
+
+Verified locally end to end: `move-folders` lifts `Duskfall/Duskfall` to `Duskfall`, the
+version token substitutes, `Probe.lua` is stripped, flavour auto-detects as `forever` from
+`## Interface: 16001`, zip is 716K.
+
+**Item 1 was dropped on evidence, not forgotten.** "Default the MOD darken quad to off" was
+tried — `gloom = 0.6` — and reverted. The preset curve under that multiplier is not a guess:
+the 2026-10-15 screenshot sweep measured normal rain darkening the scene by 0.7% and *raised*
+gloom from 0.20 to 0.38 to compensate, because the light-coloured rain sheets add back more
+than the old curve removed. 0.6 re-opens the exact bug that sweep closed, and it failed the
+spec that pins it. The murk the reports object to lives at `heavy`/`monsoon`, which a player
+picks deliberately, on an effect they turned on, with a Darkness slider in the window. That
+is consent; Blizzard's undisableable fog was not. The reasoning is in a comment on `DEFAULTS`
+so it is not re-tried blind.
+
+**Still open:**
+
+5. Public GitHub repo at `LibruaryNFT/duskfall`, and a tag.
+6. One 10-second looping GIF for CurseForge, Reddit and Discord. `README.md` already links
+   `docs/preview.gif`, which does not exist yet.
+7. The CurseForge project itself, then `## X-Curse-Project-ID` in the TOC and a `CF_API_KEY`
+   repo secret. The workflow publishes to GitHub without it rather than failing, so a tag
+   pushed before the project exists still produces a downloadable release.
+
+### B2. Hardening, 2026-10-18 — 150 specs to 156
+
+Not features. Each one is a crash a player could hit that no amount of play-testing here
+would find.
+
+- **A saved profile is now sanitised, not merely filled.** The old merge was
+  `if db[k] == nil then db[k] = v end`: correct for an absent key, and it does nothing at all
+  for a present key of the wrong type. A `DuskfallDB` carrying `scale = "loud"` — a truncated
+  file, a hand edit, a migration from some future version — loaded without complaint and then
+  threw inside the per-frame arithmetic. That is an error **every frame, forever**, fixable
+  only by deleting a file the player does not know exists. `SanitiseProfile()` type-checks
+  every key against `DEFAULTS`, clamps numerics to the **slash parser's own ranges** rather
+  than a second invented set, validates `weather`/`channel`/`timeMode`/`indoors` against
+  their valid sets, and rewrites the legacy boolean `indoors`. A numeric string like `"0.5"`
+  is kept, because that is a value the player meant.
+- **`DuskfallDB` itself is type-tested.** It was `DuskfallDB or {}`, and a half-written file
+  reads back as a string, which is truthy. We already guarded the *old* AlwaysRain table that
+  way; ours was no less likely to be the truncated one.
+- **Drop shape is pinned from 4:3 to 32:9**, plus 5:4, 16:9, 21:9 and 4K, as the invariant
+  `tilesX / tilesY == aspect` rather than six hard-coded numbers.
+- **Every fullscreen quad is asserted anchored to its parent**, which is the only part of
+  "check the quads at 21:9" that is answerable without a client.
+
+Every new spec was mutation-checked: each one was confirmed to FAIL against the code it
+replaced. A green spec that cannot go red is the thing that let the indoor bug ship.
 
 ### C. the author's hands — client-gated, expires 21 October
 
@@ -913,7 +976,10 @@ can be done by the agent.
   precipitation but not the new lightning.
 - Fully exit and relaunch to answer the TOC flavour question, staging the flavour probe into
   `_forever_` rather than `_classic_beta_`.
-- Check the fullscreen quads at 21:9 and at several `UIParent:GetScale()` values.
+- Check the fullscreen quads at 21:9 and at several `UIParent:GetScale()` values. Partly
+  covered headless now (anchoring and drop shape are pinned in specs), but the scale half
+  is not testable here: the overlay is parented to `WorldFrame`, which the mock cannot scale,
+  so a spec for it would only be asserting the mock. Eyeball it.
 
 ### The kill number
 

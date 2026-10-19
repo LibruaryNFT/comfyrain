@@ -228,7 +228,24 @@ local DEFAULTS = {
 	intensity = "normal",
 	scale     = 1.0,       -- multiplies every layer's alpha
 	speed     = 1.0,       -- multiplies fall speed
-	gloom     = 1.0,       -- multiplies the darkening; 0 disables it
+	-- Multiplies the preset's darkening; 0 disables it, and the slider goes to 2.
+	--
+	-- Stays at 1.0, and that is a decision rather than an omission. The three
+	-- product reports all found a real backlash against screen murk in Forever
+	-- (eye strain, headaches, Blizzard pulling `/console volumeFog 0` as
+	-- "unintended"), which argued for lowering this. It was lowered to 0.6 and
+	-- then put back, because the preset curve underneath it is not a guess: the
+	-- screenshot sweep on 2026-10-15 measured normal rain darkening the scene by
+	-- 0.7% and the gloom was RAISED to compensate, since the rain sheets are
+	-- light-coloured and add back more than the old curve removed. A 0.6
+	-- multiplier puts normal rain back under that measured threshold - it
+	-- re-opens the exact bug the sweep closed.
+	--
+	-- The murk the reports describe lives at `heavy` and `monsoon`, which are
+	-- presets a player deliberately picks, on an effect they deliberately turned
+	-- on, with a Darkness slider in the settings window. That is consent, and it
+	-- is a different thing from fog nobody asked for and cannot disable.
+	gloom     = 1.0,
 	gust      = 1.0,       -- multiplies how hard the wind gusts; 0 is dead calm
 	sound     = true,
 	volume    = 1.0,       -- 0..1 over the weather bed only; 0 is silent
@@ -307,6 +324,68 @@ local function NormaliseIntensity()
 	if W().presets[db.intensity] then return end
 	db.intensity = (db.intensity == "monsoon" or db.intensity == "blizzard")
 		and W().order[#W().order] or "normal"
+end
+
+-- Everything the player can set is also something a SavedVariables file can
+-- hand back as the wrong type, and filling in the missing keys is not the same
+-- as trusting the ones that are there.
+--
+-- The merge used to be `if db[k] == nil then db[k] = default end`, which is
+-- correct for an absent key and does nothing at all for a present but wrong
+-- one. A profile carrying `scale = "heavy"` - a half-written file, a hand edit,
+-- a bad migration from some future version of this addon - loads without
+-- complaint and then throws inside ApplyAlphas on the next frame, which means
+-- an error on every frame forever and an addon the player can only fix by
+-- deleting a file they do not know exists.
+--
+-- Clamping to the same ranges the slash parser uses, rather than inventing a
+-- second set, so a value typed and a value loaded can never disagree.
+local NUMERIC_RANGE = {
+	scale        = { 0,   1.5 },
+	speed        = { 0.2, 3   },
+	gloom        = { 0,   2   },
+	gust         = { 0,   2   },
+	volume       = { 0,   1   },
+	timeStrength = { 0,   1   },
+	timeOffset   = { -23, 23  },
+	timeFixed    = { 0,   23  },
+	minimapAngle = { 0,   360 },
+}
+
+local ENUM = {
+	weather  = { rain = true, snow = true },
+	channel  = { Ambience = true, SFX = true, Master = true,
+	             Music = true, Dialog = true },
+	timeMode = { off = true, ["local"] = true, offset = true, fixed = true },
+	indoors  = { off = true, dim = true, on = true },
+}
+
+local function SanitiseProfile()
+	for k, default in pairs(DEFAULTS) do
+		local v = db[k]
+		local range = NUMERIC_RANGE[k]
+		if v == nil then
+			db[k] = default
+		elseif range then
+			-- tonumber, not a type test: a number stored as "0.75" is a value
+			-- the player meant, and there is no reason to throw it away.
+			local n = tonumber(v)
+			db[k] = n and math.max(range[1], math.min(range[2], n)) or default
+		elseif ENUM[k] then
+			if k == "indoors" and type(v) == "boolean" then
+				-- indoors was a two-state toggle before it was three. See
+				-- IndoorMode, which still answers to the old booleans.
+				db[k] = v and "on" or "dim"
+			elseif not (type(v) == "string" and ENUM[k][v]) then
+				db[k] = default
+			end
+		elseif type(v) ~= type(default) then
+			db[k] = default
+		end
+	end
+	-- Deliberately last, and deliberately not in ENUM: which intensities exist
+	-- depends on the weather, which the loop above may just have corrected.
+	NormaliseIntensity()
 end
 
 --------------------------------------------------------------------------------
@@ -1491,7 +1570,11 @@ boot:SetScript("OnEvent", function(_, event, arg1)
 		-- Wrapped, because an old table that is malformed must cost the user their
 		-- settings and nothing else. Bricking the addon during a rename is the
 		-- stupidest available way to lose somebody on day one.
-		DuskfallDB = DuskfallDB or {}
+		-- Type test, not `or {}`: a SavedVariables file truncated by a client
+		-- crash can read back as a string or a number, and those are both
+		-- truthy. We already guard the OLD table that way four lines down;
+		-- our own is no less likely to be the half-written one.
+		if type(DuskfallDB) ~= "table" then DuskfallDB = {} end
 		if not DuskfallDB.migrated and type(AlwaysRainDB) == "table" then
 			local ok = pcall(function()
 				for k, v in pairs(AlwaysRainDB) do
@@ -1504,9 +1587,7 @@ boot:SetScript("OnEvent", function(_, event, arg1)
 		end
 
 		db = DuskfallDB
-		for k, v in pairs(DEFAULTS) do
-			if db[k] == nil then db[k] = v end
-		end
+		SanitiseProfile()
 		BuildOverlay()
 
 		SLASH_DUSKFALL1 = "/dusk"

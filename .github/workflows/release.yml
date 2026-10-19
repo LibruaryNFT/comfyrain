@@ -1,0 +1,104 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # The packager reads tags to derive @project-version@, and a shallow
+          # clone has none of them.
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install asset build dependencies
+        run: python -m pip install --quiet numpy Pillow
+
+      # The .tga and .ogg files are gitignored: they are deterministic outputs
+      # of these scripts, so the scripts are the source of truth and the
+      # binaries stay out of git history. A package built straight from the
+      # checkout therefore has no art and no audio.
+      - name: Build the addon assets
+        run: |
+          python build/make_rain_tga.py   Duskfall
+          python build/make_snow_tga.py   Duskfall
+          python build/make_rain_audio.py Duskfall
+          python build/make_icon_tga.py   Duskfall
+
+      # This is not cosmetic and it is not optional.
+      #
+      # The packager skips any file git is ignoring, so building the assets is
+      # NOT enough on its own: the first run of this workflow produced a zip
+      # that installed perfectly and contained no rain and no sound. Force-add
+      # makes them tracked in the throwaway CI checkout, which is the whole
+      # mechanism by which they reach the archive.
+      #
+      # rain-v1..v5.ogg are deliberately not added. They are gain-staging
+      # variants the build emits for comparison, not shipping assets.
+      - name: Make the generated assets visible to the packager
+        run: |
+          git add -f Duskfall/*.tga Duskfall/rain.ogg Duskfall/thunder.ogg
+          git -c user.email=ci@local -c user.name=ci commit -qm "ci: stage built assets"
+
+      - name: Build the package
+        uses: BigWigsMods/packager@v2.6.1
+        with:
+          args: -d
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # Check the ARTIFACT, not the working directory. The directory having the
+      # files is what was true the last time this shipped empty - the assets
+      # were all present on disk and every one of them was ignored on the way
+      # into the zip. The only thing worth asserting is what a player unzips.
+      - name: Verify the zip a player would download
+        run: |
+          zip=$(ls .release/*.zip | head -1)
+          echo "checking $zip"
+          unzip -o -q "$zip" -d /tmp/verify
+          missing=0
+          for f in Duskfall.lua UI.lua Duskfall.toc icon.tga \
+                   rain-far.tga rain-near.tga \
+                   snow-far.tga snow-near.tga snow-gale.tga \
+                   rain.ogg thunder.ogg; do
+            if [ ! -s "/tmp/verify/Duskfall/$f" ]; then
+              echo "::error::$f is missing from the release zip"
+              missing=1
+            fi
+          done
+          # Probe.lua is a developer tool and must never reach a player.
+          if [ -e /tmp/verify/Duskfall/Probe.lua ]; then
+            echo "::error::Probe.lua leaked into the release zip"
+            missing=1
+          fi
+          # An unsubstituted token here means the packager did not see a tag,
+          # and the addon list would show a literal @project-version@.
+          if grep -q '@project-version@' /tmp/verify/Duskfall/Duskfall.toc; then
+            echo "::error::version token was not substituted"
+            missing=1
+          fi
+          [ "$missing" -eq 0 ] || exit 1
+          echo "zip contents:"
+          unzip -l "$zip"
+
+      - name: Publish the release
+        uses: BigWigsMods/packager@v2.6.1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Unset until the CurseForge project exists. The packager skips the
+          # CurseForge upload when it is absent and still publishes to GitHub,
+          # so a tag pushed before the project is created still produces a
+          # downloadable release rather than failing.
+          CF_API_KEY: ${{ secrets.CF_API_KEY }}
