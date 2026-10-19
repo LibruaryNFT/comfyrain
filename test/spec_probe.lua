@@ -8,7 +8,7 @@
 -- broken is worse than no probe, and that is the exact failure mode these pin.
 
 local H = require("harness")
-local it, eq, ok, contains = H.it, H.eq, H.ok, H.contains
+local it, eq, ok, contains, gt = H.it, H.eq, H.ok, H.contains, H.gt
 
 local RAIN = 538981
 local THUNDER = 838830
@@ -565,4 +565,46 @@ it("will not call a protected CVar 'no' without proving a write can land", funct
 	dead:slash("probe")
 	eq(results(dead).weather_cvar.verdict, "unknown",
 		"but a client where nothing moves is an unproven instrument, not an answer")
+end)
+
+it("lets a wrong answer about the rain be corrected", function()
+	-- The first real answer this got back was "yes" from somebody who had not
+	-- heard anything: the clip plays once, for six seconds, in the middle of a
+	-- twelve-line dump, which asks you to listen at the exact moment you are
+	-- reading. pendingEars was then cleared, and a second attempt was refused
+	-- with "nothing is waiting on your ears" - locking in the wrong answer to
+	-- the one question in this probe that nothing else can ever check.
+	local w = H.world()
+	w:slash("probe")
+	w:slash("probe heard yes")
+	local r = results(w).ambience_musicoff
+	eq(r.verdict, "yes", "the first answer was taken")
+
+	w:slash("probe heard no")
+	r = results(w).ambience_musicoff
+	eq(r.verdict, "no", "and the second one replaces it")
+	gt(#w.mock.printedMatching("changed from"), 0, "saying that it changed")
+	-- One answer in the record, not a pile of them.
+	local n = 0
+	for _ in r.detail:gmatch("player heard it") do n = n + 1 end
+	eq(n, 1, "exactly one answer stored")
+end)
+
+it("replays the listening test on its own, with a warning first", function()
+	-- The point of the solo run is that nothing else is printing and the
+	-- question arrives before the sound does.
+	local w = H.world()
+	w:slash("probe ears")
+	gt(#w.mock.printedMatching("Listening test"), 0, "it announces itself")
+	gt(#w.mock.printedMatching("three seconds"), 0, "and warns before playing")
+	local before = #w.mock.sounds
+	w:advance(4)
+	gt(#w.mock.sounds, before, "the clip actually played, after the warning")
+	gt(#w.mock.printedMatching("LISTENING NOW"), 0, "and said so when it did")
+end)
+
+it("says what to do when nothing has asked your ears yet", function()
+	local w = H.world()
+	w:slash("probe heard yes")
+	gt(#w.mock.printedMatching("probe ears"), 0, "points at the retry")
 end)

@@ -114,21 +114,52 @@ end
 -- player's ears, so this ends in "ask".
 --------------------------------------------------------------------------------
 
-local function CheckAmbienceWithMusicOff()
+-- solo = run only this check, with a countdown and nothing else printing.
+--
+-- The first version played the clip once, for six seconds, in the middle of a
+-- twelve-line dump of every other check's output. That asks somebody to listen
+-- carefully at the exact moment they are reading, and the first real answer it
+-- got back was wrong in the direction that matters: "yes" from someone who had
+-- not heard anything. This is the single assumption the ambience-led product
+-- rests on, so a wrong yes here is worse than no answer at all.
+local function CheckAmbienceWithMusicOff(solo)
 	local before = GetCVar("Sound_EnableMusic")
 	SetCVar("Sound_EnableMusic", "0")
-	local willPlay, handle = PlaySoundFile(RAIN, "Ambience")
-	record("ambience_musicoff", willPlay and "ask" or "no",
-		string.format("willPlay=%s handle=%s, music was %s. |cffffd100Do you hear rain? /comfy probe heard yes||no|r",
-			tostring(willPlay), tostring(handle), tostring(before)))
-	store()
-	P.pendingEars = "ambience_musicoff"
-	C_Timer.After(6, function()
-		pcall(function()
-			if handle then StopSound(handle, 500) end
-			SetCVar("Sound_EnableMusic", before or "1")
+
+	local function play()
+		local willPlay, handle = PlaySoundFile(RAIN, "Ambience")
+		record("ambience_musicoff", willPlay and "ask" or "no",
+			string.format("willPlay=%s handle=%s, music was %s.%s",
+				tostring(willPlay), tostring(handle), tostring(before),
+				solo and "" or
+				" |cffffd100Do you hear rain? /comfy probe heard yes||no|r"))
+		store()
+		P.pendingEars = "ambience_musicoff"
+		if solo then
+			msg("|cffffd100>>> LISTENING NOW <<<|r rain should be playing, " ..
+			    "for about 10 seconds.")
+		end
+		C_Timer.After(solo and 10 or 6, function()
+			pcall(function()
+				if handle then StopSound(handle, 500) end
+				SetCVar("Sound_EnableMusic", before or "1")
+			end)
+			if solo then
+				msg("Stopped. |cffffd100/comfy probe heard yes|r or " ..
+				    "|cffffd100/comfy probe heard no|r - whichever it was. " ..
+				    "You can change your mind by typing the other one.")
+			end
 		end)
-	end)
+	end
+
+	if not solo then return play() end
+
+	-- Three seconds of nothing, so the question lands before the sound does.
+	msg("|cff66ff66Listening test.|r Music is off. Turn your speakers up and " ..
+	    "stop moving.")
+	msg("Rain will play in |cffffd100three seconds|r. The only thing being " ..
+	    "asked is whether you hear it at all.")
+	C_Timer.After(3, play)
 end
 
 --------------------------------------------------------------------------------
@@ -897,14 +928,42 @@ function ComfyRain_Probe(arg)
 		RunAll()
 	elseif sub == "report" then
 		Report()
+	-- Replay the listening test on its own. The clip is six seconds long and
+	-- the first run buries the question in everything else the probe printed,
+	-- so "I answered before I was listening" is the normal case here, not an
+	-- edge one.
+	elseif sub == "ears" or sub == "listen" then
+		try("ambience_musicoff", function() CheckAmbienceWithMusicOff(true) end)
 	elseif sub == "heard" then
 		store()
-		local id = P.pendingEars
-		if not id then msg("nothing is waiting on your ears right now.") return end
+		-- An answer can be changed. pendingEars is cleared once answered, and
+		-- the first version then refused with "nothing is waiting on your ears"
+		-- - which locks in the wrong answer to the one question in this probe
+		-- that nothing else can check. The recorded result is the thing that
+		-- matters, so a second answer overwrites the first.
+		local id = P.pendingEars or
+			(P.results["ambience_musicoff"] and "ambience_musicoff")
+		if not id then
+			msg("nothing has asked your ears yet. |cffffd100/comfy probe ears|r " ..
+			    "runs the listening test on its own.")
+			return
+		end
+		if rest ~= "yes" and rest ~= "y" and rest ~= "no" and rest ~= "n" then
+			msg("|cffffd100/comfy probe heard yes|r or |cffffd100/comfy probe heard no|r")
+			return
+		end
 		local heard = (rest == "yes" or rest == "y")
 		local r = P.results[id]
+		local was = r and r.detail and r.detail:match("%[player heard it: (%a+)%]")
+		-- Strip any previous answer rather than stacking a second one after it.
+		local detail = (r and r.detail or ""):gsub(
+			"%s*|cffffffff%[player heard it: %a+%]|r", "")
 		record(id, heard and "yes" or "no",
-			(r and r.detail or "") .. " |cffffffff[player heard it: " .. tostring(heard) .. "]|r")
+			detail .. " |cffffffff[player heard it: " .. tostring(heard) .. "]|r")
+		if was and was ~= tostring(heard) then
+			msg("changed from |cffffd100" .. was .. "|r. This one is the answer " ..
+			    "that counts; |cffffd100/comfy probe ears|r replays it again.")
+		end
 		P.pendingEars = nil
 	elseif sub == "3d" then
 		try("model_3d", function() Run3D() end)
@@ -952,7 +1011,8 @@ function ComfyRain_Probe(arg)
 	else
 		msg("|cffffd100/comfy probe|r, |cffffd100/comfy probe report|r, " ..
 		    "|cffffd100/comfy probe shots|r, |cffffd100/comfy probe 3d|r, " ..
-		    "|cffffd100/comfy probe heard yes||no|r, |cffffd100/comfy probe wipe|r")
+		    "|cffffd100/comfy probe heard yes||no|r, |cffffd100/comfy probe ears|r, " ..
+		    "|cffffd100/comfy probe wipe|r")
 	end
 end
 
