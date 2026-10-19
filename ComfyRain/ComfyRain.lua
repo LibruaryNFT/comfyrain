@@ -357,6 +357,24 @@ end
 --
 -- Clamping to the same ranges the slash parser uses, rather than inventing a
 -- second set, so a value typed and a value loaded can never disagree.
+-- Every number that comes from outside the addon - typed into the chat box,
+-- pasted in as a profile, read back off disk - arrives through here.
+--
+-- tonumber is not enough on its own. `tonumber("1e400")` is inf, not nil, and
+-- inf survives a clamp (`math.min(2, inf)` is 2) right up until something does
+-- arithmetic on it: `inf % 24` is nan, which is how /comfy time 1e400 used to
+-- put a nan in timeFixed, save it to disk, and grade the light to nothing on
+-- every login after that. nan is worse again, because every comparison against
+-- it is false, so it slips through a clamp written as min-then-max untouched.
+-- Found by the random walk in spec_sweep.lua, not by anybody typing it.
+local function Num(s)
+	local v = tonumber(s)
+	if not v then return nil end
+	if v ~= v then return nil end                     -- nan
+	if v == math.huge or v == -math.huge then return nil end
+	return v
+end
+
 local NUMERIC_RANGE = {
 	scale        = { 0,   1.5 },
 	speed        = { 0.2, 3   },
@@ -409,7 +427,7 @@ local function SanitiseProfile()
 		elseif range then
 			-- tonumber, not a type test: a number stored as "0.75" is a value
 			-- the player meant, and there is no reason to throw it away.
-			local n = tonumber(v)
+			local n = Num(v)
 			db[k] = n and math.max(range[1], math.min(range[2], n)) or default
 		elseif ENUM[k] then
 			if k == "indoors" and type(v) == "boolean" then
@@ -495,7 +513,7 @@ local function ImportProfile(text)
 			if type(default) == "boolean" then
 				pending[k] = (v == "1" or v:lower() == "true")
 			elseif type(default) == "number" then
-				pending[k] = tonumber(v)
+				pending[k] = Num(v)
 			elseif CANON_ENUM[k] then
 				pending[k] = CANON_ENUM[k][v:lower()]
 			else
@@ -1638,19 +1656,26 @@ end
 
 local function Help()
 	msg("commands:")
-	print("  |cffffd100/comfy|r - toggle on/off")
+	print("  |cffffd100/comfy ui|r - open the settings window, which has all of this in it")
+	print("  |cffffd100/comfy|r - toggle; |cffffd100/comfy on|r and |cffffd100/comfy off|r say which")
 	print("  |cffffd100/comfy rain||snow|r - which weather to draw")
 	print("  |cffffd100/comfy light||normal||heavy|r - intensity")
 	print("  |cffffd100/comfy monsoon|r, |cffffd100/comfy blizzard|r - the top of each, weather included")
+	print("  |cffffd100/comfy cycle|r - step up through the intensities, for a keybind")
 	print("  |cffffd100/comfy auto|r - match whatever the realm says the weather is here")
 	print("  |cffffd100/comfy alpha <0-1.5>|r - how visible it is")
 	print("  |cffffd100/comfy speed <0.2-3>|r - how fast it falls")
-	print("  |cffffd100/comfy dim <0-2>|r - how much it darkens the world (0 = off)")
+	print("  |cffffd100/comfy dim <0-2>|r - how much it darkens the world (0 = off, 2 = as dark as it goes)")
+	print("  |cffffd100/comfy gust <0-2>|r - how much the wind comes and goes (0 = dead calm)")
+	print("  |cffffd100/comfy volume <0-1>|r - how loud, on top of the game's own slider")
 	print("  |cffffd100/comfy time local|r - make it look like YOUR clock, not the realm's")
 	print("  |cffffd100/comfy time +9|r, |cffffd100/comfy time 21|r, |cffffd100/comfy time off|r")
 	print("  |cffffd100/comfy indoors on||off|r - draw it inside buildings too")
 	print("  |cffffd100/comfy sound on||off|r, |cffffd100/comfy thunder on||off|r (gusts, in snow)")
 	print("  |cffffd100/comfy channel Ambience||SFX||Master|r - which volume slider owns it")
+	print("  |cffffd100/comfy suppress on|r - mute the realm's OWN weather loop so only ours plays")
+	print("  |cffffd100/comfy zoom on||off|r - make the drops grow as the camera comes in")
+	print("  |cffffd100/comfy minimap on||off|r - the minimap button")
 	print("  |cffffd100/comfy stop|r - everything off, including the light, in one go")
 	print("  |cffffd100/comfy reset|r - back to defaults; |cffffd100reset look||sound||time|r for one part")
 	print("  |cffffd100/comfy share|r - a string to send someone; |cffffd100/comfy import|r to paste theirs")
@@ -1658,7 +1683,7 @@ local function Help()
 	print("  |cffffd100/comfy density|r - is the client even allowed to draw real weather?")
 	print("  |cffffd100/comfy watch on|r - shout when the game's OWN rain starts, then just play")
 	print("  |cffffd100/comfy probe|r - answer the client-gated questions before the beta dies")
-	print("  |cffffd100/comfy status|r")
+	print("  |cffffd100/comfy status|r, |cffffd100/comfy about|r")
 end
 
 -- source is "ui" when the settings window issued this rather than the player.
@@ -1726,11 +1751,11 @@ local function HandleSlash(input, source)
 				or "the light is back to the realm's own.")
 		end
 	elseif cmd == "alpha" then
-		local v = tonumber(arg)
+		local v = Num(arg)
 		if not v then msg("usage: /comfy alpha 0.75") return end
 		db.scale = math.max(0, math.min(1.5, v))
 	elseif cmd == "speed" then
-		local v = tonumber(arg)
+		local v = Num(arg)
 		if not v then msg("usage: /comfy speed 1.4") return end
 		db.speed = math.max(0.2, math.min(3, v))
 	elseif cmd == "time" then
@@ -1740,13 +1765,14 @@ local function HandleSlash(input, source)
 		elseif sub == "local" then
 			db.timeMode = "local"
 		elseif sub == "strength" then
-			local v = tonumber(rest)
+			local v = Num(rest)
 			if not v then msg("usage: /comfy time strength 0.7") return end
 			db.timeStrength = math.max(0, math.min(1, v))
 		elseif sub:match("^[+-]%d+%.?%d*$") then
-			db.timeMode, db.timeOffset = "offset", tonumber(sub)
-		elseif tonumber(sub) then
-			db.timeMode, db.timeFixed = "fixed", tonumber(sub) % 24
+			db.timeMode, db.timeOffset = "offset",
+				math.max(-23, math.min(23, Num(sub) or 0))
+		elseif Num(sub) then
+			db.timeMode, db.timeFixed = "fixed", Num(sub) % 24
 		else
 			msg("usage: |cffffd100/comfy time local|r (match your own clock), " ..
 			    "|cffffd100+9|r / |cffffd100-5|r (shift by hours), " ..
@@ -1757,11 +1783,11 @@ local function HandleSlash(input, source)
 		UpdateTimeOfDay()
 	-- "gloom" was the name until the rename; it still works and is not advertised.
 	elseif cmd == "dim" or cmd == "gloom" then
-		local v = tonumber(arg)
+		local v = Num(arg)
 		if not v then msg("usage: /comfy dim 0.5  (0 turns the darkening off)") return end
 		db.gloom = math.max(0, math.min(2, v))
 	elseif cmd == "gust" or cmd == "wind" then
-		local v = tonumber(arg)
+		local v = Num(arg)
 		if not v then msg("usage: /comfy gust 0.5  (0 is dead calm)") return end
 		db.gust = math.max(0, math.min(2, v))
 	elseif cmd == "suppress" then
@@ -1775,7 +1801,7 @@ local function HandleSlash(input, source)
 			and "suppressing the realm's own weather loops while ComfyRain is on."
 			or  "the realm's own weather loops are audible again.")
 	elseif cmd == "volume" or cmd == "vol" then
-		local v = tonumber(arg)
+		local v = Num(arg)
 		if not v then msg("usage: /comfy volume 0.5  (0 is silent)") return end
 		db.volume = math.max(0, math.min(1, v))
 		-- Gain is baked in at play time, so the running clips keep their old

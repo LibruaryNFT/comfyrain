@@ -279,8 +279,120 @@ function H.world(opts)
 		end
 	end
 
+	-- Everything the player can SEE, as one block of text.
+	--
+	-- Every other accessor above answers one question, which is right for a
+	-- spec that is about one thing and is why the Darkness ceiling survived 234
+	-- of them: no spec was wrong, and none of them was looking at the shape of
+	-- the whole surface. This is the second instrument. A committed golden file
+	-- of these blocks across the settings matrix turns "does it still look the
+	-- same" into a git diff, so a change to one preset cannot quietly move
+	-- another, and a change that is meant to move things has to be reviewed as
+	-- a number before it ships.
+	--
+	-- Base state only: no advance, so no gust phase and no lightning jitter.
+	-- Four decimals because these are all interpolations and the last bit of a
+	-- float is not a behaviour anybody is defending.
+	function w:snapshot()
+		local out = {}
+		local function n(v)
+			if type(v) ~= "number" then return tostring(v) end
+			return string.format("%.4f", v)
+		end
+		local function line(k, v) out[#out + 1] = k .. " = " .. v end
+
+		local o = self:overlay()
+		line("overlay.shown", tostring(o and o:IsShown() or false))
+		line("overlay.alpha", n(o and o:GetAlpha()))
+
+		local g = self:gloom()
+		line("gloom", g and (n(g.colour[1]) .. ", " .. n(g.colour[2]) ..
+			", " .. n(g.colour[3])) or "none")
+
+		local layers = self:layers()
+		for _, name in ipairs({ "mist", "far", "near" }) do
+			local t = layers[name]
+			if t then
+				local tint, tc = t.vertexColour, t.texCoord
+				line(name, n(t:GetAlpha()) ..
+					"  tex " .. tostring(t:GetTexture()) ..
+					"  blend " .. tostring(t.blend) ..
+					-- Where the sheet has scrolled to. Zero in every static
+					-- block, which is itself the claim that nothing moves
+					-- before time passes, and the whole payload of the motion
+					-- golden where time does.
+					(tc and ("  at " .. n(tc[1]) .. ", " .. n(tc[3])) or "  at none") ..
+					(tint and ("  tint " .. n(tint[1]) .. ", " .. n(tint[2]) ..
+						", " .. n(tint[3])) or ""))
+			else
+				line(name, "none")
+			end
+		end
+
+		local wo = self:whiteout()
+		line("whiteout", wo and n(wo:GetAlpha()) or "none")
+		local fl = self:flash()
+		line("flash", fl and n(fl:GetAlpha()) or "none")
+
+		local tod = self:tod()
+		line("curtain.shown", tostring(tod and tod:IsShown() or false))
+		local d, l = self:dim(), self:lift()
+		line("curtain.dim", (d and d.colour) and (n(d.colour[1]) .. ", " ..
+			n(d.colour[2]) .. ", " .. n(d.colour[3])) or "none")
+		line("curtain.lift", l and n(l:GetAlpha()) or "none")
+
+		return table.concat(out, "\n")
+	end
+
 	if opts.loaded ~= false then w:load() end
 	return w
+end
+
+--------------------------------------------------------------------------------
+-- Golden files
+--------------------------------------------------------------------------------
+
+-- Set by run.lua when the suite is run with --update.
+H.updateGolden = false
+
+-- Compare a generated block against a committed file. The point is not that
+-- the numbers in the file are right - nobody can tell by reading them - it is
+-- that a change to any of them shows up as a reviewable diff in the commit
+-- that caused it, instead of being found later by playing the game.
+function H.golden(name, text)
+	local path = DIR .. "/" .. name
+	if H.updateGolden then
+		local out, err = io.open(path, "w")
+		if not out then fail("could not write " .. name .. ": " .. tostring(err)) end
+		out:write(text)
+		out:close()
+		return
+	end
+
+	local f = io.open(path, "r")
+	if not f then
+		fail(name .. " is missing. Run `lua run.lua --update` to write it, then " ..
+			"read the diff before committing it.")
+	end
+	local have = f:read("*a")
+	f:close()
+	if have == text then return end
+
+	-- Name the first line that moved. A whole-file dump in a failure message is
+	-- unreadable, and the first difference is almost always the cause.
+	local mine, theirs = {}, {}
+	for l in text:gmatch("([^\n]*)\n?") do mine[#mine + 1] = l end
+	for l in have:gmatch("([^\n]*)\n?") do theirs[#theirs + 1] = l end
+	for i = 1, math.max(#mine, #theirs) do
+		if mine[i] ~= theirs[i] then
+			fail(string.format(
+				"%s line %d changed.\n        was:  %s\n        now:  %s\n" ..
+				"      If that is the change you meant, run `lua run.lua --update` " ..
+				"and commit the diff.",
+				name, i, tostring(theirs[i]), tostring(mine[i])))
+		end
+	end
+	fail(name .. " differs in trailing whitespace")
 end
 
 --------------------------------------------------------------------------------

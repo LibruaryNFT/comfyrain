@@ -77,6 +77,47 @@ Two still outside the route: #4 needs a full exit and relaunch with the flavour 
 staged into `_forever_`, and #5 is eyeballing the quads at several `UIParent:GetScale()`
 values, which cannot be done headlessly because the overlay is parented to `WorldFrame`.
 
+## 2026-10-19 — sweeps and golden files, so the client stops being the test rig
+
+> "well can tu do more testing, we dont want to have to keep manually testinge tc"
+
+The Darkness ceiling was green in 234 specs. Not one of them was wrong; they were
+all the same shape — pick a setting, pick a value, assert the number — and that shape
+cannot see a hole in the part of the surface nobody picked. **250 specs, all green.**
+
+Two new instruments, both in `test/spec_sweep.lua`:
+
+| Instrument | Catches |
+|---|---|
+| `golden_draw.txt` / `golden_motion.txt` | Any change to a drawn number, as a reviewable diff. 34 settings blocks and 11 motion blocks |
+| Slider properties | The bottom is off; the top of an **absolute** slider means the same thing at every intensity. Each slider declares its kind or the suite fails |
+| Range invariants over the matrix | 96 configurations × every colour, alpha and saved setting, after time has passed |
+| Every command × 25 bad arguments | Nothing raises, and the addon still rains afterwards |
+| Seeded 400-step random walk | Order-dependent bugs |
+| Help coverage | A command the help never names |
+
+**The sweeps found three real bugs on their first run:**
+
+1. **`/comfy time 1e400` put a nan in `timeFixed`.** `tonumber("1e400")` is `inf`, not
+   nil; `inf % 24` is nan; nan survives a min-then-max clamp untouched because every
+   comparison against it is false. It then saves to disk and grades the light to nothing
+   on every login after that. Fixed with `Num()`, which every number typed, pasted or
+   read off disk now goes through. Found by the random walk, which nobody would have
+   typed by hand.
+2. **`timeOffset` was never clamped by the parser** — only on load, so a reload silently
+   fixed it and the live session stayed wrong. Now clamped to ±23 where it is set.
+3. **Seven commands were in the dispatcher and nowhere in the help**: `cycle`,
+   `suppress`, `zoom`, `minimap`, `about`, `gust`, `volume`, plus `/comfy ui` itself —
+   the settings window had no help line at all. All added.
+
+The duplicate-block check earns its keep: four matrix rows in the first draft drew
+identical frames (`rain, light` and friends, typed without their commands), and `time
++9` turned out to land on exactly the same light as `time 21` because the mock's realm
+clock is noon.
+
+`lua run.lua --update` rewrites the goldens. **Read the diff**; an updated golden with
+an unread diff launders a regression into the record as intentional.
+
 ## 2026-10-19 — the Darkness slider could not reach full dark
 
 > "maybe im wrong but i thought we could get it darker before"

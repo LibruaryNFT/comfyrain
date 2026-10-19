@@ -14,6 +14,16 @@ end
 
 local H = require("harness")
 
+-- --update rewrites the golden files instead of checking against them. The
+-- diff it leaves in the working tree is the thing to review; committing one
+-- without reading it defeats the point of having them.
+for _, a in ipairs(arg) do
+	if a == "--update" then
+		H.updateGolden = true
+		io.write("--update: rewriting golden files. Read the diff.\n")
+	end
+end
+
 local SPECS = {
 	"spec_boot",
 	"spec_timeofday",
@@ -24,6 +34,7 @@ local SPECS = {
 	"spec_snow",
 	"spec_ui",
 	"spec_probe",
+	"spec_sweep",
 }
 
 os.exit(H.run(SPECS) and 0 or 1)

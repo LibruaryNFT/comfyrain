@@ -50,6 +50,50 @@ The mock reproduces client misbehaviour rather than an idealised API:
   because the addon keeps its state in upvalues and a reused chunk would carry
   it across.
 - `spec_*.lua` — one file per area. Add new files to `SPECS` in `run.lua`.
+- `golden_*.txt` — see below.
+
+## The golden files
+
+```
+lua test/run.lua --update
+```
+
+`golden_draw.txt` is every number the addon hands the renderer, one block per
+setting, across the whole matrix. `golden_motion.txt` is the same after ten
+seconds of running, so the rates show up. Neither file is hand-written and
+nobody can tell by reading them whether the numbers are right.
+
+That is not what they are for. **They turn a change to anything visual into a
+diff in the commit that caused it.** A per-feature spec says one number should
+be one value and why; a golden file says nothing else moved. The usual failure
+of this suite is not a wrong assertion, it is a correct assertion about a point
+nobody thought to pick — the Darkness slider could not reach full dark at three
+of its four intensities while 234 specs were green, and it was found by playing
+the game.
+
+Rules for them:
+
+- `--update` rewrites them. **Read the diff before committing it.** An updated
+  golden with an unread diff is worse than no golden, because it launders a
+  regression into the record as intentional.
+- Two matrix rows that produce an identical block fail the suite. A row that
+  draws the same thing as another row is testing nothing, and the first draft
+  of the matrix had four of them.
+- `golden_draw.txt` is base state with no time passed, deliberately: no gust
+  phase and no lightning, so a change to the jitter does not rewrite the whole
+  file. Anything that is a rate belongs in `golden_motion.txt`.
+
+## The sweeps
+
+`spec_sweep.lua` also walks the space rather than sampling it:
+
+| Sweep | What it is for |
+|---|---|
+| Every slider, both ends, every intensity | The bottom is off, and the top of an *absolute* slider means the same thing everywhere. Each slider declares which kind it is, and a new one that declares neither fails the suite |
+| Invariants over the matrix | No colour channel, alpha or saved setting ever leaves its range, checked after time has passed |
+| Every command × every bad argument | Nothing raises, and the addon is still usable afterwards — the second half is the positive control, since an addon that had quietly switched itself off would pass the first |
+| A seeded 400-step random walk | Order-dependent bugs. This is what found `/comfy time 1e400` putting a nan in `timeFixed`, via `inf % 24` |
+| Help coverage | Every command the dispatcher accepts is named in the help, or listed as deliberately unadvertised with a reason |
 
 ## What it cannot answer
 
