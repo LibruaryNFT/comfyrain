@@ -23,8 +23,14 @@ jobs:
         with:
           python-version: '3.12'
 
+      # ffmpeg is the Vorbis encoder behind make_rain_audio.py. It is present on
+      # the workstation and absent from the runner image, so without this the
+      # release dies on a tag with a bare FileNotFoundError - and it dies AFTER
+      # the point where a half-built Duskfall/ already exists.
       - name: Install asset build dependencies
-        run: python -m pip install --quiet numpy Pillow
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
+          python -m pip install --quiet numpy Pillow
 
       # The .tga and .ogg files are gitignored: they are deterministic outputs
       # of these scripts, so the scripts are the source of truth and the
