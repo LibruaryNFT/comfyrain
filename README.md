@@ -10,12 +10,12 @@ deck of the boat. Type it again and it stops.
 It runs on top of the game's own weather rather than fighting it. If the server sends a
 real storm, you get both.
 
-<!-- Re-enable this the moment docs/preview.gif exists. It is deliberately
-     commented out rather than left pointing at a file that is not there: a
-     broken image at the top of the page is worse than no image, and this is
-     the first thing anyone sees on both GitHub and CurseForge.
-![Duskfall](https://raw.githubusercontent.com/LibruaryNFT/duskfall/main/docs/preview.gif)
--->
+![Duskfall, heavy rain over Stormwind](https://raw.githubusercontent.com/LibruaryNFT/duskfall/main/docs/preview.jpg)
+
+<!-- Swap this line for docs/preview.gif once the loop is captured. The still
+     is a real in-game frame, not a mock-up, so it is an honest placeholder -
+     but rain is motion and a still undersells it. -->
+
 
 ## What you get
 

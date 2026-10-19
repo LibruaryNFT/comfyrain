@@ -969,9 +969,23 @@ three rain/snow texture pairs, `icon.tga`, both `.ogg`, `## Version: v1.0.0-rc4`
 
 **Still open:**
 
-6. One 10-second looping GIF for CurseForge, Reddit and Discord. The README's hero image is
-   commented out until `docs/preview.gif` exists - a broken image at the top of the page is
-   worse than none, and it is the first thing anyone sees on both sites. One uncomment.
+6. One 10-second looping GIF for CurseForge, Reddit and Discord. **There is a real still in
+   place meanwhile**: `docs/preview.jpg`, cropped from `WoWScrnShot_101526_121107.jpg` - an
+   actual in-game frame of heavy rain over the Trade District, UI cropped out and two other
+   players' nameplates blurred. It is honest, not a mock-up, and it is the README hero now.
+   But rain is motion and a still undersells it, so the GIF still wins. One line to swap.
+
+   **Capture it in the same sitting as the section C list below**, because it needs the
+   client and the client dies on 21 October. It is about two minutes:
+
+   - `/dusk heavy`, find a street with sky in frame (the Trade District shot above is a good
+     one), `Alt+Z` twice to hide the UI.
+   - `Ctrl+Alt+Shift+R` starts GNOME's recorder, same keys stop it. Record ~12 seconds,
+     turning the camera slowly through about 90 degrees so the parallax reads. It lands in
+     `~/Videos/Screencasts/`.
+   - Do a second take on `/dusk snow` and a third on `/dusk blizzard` while you are there.
+     Three takes cost a minute and the one that looks best cannot be known in advance.
+   - Leave the files. ffmpeg is on this box; the agent crops, trims and converts to a GIF.
 7. The CurseForge project itself, then `## X-Curse-Project-ID` in the TOC and a `CF_API_KEY`
    repo secret. The workflow publishes to GitHub without it rather than failing, so a tag
    pushed before the project exists still produces a downloadable release.
