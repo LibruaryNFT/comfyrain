@@ -703,6 +703,13 @@ function M.install(env)
 	}
 	env.Enum = { WeatherType = { None = 0, Rain = 1, Snow = 2, Sandstorm = 3 } }
 
+	-- The client's table of built-in sound kit IDs. Absent from the mock until
+	-- a global-read audit found it, which meant `(SOUNDKIT and
+	-- SOUNDKIT.IG_MAINMENU_OPEN) or 567` always took the fallback here and
+	-- always took the OTHER branch in the client: the tested path and the
+	-- shipped path were different ones.
+	env.SOUNDKIT = { IG_MAINMENU_OPEN = 567 }
+
 	env.GetCVar = function(name) return M.cvars[name] end
 	env.SetCVar = function(name, value)
 		if M.protectedCVars[name] then return true end   -- silently ignored, as in the client

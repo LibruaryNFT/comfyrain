@@ -24,6 +24,14 @@ jobs:
       - name: Run the spec suite
         run: cd test && lua5.1 run.lua
 
+      # Every client API the addon calls was checked against the strings of
+      # WowB.exe and written to test/api-manifest.txt. This step does not need
+      # the client: it fails when the addon starts calling something that was
+      # never on that list, which is the only way to catch "that API does not
+      # exist on this build" while the beta client is withdrawn.
+      - name: Check no unverified client API crept in
+        run: python3 -I tools/api_audit.py --check
+
   assets:
     runs-on: ubuntu-latest
     steps:

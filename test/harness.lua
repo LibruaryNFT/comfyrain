@@ -10,6 +10,10 @@
 
 local H = {}
 
+-- Every global name read that the mock did not provide, counted across every
+-- world the suite builds. See the __index hook in H.world.
+H.unmocked = {}
+
 local root = (...):match("^(.*)%.harness$") or ""
 local prefix = (root ~= "" and root .. "." or "")
 
@@ -99,7 +103,18 @@ function H.world(opts)
 
 	-- Inherit the stdlib but keep every global the addon writes (ComfyRainDB,
 	-- SLASH_COMFYRAIN1, ComfyRain_Refresh) inside this world.
-	local env = setmetatable({}, { __index = _G })
+	--
+	-- __index fires only for a name the mock did NOT provide, which makes it a
+	-- free audit of the gap between the two: anything that lands here is either
+	-- Lua stdlib, something the addon writes itself, or a client API nobody is
+	-- modelling. That last case is the dangerous one - the addon reads nil in
+	-- every spec and something else entirely in the client, so the tested path
+	-- and the shipped path are different ones. Found SOUNDKIT exactly that way.
+	-- run.lua checks the accumulated list against a written-down allowlist.
+	local env = setmetatable({}, { __index = function(_, k)
+		H.unmocked[k] = (H.unmocked[k] or 0) + 1
+		return _G[k]
+	end })
 	env._G = env
 	mock.install(env)
 
@@ -242,6 +257,37 @@ local specs = {}
 
 function H.it(name, fn) specs[#specs + 1] = { name = name, fn = fn } end
 
+-- Names that are SUPPOSED to fall through, each for a stated reason. Anything
+-- here that is a client API is one the addon must survive the absence of, and
+-- there is a spec for each of those; anything else is Lua or ours.
+local EXPECTED_UNMOCKED = {
+	-- Lua 5.1 itself.
+	ipairs = true, pairs = true, pcall = true, select = true, type = true,
+	tonumber = true, tostring = true, math = true, string = true, table = true,
+	unpack = true, setmetatable = true, getmetatable = true, error = true,
+	next = true, rawget = true, rawset = true, assert = true, print = true,
+	os = true, io = true, debug = true,
+	-- Written by the addon before it is read, or by an older version of it.
+	ComfyRainDB = true, DuskfallDB = true, AlwaysRainDB = true,
+	ComfyRainAPI = true, ComfyRain_Panel = true, ComfyRain_Probe = true,
+	ComfyRain_Refresh = true, ComfyRain_Minimap = true, ComfyRainPanel = true,
+	ComfyRainShare = true,
+	-- Deliberately absent so the "this client cannot do it" path is the one
+	-- under test. Screenshot is set by the mock only when the client allows
+	-- screenshots, which is the point of the screenshotBlocked option.
+	Screenshot = true,
+}
+
+-- Client globals the addon read that nothing modelled. Sorted, for a message.
+function H.strayGlobals()
+	local out = {}
+	for k in pairs(H.unmocked) do
+		if not EXPECTED_UNMOCKED[k] then out[#out + 1] = k end
+	end
+	table.sort(out)
+	return out
+end
+
 function H.run(files)
 	for _, f in ipairs(files) do require(prefix .. f) end
 
@@ -261,6 +307,16 @@ function H.run(files)
 	end
 	io.write(string.format("%d passed, %d failed, %d total\n",
 		passed, #failed, #specs))
+
+	local strays = H.strayGlobals()
+	if #strays > 0 then
+		io.write("\nGLOBALS NOTHING MODELS: " .. table.concat(strays, ", ") ..
+			"\nThe addon read each of these and the mock does not provide it, so " ..
+			"every spec\nsaw nil where the client will not. Model it in " ..
+			"wowmock.lua, or add it to\nEXPECTED_UNMOCKED in harness.lua with " ..
+			"a reason.\n")
+		return false
+	end
 	return #failed == 0
 end
 

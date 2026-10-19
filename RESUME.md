@@ -7,6 +7,58 @@ because the client cannot be told to actually change the weather.
 Stormwind. v2 switches all audio and the drop sprite to Blizzard's own assets and stops
 the rain indoors; needs `/reload` to pick up (no new files, so no client restart).
 
+## 2026-10-19 (last) — two checks that need no client
+
+The beta client is withdrawn **21 October** and the next one lands **4 November**, which
+is also the CurseForge launch date. For those two weeks there is no way to log in and
+find out whether an API we call exists, and `Unknown frame type 'ModelSceneFrame'`
+already cost one wasted probe round. Both of these answer that question without the game.
+
+**1. `tools/api_audit.py` + `test/api-manifest.txt`.** Pulls every global, `C_` member
+and widget method the addon calls out of the Lua (comments and string literals stripped
+first, so it audits the code and not the prose), looks each up in the strings of
+`WowB.exe`, and writes the manifest. Result on build 1.60.1.70425:
+
+```
+controls: 5 found, 4 correctly absent
+102 verified present, 6 client-Lua (unverifiable here), 0 MISSING
+```
+
+Three things about the method are worth keeping:
+
+- **It runs its own positive and negative controls every time** and refuses to write a
+  manifest if any fail. A zero from a broken scan reads identically to a clean result.
+- **A name appears in the binary in two shapes.** Some are a bare line (`Hide`), some
+  only ever inside a usage string (`Usage: local x, y = self:GetCenter()`). An
+  exact-line matcher reports `GetCenter`, `GetPoint`, `NumPoints` and `GetRect` as
+  absent, which they are not. Whole-line OR name-immediately-before-`(`.
+- **FrameXML is not in the executable.** `ReloadUI`, `SlashCmdList`, `UISpecialFrames`,
+  `CreateColor`, `Enum`, `SetBackdrop` and `Settings.Register*` live in the data
+  archives. Their absence from the strings is not evidence, and the manifest marks them
+  `LUA` rather than `MISSING`. It is also exactly why every call to them is `pcall`'d
+  with a hand-drawn fallback behind it.
+
+`--check` needs no binary at all: it compares today's source against the committed
+manifest and fails with a name attached when the addon starts calling something that was
+never checked. Wired into CI as its own step. Verified by planting
+`UIParent:SetSomeImaginaryThing(1)` in UI.lua, which produced
+`1 client API used by the addon and NOT in the manifest: SetSomeImaginaryThing`, exit 1.
+
+**2. The stray-globals audit in `test/harness.lua`.** The sandbox env's `__index` fires
+only for a name the mock did *not* provide, which makes it a free audit of the gap
+between the mock and the client. Anything landing there that is a real client API means
+the tested path and the shipped path are different ones: the addon reads nil in every
+spec and something else entirely in the game. `H.run` now checks the accumulated list
+against `EXPECTED_UNMOCKED` and fails the suite on anything unexplained.
+
+It found one real gap on its first run: **`SOUNDKIT`**. `(SOUNDKIT and
+SOUNDKIT.IG_MAINMENU_OPEN) or 567` had always taken the fallback branch in every spec
+and would always take the other branch in the client. Now modelled in `wowmock.lua`.
+Verified by planting `ImaginaryBlizzardGlobal`, which produced `GLOBALS NOTHING MODELS:
+ImaginaryBlizzardGlobal` and exit 1.
+
+Suite: **182 passed, 0 failed**.
+
 ## 2026-10-19 (later still) — a visible off switch, per-section resets, sharing
 
 From live play: *"we are asking for a UI way to make it clear to turn things off etc,
