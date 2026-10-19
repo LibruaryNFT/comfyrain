@@ -88,7 +88,7 @@ it("says what it changed, in words, and what to type when done", function()
 	gt(#w.mock.printedMatching("Weather watch is"), 0, "names itself in plain words")
 	gt(#w.mock.printedMatching("Blizzard's own rain"), 0, "says whose setting moved")
 	gt(#w.mock.printedMatching("play normally"), 0, "says what to do now")
-	gt(#w.mock.printedMatching("calib off"), 0, "and how to stop")
+	gt(#w.mock.printedMatching("watch off"), 0, "and how to stop")
 end)
 
 it("puts the graphics settings back when it stops", function()
@@ -157,4 +157,34 @@ it("stops cleanly and reports the count", function()
 	w.mock.fire("CONSOLE_MESSAGE", LINE)
 	eq(#w:db().calib, 2, "nothing logged after stopping")
 	gt(#w.mock.printedMatching("sightings saved"), 0, "reported the count")
+end)
+
+it("keeps watching across a /reload, and can still undo the CVars after one", function()
+	-- The event frame and the calibOn flag are upvalues and die with the Lua
+	-- state. Before this the watch stopped dead at a /reload and said nothing,
+	-- so half an hour of walking logged nothing at all - and the raised
+	-- graphics CVars could never be put back, because the record of what they
+	-- used to be died with them. The probe asks for a /reload outright, which
+	-- makes this the normal case rather than an edge one.
+	local w = H.world({ cvars = { weatherDensity = "0",
+	                              graphicsEnvironmentDetail = "1" } })
+	w:slash("calib on")
+	local before = #w:db().calib
+	local saved = w:db()
+
+	-- A /reload is a fresh Lua state over the same saved variables.
+	local w2 = H.world({ loaded = false,
+	                     cvars = { weatherDensity = "3",
+	                               graphicsEnvironmentDetail = "2" } })
+	w2.env.ComfyRainDB = saved
+	w2:load()
+	gt(#w2.mock.printedMatching("still ON"), 0, "it says it picked the watch back up")
+	eq(#w2:db().calib, before, "and did not take a second baseline")
+
+	w2.mock.fire("CONSOLE_MESSAGE", LINE)
+	eq(#w2:db().calib, before + 1, "the watch is actually running, not just claimed")
+
+	w2:slash("watch off")
+	eq(w2.mock.cvars.weatherDensity, "0", "restored to what it was BEFORE the first watch")
+	eq(w2.mock.cvars.graphicsEnvironmentDetail, "1", "both of them")
 end)

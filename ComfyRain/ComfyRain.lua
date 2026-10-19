@@ -708,8 +708,6 @@ end
 
 local calibFrame
 local calibOn = false
--- What the player's graphics CVars were before the watch raised them.
-local calibRestore
 
 -- Blizzard's own weather line, which the engine prints to the console:
 --
@@ -783,8 +781,10 @@ local function CalibRecord(source, parsed)
 	return entry
 end
 
-local function CalibStart()
-	if calibOn then msg("already logging"); return end
+-- resumed = this is a /reload picking the watch back up, not the player
+-- starting one. Same work, far less chat, and no second baseline entry.
+local function CalibStart(resumed)
+	if calibOn then msg("the weather watch is already on"); return end
 	calibFrame = calibFrame or CreateFrame("Frame")
 
 	-- An unregistered-event name throws on this client and aborts the rest of
@@ -809,24 +809,37 @@ local function CalibStart()
 
 	-- Without these two the client will not draw real weather at all, and the
 	-- session measures nothing. They are the player's graphics settings, not
-	-- ours, so what they were is kept and `calib off` puts them back. An
+	-- ours, so what they were is kept and `watch off` puts them back. An
 	-- earlier version raised them and never restored, which silently left
 	-- weatherDensity at 3 on a machine that had deliberately run it at 0.
-	calibRestore = {}
-	for cvar, want in pairs(DENSITY_CVARS) do
-		calibRestore[cvar] = GetCVar(cvar)
-		SetCVar(cvar, want)
+	--
+	-- Kept in db rather than in an upvalue, for the same reason db.watching is:
+	-- an upvalue dies with the Lua state, and a /reload is a perfectly normal
+	-- thing to do in the middle of a measuring session. The probe asks for one
+	-- outright. Restoring to whatever the CVar happens to say afterwards would
+	-- restore it to the value WE set.
+	if not db.calibRestore then
+		db.calibRestore = {}
+		for cvar in pairs(DENSITY_CVARS) do
+			db.calibRestore[cvar] = GetCVar(cvar)
+		end
 	end
+	for cvar, want in pairs(DENSITY_CVARS) do SetCVar(cvar, want) end
 
 	calibOn = true
+	db.watching = true
 	db.calib = db.calib or {}
+	if resumed then
+		msg("|cff66ff66Weather watch is still ON|r after the reload. Carry on.")
+		return
+	end
 	msg("|cff66ff66Weather watch is ON.|r Two things to know:")
 	msg("   Blizzard's own rain has been turned back up for this " ..
 	    "|cff999999(it was off on this machine)|r.")
 	msg("   Nothing about ComfyRain itself changed.")
 	msg("Now just |cffffd100play normally|r. When the game's own weather starts, " ..
 	    "this shouts in chat - you do not have to watch for it.")
-	msg("When you are done: |cffffd100/comfy calib off|r " ..
+	msg("When you are done: |cffffd100/comfy watch off|r " ..
 	    "|cff999999(puts your graphics settings back)|r")
 	-- Seed one entry so there is a clear-weather baseline to difference against.
 	CalibRecord("baseline", nil)
@@ -838,11 +851,12 @@ local function CalibStop()
 		calibFrame:SetScript("OnEvent", nil)
 	end
 	calibOn = false
+	db.watching = nil
 	local put = {}
-	for cvar, was in pairs(calibRestore or {}) do
+	for cvar, was in pairs(db.calibRestore or {}) do
 		if was then SetCVar(cvar, was); put[#put + 1] = cvar end
 	end
-	calibRestore = nil
+	db.calibRestore = nil
 	msg(string.format("Weather watch is |cffff6666OFF|r. " ..
 		"|cff66ff66%d|r sightings saved, and they survive a /reload.",
 		db.calib and #db.calib or 0))
@@ -867,7 +881,7 @@ local function CalibReport()
 		msg("|cffffd100/comfy calib on|r watches for the real thing so ours can " ..
 		    "be matched to it. Then just play.")
 	else
-		msg("|cffffd100/comfy calib off|r when you are done.")
+		msg("|cffffd100/comfy watch off|r when you are done.")
 	end
 end
 
@@ -2025,6 +2039,15 @@ boot:SetScript("OnEvent", function(_, event, arg1)
 		-- The minimap button is the only way in that does not require knowing a
 		-- slash command exists, which is the whole problem with slash commands.
 		if ComfyRain_Minimap then pcall(ComfyRain_Minimap) end
+
+		-- A weather watch has to survive a /reload. The event frame and the
+		-- calibOn flag are both upvalues and die with the Lua state, so before
+		-- this the watch stopped dead and said nothing: half an hour of walking
+		-- would be logged as nothing, and the raised graphics CVars could never
+		-- be put back because what they used to be died with them too. The
+		-- probe asks for a /reload outright, so this is the normal case here
+		-- rather than an edge one.
+		if db.watching then CalibStart(true) end
 
 		if not db.seenUI then
 			db.seenUI = true
