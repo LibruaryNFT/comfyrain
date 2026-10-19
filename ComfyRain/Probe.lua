@@ -119,7 +119,7 @@ local function CheckAmbienceWithMusicOff()
 	SetCVar("Sound_EnableMusic", "0")
 	local willPlay, handle = PlaySoundFile(RAIN, "Ambience")
 	record("ambience_musicoff", willPlay and "ask" or "no",
-		string.format("willPlay=%s handle=%s, music was %s. |cffffd100Do you hear rain? /comfy probe heard yes|no|r",
+		string.format("willPlay=%s handle=%s, music was %s. |cffffd100Do you hear rain? /comfy probe heard yes||no|r",
 			tostring(willPlay), tostring(handle), tostring(before)))
 	store()
 	P.pendingEars = "ambience_musicoff"
@@ -952,7 +952,7 @@ function ComfyRain_Probe(arg)
 	else
 		msg("|cffffd100/comfy probe|r, |cffffd100/comfy probe report|r, " ..
 		    "|cffffd100/comfy probe shots|r, |cffffd100/comfy probe 3d|r, " ..
-		    "|cffffd100/comfy probe heard yes|no|r, |cffffd100/comfy probe wipe|r")
+		    "|cffffd100/comfy probe heard yes||no|r, |cffffd100/comfy probe wipe|r")
 	end
 end
 

@@ -1,7 +1,7 @@
 -- Loading, saved variables, and the ways this client can abort a Lua file.
 
 local H = require("harness")
-local it, eq, ok, near = H.it, H.eq, H.ok, H.near
+local it, eq, ok, near, gt = H.it, H.eq, H.ok, H.near, H.gt
 
 it("loads and registers its slash command", function()
 	local w = H.world()
@@ -229,4 +229,49 @@ it("reports the build this client actually claims", function()
 	local w = H.world()
 	local _, _, _, iface = w.env.GetBuildInfo()
 	eq(iface, 16001, "interface number")
+end)
+
+it("prints no pipe the client will eat as an escape code", function()
+	-- From a screenshot of the live help list: "/comfy light|normal|heavy"
+	-- rendered as "/comfy light" then a line break then "ormaleavy". The pipe
+	-- is WoW's escape character, so |n is a newline and |h opens a hyperlink;
+	-- both were swallowed along with the letter after them. "reset look|sound|
+	-- time" lost |t the same way, and "probe heard yes|no" lost |n.
+	--
+	-- A literal pipe has to be written ||. This is checked over every line the
+	-- addon prints rather than over the four that were wrong, because the next
+	-- one to break is whichever option someone renames to start with n, h or t,
+	-- and nothing about writing it looks wrong.
+	local VALID = { r = true, c = true }
+	local w = H.world()
+	-- Everything that prints a list of options the player chooses between.
+	for _, cmd in ipairs({ "", "help", "reset bogus", "probe help",
+	                       "import", "where", "density", "status" }) do
+		w:slash(cmd)
+	end
+	gt(#w.mock.printed, 10, "the help actually printed")
+
+	for _, line in ipairs(w.mock.printed) do
+		local i = 1
+		while true do
+			local at = line:find("|", i, true)
+			if not at then break end
+			local nxt = line:sub(at + 1, at + 1)
+			if nxt == "|" then
+				i = at + 2                      -- an escaped literal pipe
+			elseif nxt == "c" then
+				-- |cAARRGGBB, and a short one eats the text after it.
+				ok(line:sub(at + 2, at + 9):match("^%x%x%x%x%x%x%x%x$"),
+					"colour code is eight hex digits in: " .. line)
+				i = at + 10
+			elseif VALID[nxt] then
+				i = at + 2
+			else
+				ok(false, string.format(
+					"|%s is an escape code the client will eat, write || for a "
+					.. "literal pipe: %s", nxt, line))
+				i = at + 2
+			end
+		end
+	end
 end)
