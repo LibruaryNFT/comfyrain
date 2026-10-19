@@ -227,7 +227,7 @@ it("never leaves db.intensity naming a preset this weather does not have", funct
 		local valid = { rain = { light = 1, normal = 1, heavy = 1, monsoon = 1 },
 		                snow = { light = 1, normal = 1, heavy = 1, blizzard = 1 } }
 		ok(valid[weather][intensity],
-			"after /dusk " .. cmd .. ": " .. weather .. "/" .. intensity)
+			"after /comfy " .. cmd .. ": " .. weather .. "/" .. intensity)
 	end
 end)
 
@@ -247,14 +247,14 @@ it("saves the weather across a reload", function()
 	w:slash("blizzard")
 	local saved = w:db()
 	local two = H.world({ loaded = false })
-	two.env.DuskfallDB = saved
+	two.env.ComfyRainDB = saved
 	two:load()
 	eq(two:db().weather, "snow", "weather survived")
 	eq(two:db().intensity, "blizzard", "and so did the intensity")
 	gt(two:whiteout():GetAlpha(), 0, "and the whiteout came back with it")
 end)
 
-it("matches the realm's own weather on /dusk auto", function()
+it("matches the realm's own weather on /comfy auto", function()
 	local w = H.world()
 	w.env.C_Weather = { GetCurrentWeather = function()
 		return { weatherType = 2, intensity = 0.8 }

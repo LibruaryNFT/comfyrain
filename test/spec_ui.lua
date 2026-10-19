@@ -9,22 +9,22 @@
 local H = require("harness")
 local it, eq, ok, near, lt, gt, contains = H.it, H.eq, H.ok, H.near, H.lt, H.gt, H.contains
 
-it("opens on /duskfall and closes again", function()
+it("opens on /comfyrain and closes again", function()
 	local w = H.world()
-	w.mock.slash("DUSKFALLUI", "")
+	w.mock.slash("COMFYRAINUI", "")
 	ok(w:panel(), "the window exists once asked for")
 	ok(w:panel():IsShown(), "and it is open")
 
-	w.mock.slash("DUSKFALLUI", "")
+	w.mock.slash("COMFYRAINUI", "")
 	eq(w:panel():IsShown(), false, "typing it again closes it")
 end)
 
-it("answers /dusk ui, config, options and settings as well", function()
+it("answers /comfy ui, config, options and settings as well", function()
 	-- Nobody remembers which word an addon chose, so it answers to all of them.
 	for _, word in ipairs({ "ui", "config", "options", "settings" }) do
 		local w = H.world()
 		w:slash(word)
-		ok(w:panel() and w:panel():IsShown(), "/dusk " .. word .. " opens the window")
+		ok(w:panel() and w:panel():IsShown(), "/comfy " .. word .. " opens the window")
 	end
 end)
 
@@ -33,10 +33,10 @@ it("closes on Escape, which means the frame has to have a name", function()
 	w:open()
 	local found = false
 	for _, name in ipairs(w.env.UISpecialFrames) do
-		if name == "DuskfallPanel" then found = true end
+		if name == "ComfyRainPanel" then found = true end
 	end
-	ok(found, "DuskfallPanel is in UISpecialFrames")
-	eq(w:panel():GetName(), "DuskfallPanel", "and the frame carries that name")
+	ok(found, "ComfyRainPanel is in UISpecialFrames")
+	eq(w:panel():GetName(), "ComfyRainPanel", "and the frame carries that name")
 end)
 
 it("shows itself once on a first install and never again", function()
@@ -50,7 +50,7 @@ it("shows itself once on a first install and never again", function()
 
 	local saved = w:db()
 	local two = H.world({ loaded = false })
-	two.env.DuskfallDB = saved
+	two.env.ComfyRainDB = saved
 	two:load()
 	two:advance(10)
 	ok(not (two:panel() and two:panel():IsShown()), "second login is left alone")
@@ -65,7 +65,7 @@ it("says nothing at all on an ordinary login", function()
 	local saved = w:db()
 
 	local two = H.world({ loaded = false })
-	two.env.DuskfallDB = saved
+	two.env.ComfyRainDB = saved
 	two:load()
 	local before = #two.mock.printed
 	two:advance(10)
@@ -78,7 +78,7 @@ it("falls back to printing the commands when there is no window to show", functi
 	local w = H.world({ ui = false })
 	w:advance(10)
 	local joined = table.concat(w.mock.printed, " | ")
-	contains(joined, "/duskfall", "a first install with no window still learns the command")
+	contains(joined, "/comfyrain", "a first install with no window still learns the command")
 end)
 
 it("drives the addon through the commands, not around them", function()
@@ -182,7 +182,7 @@ it("does not type a command back at itself when it refreshes", function()
 	w:open()
 	w:slash("alpha 0.80")
 	local before = #w.mock.printed
-	for _ = 1, 5 do w.env.Duskfall_Panel("show") end
+	for _ = 1, 5 do w.env.ComfyRain_Panel("show") end
 	near(w:db().scale, 0.80, 1e-9, "the value survived five refreshes unchanged")
 	eq(#w.mock.printed - before, 0, "and nothing was announced, because nothing happened")
 end)
@@ -205,7 +205,7 @@ it("teaches the command for whatever is under the cursor", function()
 	local b = w:button("Snow")
 	b:GetScript("OnEnter")(b)
 	local joined = table.concat(w.env.GameTooltip.lines, " | ")
-	contains(joined, "/dusk snow", "the tooltip names the command")
+	contains(joined, "/comfy snow", "the tooltip names the command")
 	b:GetScript("OnLeave")(b)
 	eq(w.env.GameTooltip:IsShown(), false, "and clears on the way out")
 end)
@@ -269,13 +269,13 @@ it("is not load-bearing: the addon works with the window deleted", function()
 	-- UI.lua is a separate file and a player can delete it, a packager can miss
 	-- it, and a future client can break it. None of that may cost the weather.
 	local w = H.world({ ui = false })
-	eq(w.env.Duskfall_Panel, nil, "no window")
+	eq(w.env.ComfyRain_Panel, nil, "no window")
 	w:slash("snow")
 	eq(w:db().weather, "snow", "the addon still answers")
 
 	local before = #w.mock.printed
-	w.mock.slash("DUSKFALLUI", "")
-	gt(#w.mock.printed - before, 0, "/duskfall falls back to printing the commands")
+	w.mock.slash("COMFYRAINUI", "")
+	gt(#w.mock.printed - before, 0, "/comfyrain falls back to printing the commands")
 	eq(#w.mock.errors, 0, "and nothing escaped to the client")
 end)
 
@@ -293,14 +293,14 @@ it("puts a button on the minimap, because a slash command nobody knows is not a 
 	-- The whole discoverability problem: a player who installs an atmosphere
 	-- addon and is never told a window exists will never find the sliders.
 	local w = H.world()
-	w.env.Duskfall_Minimap()
-	local b = w.env.DuskfallMinimapButton
+	w.env.ComfyRain_Minimap()
+	local b = w.env.ComfyRainMinimapButton
 	ok(b, "the button exists")
 	ok(b:IsShown(), "and it is shown by default")
 
 	-- Left-click opens the window, right-click toggles the weather.
 	b:GetScript("OnClick")(b, "LeftButton")
-	ok(w.env.DuskfallPanel and w.env.DuskfallPanel:IsShown(), "left-click opened the panel")
+	ok(w.env.ComfyRainPanel and w.env.ComfyRainPanel:IsShown(), "left-click opened the panel")
 	local on = w:db().enabled
 	b:GetScript("OnClick")(b, "RightButton")
 	eq(w:db().enabled, not on, "right-click toggled the weather")
@@ -319,8 +319,8 @@ it("orbits the minimap the player actually has, not a 140px one", function()
 	local function radiusOn(size)
 		local w = H.world()
 		w.env.Minimap:SetSize(size, size)
-		w.env.Duskfall_Minimap()
-		local b = w.env.DuskfallMinimapButton
+		w.env.ComfyRain_Minimap()
+		local b = w.env.ComfyRainMinimapButton
 		local p = b._lastPoint
 		return math.sqrt(p.x * p.x + p.y * p.y), w
 	end
@@ -333,8 +333,8 @@ it("orbits the minimap the player actually has, not a 140px one", function()
 
 	-- And it keeps up if the minimap is resized after the button was built.
 	local w = H.world()
-	w.env.Duskfall_Minimap()
-	local b = w.env.DuskfallMinimapButton
+	w.env.ComfyRain_Minimap()
+	local b = w.env.ComfyRainMinimapButton
 	w.env.Minimap:SetSize(300, 300)
 	local resize = w.env.Minimap:GetScript("OnSizeChanged")
 	ok(resize, "the button watches the minimap for a resize")
@@ -345,8 +345,8 @@ end)
 
 it("remembers where the minimap button was dragged to", function()
 	local w = H.world()
-	w.env.Duskfall_Minimap()
-	local b = w.env.DuskfallMinimapButton
+	w.env.ComfyRain_Minimap()
+	local b = w.env.ComfyRainMinimapButton
 	local before = w:db().minimapAngle
 	b:GetScript("OnDragStart")(b)
 	-- Cursor directly above the minimap centre is 90 degrees.
@@ -397,7 +397,7 @@ it("wears the game's own frame, and still builds on a client without one", funct
 		if t.texture and t.texture:find("UI%-DialogBox%-Header") then header = t end
 	end
 	for _, fs in ipairs(p._fontStrings) do
-		if fs.text == "Duskfall" then title = fs end
+		if fs.text == "ComfyRain" then title = fs end
 	end
 	ok(header, "and the carved header plate")
 	ok(title, "with the addon's name on it")
@@ -420,8 +420,8 @@ it("draws its own minimap icon and repaints it with the weather", function()
 	-- "The icon doesn't look too unique", 2026-10-16. It was a stock Blizzard
 	-- spell texture, which is what half of CurseForge uses.
 	local w = H.world()
-	w.env.Duskfall_Minimap()
-	local b = w.env.DuskfallMinimapButton
+	w.env.ComfyRain_Minimap()
+	local b = w.env.ComfyRainMinimapButton
 
 	for _, t in ipairs(b._textures) do
 		ok(not (t.texture and t.texture:find("Interface\\\\Icons")),

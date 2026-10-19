@@ -5,14 +5,14 @@ local it, eq, ok, near = H.it, H.eq, H.ok, H.near
 
 it("loads and registers its slash command", function()
 	local w = H.world()
-	eq(w.env.SLASH_DUSKFALL1, "/dusk", "primary slash token")
+	eq(w.env.SLASH_COMFYRAIN1, "/comfy", "primary slash token")
 	-- /rain is permanent, not deprecated. Anyone who installed the addon under
 	-- its old name typed this for weeks and must never have to learn a new word.
-	eq(w.env.SLASH_DUSKFALL2, "/rain", "the old name still works")
-	eq(type(w.env.SlashCmdList.DUSKFALL), "function", "slash handler")
+	eq(w.env.SLASH_COMFYRAIN2, "/rain", "the old name still works")
+	eq(type(w.env.SlashCmdList.COMFYRAIN), "function", "slash handler")
 	-- The long name belongs to the window, not to the toggle.
-	eq(w.env.SLASH_DUSKFALLUI1, "/duskfall", "the settings window has its own token")
-	eq(type(w.env.SlashCmdList.DUSKFALLUI), "function", "window handler")
+	eq(w.env.SLASH_COMFYRAINUI1, "/comfyrain", "the settings window has its own token")
+	eq(type(w.env.SlashCmdList.COMFYRAINUI), "function", "window handler")
 	eq(#w.mock.errors, 0, "errors during boot")
 end)
 
@@ -30,7 +30,7 @@ end)
 
 it("fills defaults without overwriting a saved profile", function()
 	local w = H.world({ loaded = false })
-	w.env.DuskfallDB = { intensity = "monsoon", gloom = 0.25 }
+	w.env.ComfyRainDB = { intensity = "monsoon", gloom = 0.25 }
 	w:load()
 	local db = w:db()
 	eq(db.intensity, "monsoon", "saved intensity survives")
@@ -54,9 +54,24 @@ it("carries settings over from the old AlwaysRain profile, once", function()
 	-- undo anything the player changed since. This is the whole point of the flag.
 	local w2 = H.world({ loaded = false })
 	w2.env.AlwaysRainDB = { intensity = "monsoon" }
-	w2.env.DuskfallDB = { intensity = "light", migrated = true }
+	w2.env.ComfyRainDB = { intensity = "light", migrated = true }
 	w2:load()
 	eq(w2:db().intensity, "light", "the new profile wins after the first migration")
+end)
+
+it("carries settings over from the Duskfall profile too, and prefers it", function()
+	-- Second rename in five days: AlwaysRain -> Duskfall -> ComfyRain. Anyone
+	-- who followed the first one has BOTH old globals sitting on disk, and the
+	-- stale one must not win. Newest first, which is Duskfall.
+	local w = H.world({ loaded = false })
+	w.env.DuskfallDB   = { intensity = "heavy",   channel = "Master" }
+	w.env.AlwaysRainDB = { intensity = "monsoon", gloom = 0.25 }
+	w:load()
+	local db = w:db()
+	eq(db.intensity, "heavy", "the Duskfall value wins over the AlwaysRain one")
+	eq(db.channel, "Master", "and its other keys came too")
+	near(db.gloom, 0.25, 1e-9, "a key only the older profile had is still picked up")
+	eq(db.migrated, true, "the migration marks itself done")
 end)
 
 it("ignores an old profile that is not a table", function()
@@ -84,7 +99,7 @@ it("repairs a saved profile full of the wrong types", function()
 	-- arithmetic. An error every frame, forever, fixable only by deleting a
 	-- file the player does not know exists.
 	local w = H.world({ loaded = false })
-	w.env.DuskfallDB = {
+	w.env.ComfyRainDB = {
 		enabled   = "yes",        -- boolean key holding a string
 		weather   = "thunderstorm", -- a weather that does not exist
 		intensity = 7,            -- a number where a preset name goes
@@ -125,7 +140,7 @@ it("keeps a saved profile that is merely unusual", function()
 	-- The repair must not become a reset. Every value here is legal and some
 	-- are far from the default, which is what a tuned profile looks like.
 	local w = H.world({ loaded = false })
-	w.env.DuskfallDB = {
+	w.env.ComfyRainDB = {
 		weather = "snow", intensity = "light", scale = 0.3, speed = 2.5,
 		gloom = 0, gust = 1.9, volume = 0.05, channel = "Master",
 		timeMode = "fixed", timeFixed = 3, enabled = false, thunder = false,
@@ -149,7 +164,7 @@ it("rewrites the old two-state indoors toggle", function()
 	-- that version is not corrupt, it is old, and must not be thrown away.
 	for _, case in ipairs({ { true, "on" }, { false, "dim" } }) do
 		local w = H.world({ loaded = false })
-		w.env.DuskfallDB = { indoors = case[1] }
+		w.env.ComfyRainDB = { indoors = case[1] }
 		w:load()
 		eq(w:db().indoors, case[2], "legacy indoors = " .. tostring(case[1]))
 	end
@@ -157,10 +172,10 @@ end)
 
 it("survives a SavedVariables file that is not a table at all", function()
 	-- Our own table, not the old addon's. A client killed mid-write can hand
-	-- back anything, and `DuskfallDB or {}` accepts every truthy kind of junk.
+	-- back anything, and `ComfyRainDB or {}` accepts every truthy kind of junk.
 	for _, bad in ipairs({ "half a file", 0, true }) do
 		local w = H.world({ loaded = false })
-		w.env.DuskfallDB = bad
+		w.env.ComfyRainDB = bad
 		w:load()
 		eq(type(w:db()), "table", "the addon has a database")
 		eq(w:db().intensity, "normal", "and fell back to defaults")

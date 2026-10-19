@@ -26,7 +26,7 @@ The MIT licence above covers the Lua source, the build scripts, and the
 textures and audio those scripts generate. All of that art is rasterised or
 synthesised from a model in `build/` - none of it is Blizzard's.
 
-Duskfall also plays several of Blizzard's own weather and thunder sounds by
+ComfyRain also plays several of Blizzard's own weather and thunder sounds by
 FileDataID. Those files are not included here, not redistributed, and not
 covered by this licence: they are already on the player's disk as part of the
 game, and the addon only asks the client to play them. See

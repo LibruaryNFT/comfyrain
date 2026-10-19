@@ -1,0 +1,21 @@
+## Interface: 16001
+## Title: Comfy Rain
+## Notes: Rain or snow on demand, anywhere, for as long as you want - scrolling storm layers, a dimmed world, Blizzard's own weather loops and distant thunder. |cff888888/comfyrain|r
+## Author: LibruaryNFT
+## Version: @project-version@
+## IconTexture: Interface\AddOns\ComfyRain\icon
+## X-Website: https://github.com/LibruaryNFT/comfyrain
+## X-License: MIT
+## X-Category: Graphic Enhancements
+## SavedVariables: ComfyRainDB
+## OptionalDeps: AlwaysRain, Duskfall
+
+ComfyRain.lua
+UI.lua
+# Probe.lua is a developer tool: it answers API questions against a live client
+# and is useless to a player. The packager strips everything between these two
+# markers, so it stays installed for local work and never reaches a release.
+# ComfyRain.lua already handles its absence - /comfy probe just says so.
+#@do-not-package@
+Probe.lua
+#@end-do-not-package@

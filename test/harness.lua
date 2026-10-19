@@ -14,9 +14,9 @@ local root = (...):match("^(.*)%.harness$") or ""
 local prefix = (root ~= "" and root .. "." or "")
 
 local DIR = debug.getinfo(1, "S").source:match("^@(.*)/[^/]*$") or "."
-local ADDON_FILE = DIR .. "/../Duskfall/Duskfall.lua"
-local PROBE_FILE = DIR .. "/../Duskfall/Probe.lua"
-local UI_FILE = DIR .. "/../Duskfall/UI.lua"
+local ADDON_FILE = DIR .. "/../ComfyRain/ComfyRain.lua"
+local PROBE_FILE = DIR .. "/../ComfyRain/Probe.lua"
+local UI_FILE = DIR .. "/../ComfyRain/UI.lua"
 
 --------------------------------------------------------------------------------
 -- Assertions
@@ -97,8 +97,8 @@ function H.world(opts)
 	local mock = require(prefix .. "wowmock")
 	mock.reset(opts)
 
-	-- Inherit the stdlib but keep every global the addon writes (DuskfallDB,
-	-- SLASH_DUSKFALL1, Duskfall_Refresh) inside this world.
+	-- Inherit the stdlib but keep every global the addon writes (ComfyRainDB,
+	-- SLASH_COMFYRAIN1, ComfyRain_Refresh) inside this world.
 	local env = setmetatable({}, { __index = _G })
 	env._G = env
 	mock.install(env)
@@ -109,7 +109,7 @@ function H.world(opts)
 
 	-- Probe.lua is a second chunk in the real TOC, and that separation is the
 	-- point of it, so it is loaded as a second chunk here too. Specs that do not
-	-- need it pass probe = false and get a world where /dusk probe is absent,
+	-- need it pass probe = false and get a world where /comfy probe is absent,
 	-- which is also what a shipped build without the file looks like.
 	local probe
 	if opts.probe ~= false then
@@ -136,18 +136,18 @@ function H.world(opts)
 		chunk()
 		if probe then probe() end
 		if ui then ui() end
-		mock.fire("ADDON_LOADED", "Duskfall")
+		mock.fire("ADDON_LOADED", "ComfyRain")
 		mock.fire("PLAYER_ENTERING_WORLD")
 		return self
 	end
 
-	function w:slash(input) return mock.slash("DUSKFALL", input) end
+	function w:slash(input) return mock.slash("COMFYRAIN", input) end
 	function w:advance(s, step) mock.advance(s, step) return self end
-	function w:db() return env.DuskfallDB end
+	function w:db() return env.ComfyRainDB end
 
 	-- The frames the addon builds, by the names it gives them.
-	function w:overlay() return mock.frameNamed("DuskfallOverlay") end
-	function w:tod() return mock.frameNamed("DuskfallTimeOfDay") end
+	function w:overlay() return mock.frameNamed("ComfyRainOverlay") end
+	function w:tod() return mock.frameNamed("ComfyRainTimeOfDay") end
 
 	-- The MOD quad under the rain: what the world is multiplied by. One per
 	-- frame, so asking by blend mode is unambiguous.
@@ -181,8 +181,8 @@ function H.world(opts)
 
 	-- The settings window, and the widgets inside it by the name the panel code
 	-- knows them by.
-	function w:panel() return mock.frameNamed("DuskfallPanel") end
-	function w:open() self.env.Duskfall_Panel("show") return self:panel() end
+	function w:panel() return mock.frameNamed("ComfyRainPanel") end
+	function w:open() self.env.ComfyRain_Panel("show") return self:panel() end
 
 	-- Controls are found by the text the player reads, not by an index into a
 	-- table the panel happens to keep. A spec that clicks "Snow" is clicking

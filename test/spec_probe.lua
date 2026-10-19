@@ -21,7 +21,7 @@ local function reload(w, opts)
 	local carried = w:db()
 	local w2 = H.world({ loaded = false, soundKits = opts.soundKits,
 	                     muteAffectsOwnPlayback = opts.muteAffectsOwnPlayback })
-	w2.env.DuskfallDB = carried
+	w2.env.ComfyRainDB = carried
 	w2:load()
 	return w2
 end
@@ -258,7 +258,7 @@ local function armed(opts)
 	opts = opts or {}
 	local w = H.world({ loaded = false, inCombat = opts.inCombat,
 	                    cvars = opts.cvars, muteAffectsOwnPlayback = true })
-	w.env.DuskfallDB = opts.db or { probe = { autorun = true, results = {}, order = {} } }
+	w.env.ComfyRainDB = opts.db or { probe = { autorun = true, results = {}, order = {} } }
 	w:load()
 	return w
 end
@@ -269,7 +269,7 @@ local function cycle(w, opts)
 	local carried = w:db()
 	local w2 = H.world({ loaded = false, inCombat = opts.inCombat,
 	                     cvars = opts.cvars, muteAffectsOwnPlayback = true })
-	w2.env.DuskfallDB = carried
+	w2.env.ComfyRainDB = carried
 	w2:load()
 	return w2
 end
@@ -408,7 +408,7 @@ it("refuses to answer the finish question when no key is accepted", function()
 end)
 
 it("photographs every weather state instead of asking somebody to describe one", function()
-	-- "Eyeball /dusk snow in daylight and at night" was the last Phase 1 item
+	-- "Eyeball /comfy snow in daylight and at night" was the last Phase 1 item
 	-- that looked like it needed a person. Screenshot() is callable from Lua,
 	-- so the only human left in the loop is the one who looks at the files.
 	local w = H.world()

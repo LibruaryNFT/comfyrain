@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run the Duskfall probe without anybody typing anything.
+"""Run the ComfyRain probe without anybody typing anything.
 
 The beta client is withdrawn on 2026-10-21. Seven of the eight Phase 1
 questions need a running client, and one of them, the only one the whole
@@ -53,10 +53,10 @@ def sv_path():
     if not candidates:
         sys.exit("no SavedVariables directory under %s" % SV_DIR_GLOB)
     candidates.sort(key=os.path.getmtime, reverse=True)
-    return os.path.join(candidates[0], "Duskfall.lua")
+    return os.path.join(candidates[0], "ComfyRain.lua")
 
 
-def read_sv(path, global_name="DuskfallDB"):
+def read_sv(path, global_name="ComfyRainDB"):
     if not os.path.exists(path):
         return None
     out = subprocess.run(["lua", os.path.join(HERE, "sv2json.lua"), path, global_name],
@@ -113,7 +113,7 @@ def arm(quiet=False):
     tmp = path + ".tmp"
     with open(tmp, "w") as f:
         f.write("-- written by tools/probe.py, %s\n" % time.strftime("%Y-%m-%d %H:%M:%S"))
-        f.write("DuskfallDB = %s\n" % serialise(db))
+        f.write("ComfyRainDB = %s\n" % serialise(db))
     os.replace(tmp, path)
     if not quiet:
         print("armed: %s" % path)
@@ -230,7 +230,7 @@ def report():
         sys.exit("no probe results in %s" % path)
     P = db["probe"]
 
-    print("\nDuskfall probe, build %s\n" % (
+    print("\nComfyRain probe, build %s\n" % (
         (P.get("results") or {}).get("geometry", {}).get("build", "unknown")))
 
     order = P.get("order") or sorted(P.get("results") or {})

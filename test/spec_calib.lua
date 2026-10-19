@@ -93,7 +93,7 @@ it("keeps the log across a reload, and can be wiped", function()
 	eq(#saved.calib, 2, "entries before the reload")
 
 	local w2 = H.world({ loaded = false })
-	w2.env.DuskfallDB = saved
+	w2.env.ComfyRainDB = saved
 	w2:load()
 	eq(#w2:db().calib, 2, "entries survive a reload")
 

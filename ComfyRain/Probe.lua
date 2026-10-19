@@ -1,4 +1,4 @@
--- Duskfall probe - the eight questions that die with the beta client.
+-- ComfyRain probe - the eight questions that die with the beta client.
 --
 -- The beta is withdrawn on 2026-10-21 and the game does not exist again until
 -- 4 November. Everything below needs a running client and cannot be answered
@@ -8,12 +8,12 @@
 -- read off disk afterwards instead of transcribed out of a chat window.
 --
 -- This is a SEPARATE FILE on purpose. Each .lua in a TOC is its own chunk, so a
--- raise in here cannot abort Duskfall.lua. Every check is additionally pcall'd,
+-- raise in here cannot abort ComfyRain.lua. Every check is additionally pcall'd,
 -- because a probe that kills the addon it is probing is worse than no probe.
 --
 -- Drop this file and its TOC line to ship without it.
 
-local ADDON = "Duskfall"
+local ADDON = "ComfyRain"
 local RAIN = 538981          -- Sound/ambience/Weather/RainMediumLoop.ogg
 local THUNDER = 838830       -- Sound/DOODAD/FX_TKIsle_MWThunderRumble01.ogg
 -- SPELLS/Goblin_Weather_Machine_Rain.M2. The first attempt at this check asked
@@ -28,12 +28,12 @@ local function msg(text)
 	print("|cff7fb8ff" .. ADDON .. " probe|r: " .. text)
 end
 
-local P    -- DuskfallDB.probe, filled on first use
+local P    -- ComfyRainDB.probe, filled on first use
 
 local function store()
-	DuskfallDB = DuskfallDB or {}
-	DuskfallDB.probe = DuskfallDB.probe or { results = {}, order = {} }
-	P = DuskfallDB.probe
+	ComfyRainDB = ComfyRainDB or {}
+	ComfyRainDB.probe = ComfyRainDB.probe or { results = {}, order = {} }
+	P = ComfyRainDB.probe
 	return P
 end
 
@@ -119,7 +119,7 @@ local function CheckAmbienceWithMusicOff()
 	SetCVar("Sound_EnableMusic", "0")
 	local willPlay, handle = PlaySoundFile(RAIN, "Ambience")
 	record("ambience_musicoff", willPlay and "ask" or "no",
-		string.format("willPlay=%s handle=%s, music was %s. |cffffd100Do you hear rain? /dusk probe heard yes|no|r",
+		string.format("willPlay=%s handle=%s, music was %s. |cffffd100Do you hear rain? /comfy probe heard yes|no|r",
 			tostring(willPlay), tostring(handle), tostring(before)))
 	store()
 	P.pendingEars = "ambience_musicoff"
@@ -301,14 +301,14 @@ local function CheckSettingsPanel()
 		return
 	end
 	local panel = CreateFrame("Frame")
-	panel.name = "Duskfall probe panel"
+	panel.name = "ComfyRain probe panel"
 	local cat = Settings.RegisterCanvasLayoutCategory(panel, panel.name)
 	if not cat then
 		record("settings_panel", "no", "RegisterCanvasLayoutCategory returned nil")
 		return
 	end
 	local registered = pcall(Settings.RegisterAddOnCategory, cat)
-	local tagged = pcall(function() cat:AddSearchTags("duskfall") end)
+	local tagged = pcall(function() cat:AddSearchTags("comfyrain") end)
 	record("settings_panel", registered and "yes" or "no",
 		string.format("category ID %s, RegisterAddOnCategory=%s, AddSearchTags=%s",
 			tostring(cat.ID or cat.id), tostring(registered),
@@ -375,7 +375,7 @@ end
 -- 10. Can an addon turn the realm's own weather off?
 --
 -- The question the author asked on 2026-10-16, and the only one that decides
--- whether Duskfall REPLACES the weather or merely draws on top of it. There is
+-- whether ComfyRain REPLACES the weather or merely draws on top of it. There is
 -- no weather setter in Lua and there never was, but `weatherDensity` is an
 -- ordinary graphics CVar (0-3) sitting in the binary between `particleDensity`
 -- and `volumeFogLevel`, and at 0 the client renders no weather at all. If an
@@ -453,19 +453,19 @@ local CHECKS = {
 
 local function RunAll(skip)
 	store()
-	msg("running checks. Answers land in DuskfallDB.probe.")
+	msg("running checks. Answers land in ComfyRainDB.probe.")
 	for _, c in ipairs(CHECKS) do
 		if not (skip and skip[c[1]]) then try(c[1], c[2]) end
 	end
 	ArmMutePersistence()
 	ArmSavedVars()
-	msg("two checks need a |cffffd100/reload|r to finish. |cffffd100/dusk probe report|r afterwards.")
+	msg("two checks need a |cffffd100/reload|r to finish. |cffffd100/comfy probe report|r afterwards.")
 end
 
 --------------------------------------------------------------------------------
 -- Unattended mode
 --
--- Set DuskfallDB.probe.autorun on disk before the client starts and the probe
+-- Set ComfyRainDB.probe.autorun on disk before the client starts and the probe
 -- drives itself: it runs the checks, reloads itself to answer the two that need
 -- a reload, plays a timed audio sequence, and reloads again to flush the file.
 -- Nothing is typed and nothing is transcribed.
@@ -537,7 +537,7 @@ local function SafeReload(stage)
 	P.stage = stage
 	P.reloads = (P.reloads or 0) + 1
 	if P.reloads > 4 then
-		msg("|cffff6666too many reloads, stopping.|r Finish with /dusk probe report.")
+		msg("|cffff6666too many reloads, stopping.|r Finish with /comfy probe report.")
 		P.autorun = nil
 		return
 	end
@@ -572,7 +572,7 @@ local function Unattended()
 		P.stage = "done"
 		P.autorun = nil
 		P.finishedAt = time and time() or 0
-		msg("|cff66ff66probe complete.|r Results are in DuskfallDB.probe.")
+		msg("|cff66ff66probe complete.|r Results are in ComfyRainDB.probe.")
 		-- One more reload, purely to write that last line to disk.
 		C_Timer.After(2, function()
 			P.reloads = 0
@@ -583,7 +583,7 @@ end
 
 local function Report()
 	store()
-	if #P.order == 0 then msg("nothing recorded yet. |cffffd100/dusk probe|r") return end
+	if #P.order == 0 then msg("nothing recorded yet. |cffffd100/comfy probe|r") return end
 	msg("results, build " .. tostring(select(2, GetBuildInfo())) .. ":")
 	for _, id in ipairs(P.order) do
 		local r = P.results[id]
@@ -594,13 +594,13 @@ local function Report()
 end
 
 --------------------------------------------------------------------------------
--- Entry point. Duskfall.lua calls this if the file is installed.
+-- Entry point. ComfyRain.lua calls this if the file is installed.
 --------------------------------------------------------------------------------
 
 --------------------------------------------------------------------------------
 -- The screenshot sweep.
 --
--- "Go and look at /dusk snow in daylight and at night" is the one Phase 1 item
+-- "Go and look at /comfy snow in daylight and at night" is the one Phase 1 item
 -- that reads like it needs a human, and it does not. Screenshot() is callable
 -- from Lua, the files land in the Screenshots folder with the client's own
 -- timestamps, and a manifest written next to them in SavedVariables says which
@@ -640,7 +640,7 @@ local function RunShots(done)
 		quality = GetCVar("screenshotQuality"),
 		db      = {},
 	}
-	local liveDB = DuskfallAPI and DuskfallAPI.DB and DuskfallAPI.DB()
+	local liveDB = ComfyRainAPI and ComfyRainAPI.DB and ComfyRainAPI.DB()
 	if liveDB then
 		for _, k in ipairs({ "enabled", "weather", "intensity", "timeMode", "timeFixed" }) do
 			before.db[k] = liveDB[k]
@@ -660,7 +660,7 @@ local function RunShots(done)
 		C_Timer.After(at, function()
 			pcall(function()
 				for _, c in ipairs(commands) do
-					if DuskfallAPI and DuskfallAPI.Command then DuskfallAPI.Command(c) end
+					if ComfyRainAPI and ComfyRainAPI.Command then ComfyRainAPI.Command(c) end
 				end
 			end)
 		end)
@@ -687,10 +687,10 @@ local function RunShots(done)
 			if before.quality then pcall(SetCVar, "screenshotQuality", before.quality) end
 			if liveDB then
 				for k, v in pairs(before.db) do liveDB[k] = v end
-				if DuskfallAPI and DuskfallAPI.Command then DuskfallAPI.Command("") end
+				if ComfyRainAPI and ComfyRainAPI.Command then ComfyRainAPI.Command("") end
 			end
 			record("screenshots", "ask",
-				string.format("%d shots requested, manifest in DuskfallDB.probe.shots. " ..
+				string.format("%d shots requested, manifest in ComfyRainDB.probe.shots. " ..
 					"The control is index 1, weather off - if that file is missing, " ..
 					"Screenshot() is blocked and the rest prove nothing.", #SHOTS))
 			store()
@@ -699,7 +699,7 @@ local function RunShots(done)
 	end)
 end
 
-function Duskfall_Probe(arg)
+function ComfyRain_Probe(arg)
 	arg = (arg or ""):lower()
 	local sub, rest = arg:match("^(%S*)%s*(.-)$")
 
@@ -721,13 +721,13 @@ function Duskfall_Probe(arg)
 			msg("shots done. |cffffd100/reload|r to write the manifest to disk.")
 		end)
 	elseif sub == "wipe" then
-		DuskfallDB.probe = nil
+		ComfyRainDB.probe = nil
 		P = nil
 		msg("probe results wiped.")
 	else
-		msg("|cffffd100/dusk probe|r, |cffffd100/dusk probe report|r, " ..
-		    "|cffffd100/dusk probe shots|r, " ..
-		    "|cffffd100/dusk probe heard yes|no|r, |cffffd100/dusk probe wipe|r")
+		msg("|cffffd100/comfy probe|r, |cffffd100/comfy probe report|r, " ..
+		    "|cffffd100/comfy probe shots|r, " ..
+		    "|cffffd100/comfy probe heard yes|no|r, |cffffd100/comfy probe wipe|r")
 	end
 end
 
@@ -742,9 +742,9 @@ boot:SetScript("OnEvent", function(self, _, name)
 	self:UnregisterEvent("ADDON_LOADED")
 	-- Nothing to answer unless a previous run armed something. Checking before
 	-- store() matters: store() creates the table, and a player who installed
-	-- the addon and never typed /dusk probe must not end up with probe state
+	-- the addon and never typed /comfy probe must not end up with probe state
 	-- in their SavedVariables file.
-	if type(DuskfallDB) ~= "table" or type(DuskfallDB.probe) ~= "table" then return end
+	if type(ComfyRainDB) ~= "table" or type(ComfyRainDB.probe) ~= "table" then return end
 	try("savedvars", CheckSavedVarsOnLoad)
 	try("mute_reload", CheckMutePersistenceOnLoad)
 end)
@@ -753,7 +753,7 @@ end)
 local auto = CreateFrame("Frame")
 auto:RegisterEvent("PLAYER_ENTERING_WORLD")
 auto:SetScript("OnEvent", function()
-	if type(DuskfallDB) ~= "table" or type(DuskfallDB.probe) ~= "table" then return end
-	if not DuskfallDB.probe.autorun then return end
+	if type(ComfyRainDB) ~= "table" or type(ComfyRainDB.probe) ~= "table" then return end
+	if not ComfyRainDB.probe.autorun then return end
 	C_Timer.After(5, function() try("unattended", Unattended) end)
 end)

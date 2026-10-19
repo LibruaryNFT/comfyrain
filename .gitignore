@@ -2,7 +2,7 @@
 # their output is deterministic, so the binaries stay out of history.
 #
 # Consequence worth knowing before you touch the release workflow: the BigWigs
-# packager skips anything git is ignoring, so building these into Duskfall/ is
+# packager skips anything git is ignoring, so building these into ComfyRain/ is
 # NOT enough to get them into the zip. The workflow force-adds them. Dropping
 # that step produces a release that installs cleanly with no rain and no sound.
 *.tga

@@ -1,12 +1,12 @@
 # BigWigs packager manifest. https://github.com/BigWigsMods/packager
-package-as: Duskfall
+package-as: ComfyRain
 
-# The packager copies the whole repo into .release/Duskfall/, but this repo
-# keeps the addon one level down in Duskfall/, so without this the player would
-# unzip to Interface/AddOns/Duskfall/Duskfall/ and the game would find nothing.
+# The packager copies the whole repo into .release/ComfyRain/, but this repo
+# keeps the addon one level down in ComfyRain/, so without this the player would
+# unzip to Interface/AddOns/ComfyRain/ComfyRain/ and the game would find nothing.
 # This lifts the inner folder up to become the addon folder itself.
 move-folders:
-    Duskfall/Duskfall: Duskfall
+    ComfyRain/ComfyRain: ComfyRain
 
 enable-nolib-creation: no
 
@@ -16,7 +16,7 @@ enable-nolib-creation: no
 #
 # The generated .tga and .ogg assets are deliberately NOT listed: they are
 # gitignored, so they are not in the checkout at all. The release workflow runs
-# the build scripts to place them inside Duskfall/ before the packager runs,
+# the build scripts to place them inside ComfyRain/ before the packager runs,
 # and then asserts they are there - because the failure mode if that step is
 # ever dropped is not a broken build, it is a zip that installs cleanly and
 # has no rain and no sound.
@@ -34,7 +34,7 @@ ignore:
     - dr-prompt-product.md
     - dr-prompt-name-and-scope.md
     - dr-prompt-is-this-worth-building.md
-    - Duskfall/Probe.lua
+    - ComfyRain/Probe.lua
 
 manual-changelog:
     filename: CHANGELOG.md

@@ -1,4 +1,4 @@
--- A mock of the World of Warcraft addon API, enough to run Duskfall under
+-- A mock of the World of Warcraft addon API, enough to run ComfyRain under
 -- stock Lua 5.1 with no client.
 --
 -- The beta client is withdrawn on 2026-10-21 and the game does not exist again
@@ -568,7 +568,7 @@ function M.install(env)
 	env.GetServerTime = function() return math.floor(M.epoch) end
 
 	-- ReloadUI is recorded, not performed. A spec that wants the other side of
-	-- a reload builds a new world and carries DuskfallDB across, which is what
+	-- a reload builds a new world and carries ComfyRainDB across, which is what
 	-- the client actually does and is the only way to test the write-read cycle.
 	env.ReloadUI = function() M.reloads = M.reloads + 1 end
 	env.InCombatLockdown = function() return M.inCombat end
@@ -646,11 +646,11 @@ function M.install(env)
 	if not M.screenshotBlocked then
 	env.Screenshot = function()
 		M.screenshots[#M.screenshots + 1] = {
-			weather   = env.DuskfallDB and env.DuskfallDB.weather,
-			intensity = env.DuskfallDB and env.DuskfallDB.intensity,
-			enabled   = env.DuskfallDB and env.DuskfallDB.enabled,
-			timeMode  = env.DuskfallDB and env.DuskfallDB.timeMode,
-			timeFixed = env.DuskfallDB and env.DuskfallDB.timeFixed,
+			weather   = env.ComfyRainDB and env.ComfyRainDB.weather,
+			intensity = env.ComfyRainDB and env.ComfyRainDB.intensity,
+			enabled   = env.ComfyRainDB and env.ComfyRainDB.enabled,
+			timeMode  = env.ComfyRainDB and env.ComfyRainDB.timeMode,
+			timeFixed = env.ComfyRainDB and env.ComfyRainDB.timeFixed,
 		}
 	end
 	end
@@ -785,7 +785,7 @@ function M.install(env)
 	env.GetLocale = function() return "enUS" end
 	env.UnitName = function() return "Tester" end
 	env.GetAddOnMetadata = function(_, field)
-		return ({ Version = "2.0.0", Title = "Duskfall" })[field]
+		return ({ Version = "2.0.0", Title = "ComfyRain" })[field]
 	end
 
 	-- Settings API. Present so a stub panel can be written, but registration is

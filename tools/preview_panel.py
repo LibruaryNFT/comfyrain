@@ -13,7 +13,7 @@ What it cannot prove: WoW draws Friz Quadrata and this draws DejaVu Sans, so
 text is within a few percent of the real width, not equal to it. Treat a label
 that only just fits here as one that does not fit there.
 
-The constants below MUST match the ones at the top of Duskfall/UI.lua, the same
+The constants below MUST match the ones at the top of ComfyRain/UI.lua, the same
 way SLANT_DEG in make_rain_tga.py must match SLANT in the addon.
 
 Usage: preview_panel.py <out.png> [--state rain|snow|blizzard|time]
@@ -22,7 +22,7 @@ import argparse
 
 from PIL import Image, ImageDraw, ImageFont
 
-# --- must match Duskfall/UI.lua -------------------------------------------
+# --- must match ComfyRain/UI.lua -------------------------------------------
 WIDTH = 330
 PAD = 14
 ROW = 24
@@ -110,7 +110,7 @@ def main():
     box(0, 0, WIDTH, height, BG + (240,))
     d.rectangle([0, 0, WIDTH * SCALE - 1, height * SCALE - 1], outline=EDGE, width=SCALE)
 
-    text(PAD, PAD, "Duskfall", normal, ACCENT)
+    text(PAD, PAD, "ComfyRain", normal, ACCENT)
     text(WIDTH - PAD, PAD, "x", normal, DIM, anchor="ra")
 
     def pill(x, yy, w, label, on, font=small, lamp=None):

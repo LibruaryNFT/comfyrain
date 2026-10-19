@@ -142,7 +142,7 @@ end)
 it("ducks the bed on the doorstep, not at the next relaunch", function()
 	-- Reported from live play: hearthed to Stormwind, walked into the inn, and
 	-- the rain stayed at full volume. The spec above hid this, because it ran
-	-- `/dusk heavy` to "force a relaunch so a new gain is computed" - and the
+	-- `/comfy heavy` to "force a relaunch so a new gain is computed" - and the
 	-- relaunch is the entire thing under test. A player walking through a door
 	-- types nothing. Without one, the indoor gain was not applied until the bed
 	-- looped on its own, which is up to 30 seconds for rain and 50 for snow.
@@ -280,7 +280,7 @@ end)
 
 it("cannot assume SOUNDKIT_FINISHED fires for a FileDataID", function()
 	-- Every sound this addon owns is a FileDataID, not a SoundKit. Whether the
-	-- event fires for those is unknown until /dusk probe answers it on a live
+	-- event fires for those is unknown until /comfy probe answers it on a live
 	-- client, so the mock defaults to the hostile answer and the sequencer in
 	-- Phase 4 is driven by a timer. If this spec ever starts failing because
 	-- the default flipped, the sequencer design has to be revisited, not the test.

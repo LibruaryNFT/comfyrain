@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate seamless snow and blizzard TGAs for the Duskfall WoW addon.
+"""Generate seamless snow and blizzard TGAs for the ComfyRain WoW addon.
 
 Same rule as make_rain_tga.py: nothing here is Blizzard's. A sheet composited
 from their Snowflake01 sprite would be redistributing their art, so every flake

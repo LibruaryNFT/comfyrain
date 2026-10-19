@@ -26,7 +26,7 @@ jobs:
       # ffmpeg is the Vorbis encoder behind make_rain_audio.py. It is present on
       # the workstation and absent from the runner image, so without this the
       # release dies on a tag with a bare FileNotFoundError - and it dies AFTER
-      # the point where a half-built Duskfall/ already exists.
+      # the point where a half-built ComfyRain/ already exists.
       - name: Install asset build dependencies
         run: |
           sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
@@ -38,10 +38,10 @@ jobs:
       # checkout therefore has no art and no audio.
       - name: Build the addon assets
         run: |
-          python build/make_rain_tga.py   Duskfall
-          python build/make_snow_tga.py   Duskfall
-          python build/make_rain_audio.py Duskfall
-          python build/make_icon_tga.py   Duskfall
+          python build/make_rain_tga.py   ComfyRain
+          python build/make_snow_tga.py   ComfyRain
+          python build/make_rain_audio.py ComfyRain
+          python build/make_icon_tga.py   ComfyRain
 
       # This is not cosmetic and it is not optional.
       #
@@ -57,7 +57,7 @@ jobs:
       # Re-pointing the tag is the other half of this step and is just as
       # load-bearing. The commit above moves HEAD one past the tag, so the
       # packager sees an untagged commit and behaves completely differently:
-      # it names the zip Duskfall-v1.0.0-1-gabc1234 instead of Duskfall-v1.0.0,
+      # it names the zip ComfyRain-v1.0.0-1-gabc1234 instead of ComfyRain-v1.0.0,
       # and - the part that actually breaks the release - it treats the build
       # as an alpha and SKIPS publishing to GitHub entirely. The v1.0.0-rc1
       # rehearsal packaged a perfect zip, said "Packaging complete", and
@@ -65,7 +65,7 @@ jobs:
       # never pushed.
       - name: Make the generated assets visible to the packager
         run: |
-          git add -f Duskfall/*.tga Duskfall/rain.ogg Duskfall/thunder.ogg
+          git add -f ComfyRain/*.tga ComfyRain/rain.ogg ComfyRain/thunder.ogg
           git -c user.email=ci@local -c user.name=ci commit -qm "ci: stage built assets"
           tag="${GITHUB_REF#refs/tags/}"
           if [ "$tag" != "$GITHUB_REF" ]; then
@@ -94,23 +94,23 @@ jobs:
           echo "checking $zip"
           unzip -o -q "$zip" -d /tmp/verify
           missing=0
-          for f in Duskfall.lua UI.lua Duskfall.toc icon.tga \
+          for f in ComfyRain.lua UI.lua ComfyRain.toc icon.tga \
                    rain-far.tga rain-near.tga \
                    snow-far.tga snow-near.tga snow-gale.tga \
                    rain.ogg thunder.ogg; do
-            if [ ! -s "/tmp/verify/Duskfall/$f" ]; then
+            if [ ! -s "/tmp/verify/ComfyRain/$f" ]; then
               echo "::error::$f is missing from the release zip"
               missing=1
             fi
           done
           # Probe.lua is a developer tool and must never reach a player.
-          if [ -e /tmp/verify/Duskfall/Probe.lua ]; then
+          if [ -e /tmp/verify/ComfyRain/Probe.lua ]; then
             echo "::error::Probe.lua leaked into the release zip"
             missing=1
           fi
           # An unsubstituted token here means the packager did not see a tag,
           # and the addon list would show a literal @project-version@.
-          if grep -q '@project-version@' /tmp/verify/Duskfall/Duskfall.toc; then
+          if grep -q '@project-version@' /tmp/verify/ComfyRain/ComfyRain.toc; then
             echo "::error::version token was not substituted"
             missing=1
           fi
@@ -122,14 +122,14 @@ jobs:
             # A .toc is a Windows file and the packager writes CRLF, so the
             # line ends in \r and an exact match never fires. Strip it rather
             # than matching loosely, or this check passes on a prefix.
-            got=$(grep '^## Version:' /tmp/verify/Duskfall/Duskfall.toc \
+            got=$(grep '^## Version:' /tmp/verify/ComfyRain/ComfyRain.toc \
                   | head -1 | tr -d '\r' | sed 's/^## Version: *//')
             if [ "$got" != "$TAG" ]; then
               echo "::error::version is '${got}', expected the tag '${TAG}'"
               missing=1
             fi
             case "$zip" in
-              *"Duskfall-${TAG}-"*) ;;
+              *"ComfyRain-${TAG}-"*) ;;
               *) echo "::error::zip name does not carry the bare tag: $zip"; missing=1 ;;
             esac
           fi

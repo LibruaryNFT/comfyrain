@@ -1,4 +1,4 @@
--- Duskfall settings window.
+-- ComfyRain settings window.
 --
 -- Three decisions, because each one is a thing that could have been done the
 -- obvious way and should not have been:
@@ -16,20 +16,20 @@
 --    UIPanelCloseButton for the X, are both probed with pcall and both have a
 --    hand-drawn fallback, so a client without either still gets a usable window.
 --
--- 2. Every control issues a slash command through DuskfallAPI.Command. Not one
+-- 2. Every control issues a slash command through ComfyRainAPI.Command. Not one
 --    of them writes to the saved variables directly. So the window can never do
 --    something the command line cannot, the two can never disagree, and the
 --    whole settings surface stays behind the slash parser's existing tests.
 --
 -- 3. Every control's tooltip names the command it runs. The window is not a
 --    replacement for the commands, it is how you learn them: drag the slider,
---    read "/dusk alpha 0.75", and next time type it.
+--    read "/comfy alpha 0.75", and next time type it.
 --
 -- There is no OK, Apply or Cancel. The weather is drawn live behind the window,
 -- so every change shows itself immediately, and a dialog that makes you press
 -- Apply to see what you just chose is a dialog that gets closed.
 
-local ADDON = "Duskfall"
+local ADDON = "ComfyRain"
 
 local WIDTH    = 330
 local PAD      = 14
@@ -41,7 +41,7 @@ local TOP_INSET = 30
 -- Gold is WoW's own heading colour and the single cheapest way to make a
 -- hand-drawn frame belong to the rest of the interface. The blue is kept, but
 -- only for the lamp on a lit toggle and the slider thumb: it is the addon's
--- chat-prefix colour, so it reads as Duskfall's and not as a second theme.
+-- chat-prefix colour, so it reads as ComfyRain's and not as a second theme.
 local GOLD     = { 1.00, 0.82, 0.00 }
 local ACCENT   = { 0.50, 0.72, 1.00 }
 local BG       = { 0.04, 0.05, 0.07, 0.94 }
@@ -75,8 +75,8 @@ end
 local panel, rows, controls
 local updating = false      -- guards the write-back loop while we set widgets
 
-local function DB() return DuskfallAPI and DuskfallAPI.DB() end
-local function Run(cmd) DuskfallAPI.Command(cmd) end
+local function DB() return ComfyRainAPI and ComfyRainAPI.DB() end
+local function Run(cmd) ComfyRainAPI.Command(cmd) end
 
 --------------------------------------------------------------------------------
 -- Pieces
@@ -323,7 +323,7 @@ local function Refresh()
 	if not db then return end
 	updating = true
 
-	local weather = DuskfallAPI.Weather[db.weather] or DuskfallAPI.Weather.rain
+	local weather = ComfyRainAPI.Weather[db.weather] or ComfyRainAPI.Weather.rain
 
 	controls.rain:SetSelected(db.weather == "rain")
 	controls.snow:SetSelected(db.weather == "snow")
@@ -337,7 +337,7 @@ local function Refresh()
 		pill.intensity = name
 		pill:SetLabel(name and (name:gsub("^%l", string.upper)) or "")
 		pill:SetSelected(name == db.intensity)
-		Teach(pill, "Intensity", name and ("/dusk " .. name) or nil)
+		Teach(pill, "Intensity", name and ("/comfy " .. name) or nil)
 	end
 
 	controls.alpha:Set(db.scale)
@@ -376,7 +376,7 @@ end
 local function Build()
 	local db = DB()
 
-	panel = CreateFrame("Frame", "DuskfallPanel", UIParent,
+	panel = CreateFrame("Frame", "ComfyRainPanel", UIParent,
 		SupportsBackdrop() and "BackdropTemplate" or nil)
 	panel:SetWidth(WIDTH)
 	panel:SetHeight(400)
@@ -417,7 +417,7 @@ local function Build()
 
 	local title = Text(panel, "GameFontNormal", "CENTER")
 	title:SetPoint("TOP", header, "TOP", 0, -15)
-	title:SetText("Duskfall")
+	title:SetText("ComfyRain")
 	title:SetTextColor(GOLD[1], GOLD[2], GOLD[3])
 
 	-- The client's own round close button if the template is there, and our
@@ -437,7 +437,7 @@ local function Build()
 		x:SetText("x")
 	end
 	close:SetScript("OnClick", function() panel:Hide() end)
-	Teach(close, "Close", "/duskfall")
+	Teach(close, "Close", "/comfyrain")
 
 	controls, rows = {}, {}
 	local function add(frame, opts)
@@ -454,14 +454,14 @@ local function Build()
 	controls.rain = Pill(top, "Rain", function() Run("rain") end)
 	controls.rain:SetPoint("TOPLEFT", top, "TOPLEFT", 0, 0)
 	controls.rain:SetWidth(third - 3)
-	Teach(controls.rain, "Rain", "/dusk rain")
+	Teach(controls.rain, "Rain", "/comfy rain")
 
 	controls.snow = Pill(top, "Snow", function() Run("snow") end)
 	controls.snow:SetPoint("TOPLEFT", top, "TOPLEFT", third, 0)
 	controls.snow:SetWidth(third - 3)
-	Teach(controls.snow, "Snow", "/dusk snow")
+	Teach(controls.snow, "Snow", "/comfy snow")
 
-	controls.power = Toggle(top, "Weather on", "/dusk", function()
+	controls.power = Toggle(top, "Weather on", "/comfy", function()
 		Run(DB().enabled and "off" or "on")
 	end)
 	controls.power:SetPoint("TOPLEFT", top, "TOPLEFT", third * 2, 0)
@@ -476,39 +476,39 @@ local function Build()
 
 	controls.alpha = add(Slider(panel, "Visibility", 0, 1.5, 0.05, "%.2f",
 		function(v) Run(string.format("alpha %.2f", v)) end))
-	Teach(controls.alpha.slider, "Visibility", "/dusk alpha 0.75",
+	Teach(controls.alpha.slider, "Visibility", "/comfy alpha 0.75",
 		"How much weather you see through.")
 
 	controls.speed = add(Slider(panel, "Fall Speed", 0.2, 3, 0.05, "%.2f",
 		function(v) Run(string.format("speed %.2f", v)) end))
-	Teach(controls.speed.slider, "Fall Speed", "/dusk speed 1.4",
+	Teach(controls.speed.slider, "Fall Speed", "/comfy speed 1.4",
 		"How fast it comes down.")
 
 	controls.dim = add(Slider(panel, "Darkness", 0, 2, 0.05, "%.2f",
 		function(v) Run(string.format("dim %.2f", v)) end))
-	Teach(controls.dim.slider, "Darkness", "/dusk dim 0.5",
+	Teach(controls.dim.slider, "Darkness", "/comfy dim 0.5",
 		"How much the storm dims the world. 0 leaves the light alone.")
 
 	controls.gust = add(Slider(panel, "Wind", 0, 2, 0.05, "%.2f",
 		function(v) Run(string.format("gust %.2f", v)) end))
-	Teach(controls.gust.slider, "Wind", "/dusk gust 0.5",
+	Teach(controls.gust.slider, "Wind", "/comfy gust 0.5",
 		"How hard it gusts. 0 is dead calm: one fixed rate, no wind.")
 
 	add(Heading(panel, "Sound"), { gap = 4 })
 
 	controls.volume = add(Slider(panel, "Volume", 0, 1, 0.05, "%.2f",
 		function(v) Run(string.format("volume %.2f", v)) end))
-	Teach(controls.volume.slider, "Volume", "/dusk volume 0.5",
-		"Duskfall's weather only. Your game volume is untouched.")
+	Teach(controls.volume.slider, "Volume", "/comfy volume 0.5",
+		"ComfyRain's weather only. Your game volume is untouched.")
 
 	local audio = add(CreateFrame("Frame", nil, panel))
 	audio:SetHeight(ROW)
-	controls.sound = Toggle(audio, "Sound", "/dusk sound off",
+	controls.sound = Toggle(audio, "Sound", "/comfy sound off",
 		function() Run(DB().sound and "sound off" or "sound on") end)
 	controls.sound:SetPoint("TOPLEFT", audio, "TOPLEFT", 0, 0)
 	controls.sound:SetWidth(third - 3)
 
-	controls.thunder = Toggle(audio, "Thunder", "/dusk thunder off",
+	controls.thunder = Toggle(audio, "Thunder", "/comfy thunder off",
 		function() Run(DB().thunder and "thunder off" or "thunder on") end)
 	controls.thunder:SetPoint("TOPLEFT", audio, "TOPLEFT", third, 0)
 	controls.thunder:SetWidth(third - 3)
@@ -522,7 +522,7 @@ local function Build()
 	end)
 	controls.indoors:SetPoint("TOPLEFT", audio, "TOPLEFT", third * 2, 0)
 	controls.indoors:SetWidth(third)
-	Teach(controls.indoors, "Indoors", "/dusk indoors dim",
+	Teach(controls.indoors, "Indoors", "/comfy indoors dim",
 		"Off hides it. Dim keeps it quiet and faint, the way weather is from " ..
 		"inside. On draws it at full strength.")
 
@@ -533,7 +533,7 @@ local function Build()
 		for i, c in ipairs(CHANNELS) do if c == db2.channel then at = i end end
 		Run("channel " .. CHANNELS[(at % #CHANNELS) + 1]:lower())
 	end))
-	Teach(controls.channel, "Channel", "/dusk channel Ambience",
+	Teach(controls.channel, "Channel", "/comfy channel Ambience",
 		"Which of the game's volume sliders owns the weather. Ambience keeps " ..
 		"it out of the way of music.")
 
@@ -545,7 +545,7 @@ local function Build()
 		pill.mode = mode.key
 		pill:SetLabel(mode.label)
 		pill:SetScript("OnClick", function() Run(mode.cmd) end)
-		Teach(pill, mode.label, "/dusk " .. mode.cmd, mode.note)
+		Teach(pill, mode.label, "/comfy " .. mode.cmd, mode.note)
 	end
 
 	controls.hour = add(Slider(panel, "Hour", -12, 23, 1, "%d", function(v)
@@ -562,7 +562,7 @@ local function Build()
 	controls.strength = add(Slider(panel, "Strength", 0, 1, 0.05, "%.2f",
 		function(v) Run(string.format("time strength %.2f", v)) end),
 		{ visible = function() return DB().timeMode ~= "off" end })
-	Teach(controls.strength.slider, "Strength", "/dusk time strength 0.7",
+	Teach(controls.strength.slider, "Strength", "/comfy time strength 0.7",
 		"How far towards that hour to grade the light.")
 
 	local foot = add(CreateFrame("Frame", nil, panel))
@@ -571,12 +571,12 @@ local function Build()
 	local commands = Pill(foot, "Commands", function() Run("help") end)
 	commands:SetPoint("TOPLEFT", foot, "TOPLEFT", 0, 0)
 	commands:SetWidth(half - 3)
-	Teach(commands, "Commands", "/dusk help", "Print every command to chat.")
+	Teach(commands, "Commands", "/comfy help", "Print every command to chat.")
 
 	local reset = Pill(foot, "Reset", function() Run("reset") end)
 	reset:SetPoint("TOPLEFT", foot, "TOPLEFT", half, 0)
 	reset:SetWidth(half)
-	Teach(reset, "Reset", "/dusk reset",
+	Teach(reset, "Reset", "/comfy reset",
 		"Back to defaults. Settings only; the calibration log is kept.")
 
 	local hint = add(CreateFrame("Frame", nil, panel), { gap = 2 })
@@ -587,7 +587,7 @@ local function Build()
 
 	-- Escape closes it, which is a list of frame names and therefore the reason
 	-- this frame has one.
-	tinsert(UISpecialFrames, "DuskfallPanel")
+	tinsert(UISpecialFrames, "ComfyRainPanel")
 
 	if db and db.ui and db.ui.point then
 		panel:ClearAllPoints()
@@ -599,8 +599,8 @@ local function Build()
 
 end
 
-function Duskfall_Panel(mode)
-	if not DuskfallAPI or not DuskfallAPI.DB() then return end
+function ComfyRain_Panel(mode)
+	if not ComfyRainAPI or not ComfyRainAPI.DB() then return end
 	if not panel then Build() end
 
 	if mode == "hide" or (mode ~= "show" and panel:IsShown()) then
@@ -673,7 +673,7 @@ end
 -- at build time. Cheap: eight SetColorTexture calls on a frame nobody redraws.
 local function PaintIcon()
 	if not icon.sky then return end
-	local db = DuskfallAPI and DuskfallAPI.DB()
+	local db = ComfyRainAPI and ComfyRainAPI.DB()
 	if not db then return end
 	local snow = db.weather == "snow"
 	local lit = db.enabled
@@ -716,7 +716,7 @@ local function PaintIcon()
 end
 
 local function MinimapPlace()
-	local db = DuskfallAPI and DuskfallAPI.DB()
+	local db = ComfyRainAPI and ComfyRainAPI.DB()
 	if not minimap or not db then return end
 	local a = math.rad(db.minimapAngle or 196)
 	-- Measured, not the usual hard-coded 80. That constant is the radius of a
@@ -730,7 +730,7 @@ end
 
 local function BuildMinimap()
 	if minimap or not Minimap then return end
-	minimap = CreateFrame("Button", "DuskfallMinimapButton", Minimap)
+	minimap = CreateFrame("Button", "ComfyRainMinimapButton", Minimap)
 	minimap:SetSize(31, 31)
 	minimap:SetFrameStrata("MEDIUM")
 	minimap:SetFrameLevel(Minimap:GetFrameLevel() + 8)
@@ -748,9 +748,9 @@ local function BuildMinimap()
 	minimap:SetScript("OnClick", function(_, button)
 		if button == "RightButton" then
 			-- The bare command is the weather toggle; "toggle" is not a command.
-			DuskfallAPI.Command("")
+			ComfyRainAPI.Command("")
 		else
-			Duskfall_Panel()
+			ComfyRain_Panel()
 		end
 	end)
 
@@ -765,7 +765,7 @@ local function BuildMinimap()
 		local mx, my = Minimap:GetCenter()
 		local cx, cy = GetCursorPosition()
 		local scale = Minimap:GetEffectiveScale()
-		local db = DuskfallAPI.DB()
+		local db = ComfyRainAPI.DB()
 		if not mx or not db then return end
 		db.minimapAngle = math.deg(math.atan2(cy / scale - my, cx / scale - mx))
 		MinimapPlace()
@@ -773,7 +773,7 @@ local function BuildMinimap()
 
 	minimap:SetScript("OnEnter", function(self)
 		GameTooltip:SetOwner(self, "ANCHOR_LEFT")
-		GameTooltip:AddLine("Duskfall")
+		GameTooltip:AddLine("ComfyRain")
 		GameTooltip:AddLine("Left-click: settings", 1, 1, 1)
 		GameTooltip:AddLine("Right-click: weather on or off", 1, 1, 1)
 		GameTooltip:AddLine("Drag: move around the minimap", 0.6, 0.6, 0.6)
@@ -790,10 +790,10 @@ local function BuildMinimap()
 	MinimapPlace()
 end
 
--- Called by Duskfall.lua once the DB exists, and again whenever the player
+-- Called by ComfyRain.lua once the DB exists, and again whenever the player
 -- toggles the button off and on.
-function Duskfall_Minimap(mode)
-	local db = DuskfallAPI and DuskfallAPI.DB()
+function ComfyRain_Minimap(mode)
+	local db = ComfyRainAPI and ComfyRainAPI.DB()
 	if not db then return end
 	if mode == "toggle" then db.minimap = not db.minimap end
 	if db.minimap == false then
@@ -813,4 +813,4 @@ local function Changed()
 	PaintIcon()
 end
 
-if DuskfallAPI then DuskfallAPI.changed = Changed end
+if ComfyRainAPI then ComfyRainAPI.changed = Changed end

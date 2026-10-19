@@ -34,27 +34,27 @@ SUFFIXES = [
 ]
 
 TOC = """## Interface: 16001
-## Title: Duskfall flavour probe
+## Title: ComfyRain flavour probe
 ## Notes: Answers which TOC suffix this client loads. Delete after reading.
 ## Version: 1.0
-## SavedVariables: DuskfallFlavourDB
+## SavedVariables: ComfyRainFlavourDB
 
 {lua}
 """
 
 LUA = """-- Loaded only if the client chose the TOC suffix named below.
-DuskfallFlavourDB = DuskfallFlavourDB or {{}}
-DuskfallFlavourDB.loaded = {suffix!r}
-DuskfallFlavourDB.build = select(2, GetBuildInfo())
-DuskfallFlavourDB.interface = select(4, GetBuildInfo())
-print("|cff7fb8ffDuskfall flavour|r: this client loaded " .. {suffix!r})
+ComfyRainFlavourDB = ComfyRainFlavourDB or {{}}
+ComfyRainFlavourDB.loaded = {suffix!r}
+ComfyRainFlavourDB.build = select(2, GetBuildInfo())
+ComfyRainFlavourDB.interface = select(4, GetBuildInfo())
+print("|cff7fb8ffComfyRain flavour|r: this client loaded " .. {suffix!r})
 """
 
 
 def main():
     if len(sys.argv) != 2:
         sys.exit(__doc__)
-    dest = Path(sys.argv[1]) / "DuskfallFlavour"
+    dest = Path(sys.argv[1]) / "ComfyRainFlavour"
     dest.mkdir(parents=True, exist_ok=True)
 
     for suffix in SUFFIXES:
@@ -64,11 +64,11 @@ def main():
         # Python's repr of it is a valid Lua string literal.
         label = suffix if suffix else "(no suffix)"
         (dest / lua).write_text(LUA.format(suffix=label))
-        (dest / ("DuskfallFlavour%s.toc" % suffix)).write_text(TOC.format(lua=lua))
+        (dest / ("ComfyRainFlavour%s.toc" % suffix)).write_text(TOC.format(lua=lua))
 
     print("wrote %d TOCs to %s" % (len(SUFFIXES), dest))
     print("launch the client once; the answer lands in")
-    print("  WTF/Account/<ACCOUNT>/SavedVariables/DuskfallFlavourDB.lua")
+    print("  WTF/Account/<ACCOUNT>/SavedVariables/ComfyRainFlavourDB.lua")
 
 
 if __name__ == "__main__":

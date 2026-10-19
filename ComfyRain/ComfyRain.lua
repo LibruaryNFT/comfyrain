@@ -1,4 +1,4 @@
--- Duskfall 2.0
+-- ComfyRain 2.0
 --
 -- The client cannot be told to make it rain: C_Weather only reads, ApplyWeather
 -- belongs to server-driven scene scripts, and there is no weather console command.
@@ -9,8 +9,8 @@
 -- FileDataID. Only the tiling of the drops is ours, because the particle system
 -- that would normally place them is not reachable from an addon.
 
-local ADDON = "Duskfall"
-local MEDIA = "Interface\\AddOns\\Duskfall\\"
+local ADDON = "ComfyRain"
+local MEDIA = "Interface\\AddOns\\ComfyRain\\"
 
 local BED_OVERLAP = 0.12      -- seconds of overlap when relooping the bed
 -- The seam is relaunched up to this much EARLIER than the minimum overlap, never
@@ -57,7 +57,7 @@ local GUSTS = { 982361, 982363, 982365, 982367, 982369, 982371, 982373 }
 -- these loops are close enough in character that swapping one for another
 -- costs the player nothing. It also confirmed the mute SURVIVES a reload, so
 -- every mute has to be undone explicitly; a crash mid-session is the one case
--- this cannot cover, and `/dusk suppress off` repairs it.
+-- this cannot cover, and `/comfy suppress off` repairs it.
 local AMBIENCE_LOOPS = {
 	538981, 538982, 538983,            -- rain: medium, heavy, light
 	538984, 538985, 538989,            -- snow: heavy, light, medium
@@ -321,7 +321,7 @@ local function Preset()
 	return w.presets.normal
 end
 
--- Keep db.intensity truthful after a weather change, so /dusk status and the
+-- Keep db.intensity truthful after a weather change, so /comfy status and the
 -- saved settings never name a preset this weather does not have.
 local function NormaliseIntensity()
 	if W().presets[db.intensity] then return end
@@ -636,7 +636,7 @@ local function CalibRecord(source, parsed)
 
 	-- Loud on purpose. The whole session is worthless if he is looking away.
 	msg("|cffffd100>>> REAL WEATHER <<<|r " .. what)
-	msg(string.format("   %s - screenshot it now, then |cffffd100/dusk off|r and screenshot again",
+	msg(string.format("   %s - screenshot it now, then |cffffd100/comfy off|r and screenshot again",
 		entry.subzone ~= "" and entry.subzone or entry.zone))
 	return entry
 end
@@ -683,7 +683,7 @@ local function CalibStop()
 		calibFrame:SetScript("OnEvent", nil)
 	end
 	calibOn = false
-	msg(string.format("stopped. |cff66ff66%d|r observations held in DuskfallDB.calib",
+	msg(string.format("stopped. |cff66ff66%d|r observations held in ComfyRainDB.calib",
 		db.calib and #db.calib or 0))
 end
 
@@ -698,7 +698,7 @@ local function CalibReport()
 				tostring(e.console.intensity)) or ""))
 	end
 	if n > 0 then
-		msg("|cffffd100/dusk calib off|r when done; the table survives a /reload")
+		msg("|cffffd100/comfy calib off|r when done; the table survives a /reload")
 	end
 end
 
@@ -774,7 +774,7 @@ local function PollIndoors()
 		if GetTime() - indoorsSince > (inside and ENTER_IN or ENTER_OUT) then
 			indoorsNow = inside
 			indoorsSince = nil
-			Duskfall_Refresh()
+			ComfyRain_Refresh()
 		end
 	else
 		indoorsSince = nil
@@ -904,7 +904,7 @@ local function BuildOverlay()
 	-- The time grade is its own frame, underneath the rain, because it has to be
 	-- usable on its own: wanting your realm's night to match your own clock has
 	-- nothing to do with wanting rain.
-	tod = CreateFrame("Frame", "DuskfallTimeOfDay", WorldFrame)
+	tod = CreateFrame("Frame", "ComfyRainTimeOfDay", WorldFrame)
 	tod:SetAllPoints(WorldFrame)
 	tod:SetFrameStrata("BACKGROUND")
 	tod:SetFrameLevel(1)
@@ -921,7 +921,7 @@ local function BuildOverlay()
 	todLift:SetBlendMode("ADD")
 	todLift:SetAlpha(0)
 
-	overlay = CreateFrame("Frame", "DuskfallOverlay", WorldFrame)
+	overlay = CreateFrame("Frame", "ComfyRainOverlay", WorldFrame)
 	overlay:SetAllPoints(WorldFrame)
 	overlay:SetFrameStrata("BACKGROUND")
 	overlay:SetFrameLevel(5)
@@ -1112,7 +1112,7 @@ local function ApplySuppression()
 	-- Keyed on whether we are actually playing, not merely on db.enabled. The
 	-- two come apart in three ordinary cases - sound off, inside with indoors
 	-- set to off, and a cinematic - and in every one of them the old test left
-	-- the realm's loops muted while Duskfall played nothing at all. Silence
+	-- the realm's loops muted while ComfyRain played nothing at all. Silence
 	-- with no visible cause is the worst failure an audio addon has.
 	local active = db.suppress and db.sound and ShouldRain()
 	local keep = active and LoopsInUse() or {}
@@ -1258,7 +1258,7 @@ end
 -- State
 --------------------------------------------------------------------------------
 
-function Duskfall_Refresh()
+function ComfyRain_Refresh()
 	if not overlay then return end
 	UpdateTimeOfDay()
 	local want = ShouldRain()
@@ -1286,7 +1286,7 @@ function Duskfall_Refresh()
 	else
 		StopBed()
 		-- Turning the weather off has to hand the realm its own loops back, or
-		-- a player who tried Duskfall once is left with silent rain forever.
+		-- a player who tried ComfyRain once is left with silent rain forever.
 		ApplySuppression()
 	end
 
@@ -1297,7 +1297,7 @@ function Duskfall_Refresh()
 		lightningTimer = nil
 	end
 end
-local Refresh = Duskfall_Refresh
+local Refresh = ComfyRain_Refresh
 
 --------------------------------------------------------------------------------
 -- Slash commands
@@ -1331,23 +1331,23 @@ end
 
 local function Help()
 	msg("commands:")
-	print("  |cffffd100/dusk|r - toggle on/off")
-	print("  |cffffd100/dusk rain|snow|r - which weather to draw")
-	print("  |cffffd100/dusk light|normal|heavy|r - intensity")
-	print("  |cffffd100/dusk monsoon|r, |cffffd100/dusk blizzard|r - the top of each, weather included")
-	print("  |cffffd100/dusk auto|r - match whatever the realm says the weather is here")
-	print("  |cffffd100/dusk alpha <0-1.5>|r - how visible it is")
-	print("  |cffffd100/dusk speed <0.2-3>|r - how fast it falls")
-	print("  |cffffd100/dusk dim <0-2>|r - how much it darkens the world (0 = off)")
-	print("  |cffffd100/dusk time local|r - make it look like YOUR clock, not the realm's")
-	print("  |cffffd100/dusk time +9|r, |cffffd100/dusk time 21|r, |cffffd100/dusk time off|r")
-	print("  |cffffd100/dusk indoors on|off|r - draw it inside buildings too")
-	print("  |cffffd100/dusk sound on|off|r, |cffffd100/dusk thunder on|off|r (gusts, in snow)")
-	print("  |cffffd100/dusk channel Ambience|SFX|Master|r - which volume slider owns it")
-	print("  |cffffd100/dusk density|r - is the client even allowed to draw real weather?")
-	print("  |cffffd100/dusk calib on|r - log real weather so the defaults stop being guesses")
-	print("  |cffffd100/dusk probe|r - answer the client-gated questions before the beta dies")
-	print("  |cffffd100/dusk status|r")
+	print("  |cffffd100/comfy|r - toggle on/off")
+	print("  |cffffd100/comfy rain|snow|r - which weather to draw")
+	print("  |cffffd100/comfy light|normal|heavy|r - intensity")
+	print("  |cffffd100/comfy monsoon|r, |cffffd100/comfy blizzard|r - the top of each, weather included")
+	print("  |cffffd100/comfy auto|r - match whatever the realm says the weather is here")
+	print("  |cffffd100/comfy alpha <0-1.5>|r - how visible it is")
+	print("  |cffffd100/comfy speed <0.2-3>|r - how fast it falls")
+	print("  |cffffd100/comfy dim <0-2>|r - how much it darkens the world (0 = off)")
+	print("  |cffffd100/comfy time local|r - make it look like YOUR clock, not the realm's")
+	print("  |cffffd100/comfy time +9|r, |cffffd100/comfy time 21|r, |cffffd100/comfy time off|r")
+	print("  |cffffd100/comfy indoors on|off|r - draw it inside buildings too")
+	print("  |cffffd100/comfy sound on|off|r, |cffffd100/comfy thunder on|off|r (gusts, in snow)")
+	print("  |cffffd100/comfy channel Ambience|SFX|Master|r - which volume slider owns it")
+	print("  |cffffd100/comfy density|r - is the client even allowed to draw real weather?")
+	print("  |cffffd100/comfy calib on|r - log real weather so the defaults stop being guesses")
+	print("  |cffffd100/comfy probe|r - answer the client-gated questions before the beta dies")
+	print("  |cffffd100/comfy status|r")
 end
 
 -- source is "ui" when the settings window issued this rather than the player.
@@ -1365,7 +1365,7 @@ local function HandleSlash(input, source)
 		StartBed()
 		ScheduleLightning()
 	-- "blizzard" and "monsoon" each name a weather as well as an intensity, so
-	-- they switch both at once: nobody typing /dusk blizzard wants rain.
+	-- they switch both at once: nobody typing /comfy blizzard wants rain.
 	elseif cmd == "blizzard" or cmd == "monsoon" then
 		db.weather = (cmd == "blizzard") and "snow" or "rain"
 		db.intensity, db.enabled = cmd, true
@@ -1397,11 +1397,11 @@ local function HandleSlash(input, source)
 		db.enabled = (cmd == "on")
 	elseif cmd == "alpha" then
 		local v = tonumber(arg)
-		if not v then msg("usage: /dusk alpha 0.75") return end
+		if not v then msg("usage: /comfy alpha 0.75") return end
 		db.scale = math.max(0, math.min(1.5, v))
 	elseif cmd == "speed" then
 		local v = tonumber(arg)
-		if not v then msg("usage: /dusk speed 1.4") return end
+		if not v then msg("usage: /comfy speed 1.4") return end
 		db.speed = math.max(0.2, math.min(3, v))
 	elseif cmd == "time" then
 		local sub, rest = arg:match("^(%S*)%s*(.-)$")
@@ -1411,14 +1411,14 @@ local function HandleSlash(input, source)
 			db.timeMode = "local"
 		elseif sub == "strength" then
 			local v = tonumber(rest)
-			if not v then msg("usage: /dusk time strength 0.7") return end
+			if not v then msg("usage: /comfy time strength 0.7") return end
 			db.timeStrength = math.max(0, math.min(1, v))
 		elseif sub:match("^[+-]%d+%.?%d*$") then
 			db.timeMode, db.timeOffset = "offset", tonumber(sub)
 		elseif tonumber(sub) then
 			db.timeMode, db.timeFixed = "fixed", tonumber(sub) % 24
 		else
-			msg("usage: |cffffd100/dusk time local|r (match your own clock), " ..
+			msg("usage: |cffffd100/comfy time local|r (match your own clock), " ..
 			    "|cffffd100+9|r / |cffffd100-5|r (shift by hours), " ..
 			    "|cffffd10021|r (hold one hour), |cffffd100off|r, " ..
 			    "|cffffd100strength 0.7|r")
@@ -1428,11 +1428,11 @@ local function HandleSlash(input, source)
 	-- "gloom" was the name until the rename; it still works and is not advertised.
 	elseif cmd == "dim" or cmd == "gloom" then
 		local v = tonumber(arg)
-		if not v then msg("usage: /dusk dim 0.5  (0 turns the darkening off)") return end
+		if not v then msg("usage: /comfy dim 0.5  (0 turns the darkening off)") return end
 		db.gloom = math.max(0, math.min(2, v))
 	elseif cmd == "gust" or cmd == "wind" then
 		local v = tonumber(arg)
-		if not v then msg("usage: /dusk gust 0.5  (0 is dead calm)") return end
+		if not v then msg("usage: /comfy gust 0.5  (0 is dead calm)") return end
 		db.gust = math.max(0, math.min(2, v))
 	elseif cmd == "suppress" then
 		-- Silence the realm's own weather loop so ours is the only one playing.
@@ -1442,20 +1442,20 @@ local function HandleSlash(input, source)
 		db.suppress = (arg == "on")
 		StartBed()
 		msg(db.suppress
-			and "suppressing the realm's own weather loops while Duskfall is on."
+			and "suppressing the realm's own weather loops while ComfyRain is on."
 			or  "the realm's own weather loops are audible again.")
 	elseif cmd == "volume" or cmd == "vol" then
 		local v = tonumber(arg)
-		if not v then msg("usage: /dusk volume 0.5  (0 is silent)") return end
+		if not v then msg("usage: /comfy volume 0.5  (0 is silent)") return end
 		db.volume = math.max(0, math.min(1, v))
 		-- Gain is baked in at play time, so the running clips keep their old
 		-- level until they reloop. Restart the bed so the slider feels live.
 		StartBed()
 	elseif cmd == "minimap" then
 		db.minimap = (arg ~= "off")
-		if Duskfall_Minimap then pcall(Duskfall_Minimap) end
+		if ComfyRain_Minimap then pcall(ComfyRain_Minimap) end
 		msg(db.minimap and "minimap button shown." or
-			"minimap button hidden. |cffffd100/duskfall|r still opens the window.")
+			"minimap button hidden. |cffffd100/comfyrain|r still opens the window.")
 	elseif cmd == "sound" then
 		db.sound = (arg ~= "off")
 	elseif cmd == "thunder" then
@@ -1465,7 +1465,7 @@ local function HandleSlash(input, source)
 		if arg == "on" or arg == "off" or arg == "dim" then
 			db.indoors = arg
 		else
-			msg("usage: /dusk indoors off | dim | on  (dim is the default: " ..
+			msg("usage: /comfy indoors off | dim | on  (dim is the default: " ..
 			    "quiet and faint, the way weather is from inside)")
 			return
 		end
@@ -1489,7 +1489,7 @@ local function HandleSlash(input, source)
 		-- and raising them turns on Blizzard's real weather everywhere, not ours.
 		if arg == "" then
 			DensityReport()
-			msg("|cffffd100/dusk density on|r raises both so the realm's own weather renders")
+			msg("|cffffd100/comfy density on|r raises both so the realm's own weather renders")
 			return
 		end
 		for cvar, want in pairs(DENSITY_CVARS) do
@@ -1503,8 +1503,8 @@ local function HandleSlash(input, source)
 		return
 	-- Probe.lua is a separate chunk and may not be installed; see its header.
 	elseif cmd == "probe" then
-		if Duskfall_Probe then
-			Duskfall_Probe(arg)
+		if ComfyRain_Probe then
+			ComfyRain_Probe(arg)
 		else
 			msg("Probe.lua is not installed.")
 		end
@@ -1538,9 +1538,9 @@ local function HandleSlash(input, source)
 		end
 		return
 	elseif cmd == "ui" or cmd == "config" or cmd == "options" or cmd == "settings" then
-		if not Duskfall_Panel then
+		if not ComfyRain_Panel then
 			msg("UI.lua is not installed.")
-		elseif not pcall(Duskfall_Panel, "toggle") then
+		elseif not pcall(ComfyRain_Panel, "toggle") then
 			msg("|cffff6666the settings window would not open.|r")
 		end
 		return
@@ -1563,7 +1563,7 @@ local function HandleSlash(input, source)
 	-- of the player and the window is the thing they stop trusting.
 	-- pcall: the window is a separate file, and a broken window may not take
 	-- the command line down with it.
-	if DuskfallAPI.changed then pcall(DuskfallAPI.changed) end
+	if ComfyRainAPI.changed then pcall(ComfyRainAPI.changed) end
 	if source ~= "ui" then Status() end
 end
 
@@ -1571,7 +1571,7 @@ end
 -- the window can do is therefore a command that can also be typed, the two can
 -- never drift apart, and the whole settings surface stays under the slash
 -- parser's existing tests.
-DuskfallAPI = {
+ComfyRainAPI = {
 	Weather = WEATHER,
 	Command = function(input) HandleSlash(input, "ui") end,
 	DB      = function() return db end,
@@ -1592,50 +1592,58 @@ end
 boot:SetScript("OnEvent", function(_, event, arg1)
 	if event == "ADDON_LOADED" then
 		if arg1 ~= ADDON then return end
-		-- The addon was called AlwaysRain until 2026-10-14. Its settings live in a
-		-- global named after the old addon, which exists only if the old folder is
-		-- still installed and loaded first (## OptionalDeps). Strangers will never
-		-- have it, so this is a no-op for them.
+		-- The addon was AlwaysRain until 2026-10-14 and Duskfall until
+		-- 2026-10-19. Each name left its settings in a global named after
+		-- itself, which exists only if that old folder is still installed and
+		-- loaded first (## OptionalDeps). Strangers have neither, so this is a
+		-- no-op for them. Newest first: if somebody has both, Duskfall's
+		-- settings are the ones they were actually using.
 		--
 		-- Wrapped, because an old table that is malformed must cost the user their
 		-- settings and nothing else. Bricking the addon during a rename is the
 		-- stupidest available way to lose somebody on day one.
 		-- Type test, not `or {}`: a SavedVariables file truncated by a client
 		-- crash can read back as a string or a number, and those are both
-		-- truthy. We already guard the OLD table that way four lines down;
-		-- our own is no less likely to be the half-written one.
-		if type(DuskfallDB) ~= "table" then DuskfallDB = {} end
-		if not DuskfallDB.migrated and type(AlwaysRainDB) == "table" then
-			local ok = pcall(function()
-				for k, v in pairs(AlwaysRainDB) do
-					if DuskfallDB[k] == nil then DuskfallDB[k] = v end
+		-- truthy. We already guard the OLD tables that way just below; our own
+		-- is no less likely to be the half-written one.
+		if type(ComfyRainDB) ~= "table" then ComfyRainDB = {} end
+		if not ComfyRainDB.migrated then
+			for _, old in ipairs({ { "Duskfall", DuskfallDB },
+			                       { "AlwaysRain", AlwaysRainDB } }) do
+				if type(old[2]) == "table" then
+					local ok = pcall(function()
+						for k, v in pairs(old[2]) do
+							if ComfyRainDB[k] == nil then ComfyRainDB[k] = v end
+						end
+					end)
+					ComfyRainDB.migrated = true
+					msg(ok and ("settings carried over from " .. old[1] .. ".")
+					       or ("|cffff9900could not read the old " .. old[1]
+					           .. " settings, starting fresh.|r"))
 				end
-			end)
-			DuskfallDB.migrated = true
-			msg(ok and "settings carried over from AlwaysRain."
-			       or "|cffff9900could not read the old AlwaysRain settings, starting fresh.|r")
+			end
 		end
 
-		db = DuskfallDB
+		db = ComfyRainDB
 		SanitiseProfile()
 		BuildOverlay()
 
-		SLASH_DUSKFALL1 = "/dusk"
-		SLASH_DUSKFALL2 = "/rain"          -- permanent alias, not deprecated
-		SlashCmdList.DUSKFALL = HandleSlash
+		SLASH_COMFYRAIN1 = "/comfy"
+		SLASH_COMFYRAIN2 = "/rain"          -- permanent alias, not deprecated
+		SlashCmdList.COMFYRAIN = HandleSlash
 
 		-- The long name opens the window rather than toggling the weather.
 		-- Nobody types eight letters to flip a switch, and a settings window
 		-- nobody can find is the single most common reason an atmosphere addon
 		-- is uninstalled in its first two minutes.
-		SLASH_DUSKFALLUI1 = "/duskfall"
-		SLASH_DUSKFALLUI2 = "/duskui"
+		SLASH_COMFYRAINUI1 = "/comfyrain"
+		SLASH_COMFYRAINUI2 = "/comfyui"
 		-- The window is a separate file and is allowed to be missing or broken.
 		-- Neither may cost the player the addon, so every entry into it is
 		-- guarded and failure falls back to the thing that always works.
-		SlashCmdList.DUSKFALLUI = function()
-			if not Duskfall_Panel then return HandleSlash("help") end
-			local ok, err = pcall(Duskfall_Panel, "toggle")
+		SlashCmdList.COMFYRAINUI = function()
+			if not ComfyRain_Panel then return HandleSlash("help") end
+			local ok, err = pcall(ComfyRain_Panel, "toggle")
 			if not ok then
 				msg("|cffff6666the settings window would not open|r: " .. tostring(err))
 				HandleSlash("help")
@@ -1649,16 +1657,16 @@ boot:SetScript("OnEvent", function(_, event, arg1)
 		-- window could not be built.
 		-- The minimap button is the only way in that does not require knowing a
 		-- slash command exists, which is the whole problem with slash commands.
-		if Duskfall_Minimap then pcall(Duskfall_Minimap) end
+		if ComfyRain_Minimap then pcall(ComfyRain_Minimap) end
 
 		if not db.seenUI then
 			db.seenUI = true
 			-- Delayed, because the window should land after the world has
 			-- drawn rather than on top of a loading screen.
 			C_Timer.After(4, function()
-				if Duskfall_Panel and pcall(Duskfall_Panel, "show") then return end
-				msg("loaded. |cffffd100/duskfall|r opens the settings window, " ..
-				    "|cffffd100/dusk|r toggles the weather.")
+				if ComfyRain_Panel and pcall(ComfyRain_Panel, "show") then return end
+				msg("loaded. |cffffd100/comfyrain|r opens the settings window, " ..
+				    "|cffffd100/comfy|r toggles the weather.")
 			end)
 		end
 

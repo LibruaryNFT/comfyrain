@@ -2,7 +2,7 @@
 
 Today is 18 October 2026. World of Warcraft: Forever launches 4 November 2026. It is
 Blizzard's relaunch of Classic-era Azeroth with a substantially upgraded renderer. I have
-spent several weeks building a CurseForge addon called Duskfall and I need an evidence-based
+spent several weeks building a CurseForge addon called ComfyRain and I need an evidence-based
 answer on whether to ship it, change it, or stop.
 
 Answer with citations. Where you cannot find evidence, say "no evidence found" rather than
@@ -13,7 +13,7 @@ know.
 
 ## What the addon is
 
-Duskfall is a pure-Lua addon with no client modification. It draws rain or snow on demand,
+ComfyRain is a pure-Lua addon with no client modification. It draws rain or snow on demand,
 anywhere in the world, for as long as the player wants, independently of whatever weather
 the server has scheduled. It is screen-space only:
 

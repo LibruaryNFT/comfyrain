@@ -53,7 +53,7 @@ it("falls at the speed the preset says, whatever its density is", function()
 
 	local light = travelOf("light")
 	local heavy, w = travelOf("heavy")
-	local presets = w.env.DuskfallAPI.Weather.rain.presets
+	local presets = w.env.ComfyRainAPI.Weather.rain.presets
 	ok(presets.light.density ~= presets.heavy.density, "the two densities differ")
 
 	local want = presets.heavy.speed / presets.light.speed
@@ -200,7 +200,7 @@ it("hands the realm its loops back whenever it is not using them", function()
 	-- Suppression mutes Blizzard's ambience files so ours is the only weather
 	-- audible. It was keyed on db.enabled, which is not the same question as
 	-- "are we playing": sound off, indoors with indoors=off, and a cinematic
-	-- all left the realm muted while Duskfall played nothing.
+	-- all left the realm muted while ComfyRain played nothing.
 	local function mutedCount(w)
 		local n = 0
 		for _ in pairs(w.mock.muted or {}) do n = n + 1 end
