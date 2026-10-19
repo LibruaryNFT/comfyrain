@@ -1132,6 +1132,13 @@ end
 --------------------------------------------------------------------------------
 
 local shareBox
+-- Forward-declared because the box's own "Paste One" button reopens it empty,
+-- which is the only route from "here is mine" to "here is where yours goes".
+local ShowShare
+
+-- The box with a one-line caption, and how tall one line of GameFontDisableSmall
+-- is. Anything longer pushes the frame down by the difference.
+local SHARE_BASE, NOTE_LINE = 104, 16
 
 local function BuildShare()
 	local f = CreateFrame("Frame", "ComfyRainShare", UIParent,
@@ -1163,12 +1170,21 @@ local function BuildShare()
 	title:SetText("Share a Profile")
 	title:SetTextColor(GOLD[1], GOLD[2], GOLD[3])
 
+	-- The caption is the only instruction anybody gets, so it has to be allowed
+	-- to be two or three lines. A FontString given a width wraps, but the frame
+	-- around it does not grow on its own: the box was a fixed 104 tall with 16
+	-- pixels between this and the text well, so the second line was drawn
+	-- underneath the well and the sentence appeared to stop mid-word. The well
+	-- now hangs off the bottom of the caption and ShowShare sizes the frame to
+	-- whatever it turned out to be.
 	f.note = Text(f, "GameFontDisableSmall")
 	f.note:SetPoint("TOPLEFT", f, "TOPLEFT", PAD + 4, -PAD - 18)
 	f.note:SetWidth(WIDTH - PAD * 2 - 8)
+	f.note:SetJustifyV("TOP")
+	if f.note.SetWordWrap then f.note:SetWordWrap(true) end
 
 	local well = CreateFrame("Frame", nil, f)
-	well:SetPoint("TOPLEFT", f, "TOPLEFT", PAD + 4, -PAD - 34)
+	well:SetPoint("TOPLEFT", f.note, "BOTTOMLEFT", 0, -8)
 	well:SetWidth(WIDTH - PAD * 2 - 8)
 	well:SetHeight(26)
 	local wellBG = Fill(well, { 0.10, 0.11, 0.14, 1 })
@@ -1203,6 +1219,17 @@ local function BuildShare()
 	close:SetWidth(80)
 	Teach(close, "Close", nil, "Escape closes it too.")
 
+	-- The other direction, which until now existed only as a slash command
+	-- nobody was told about. Somebody who has been handed a profile string
+	-- opens this box to look at their own first; this is the button that is
+	-- there when they do.
+	f.paste = Pill(f, "Paste One", function() ShowShare(nil) end)
+	f.paste:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", PAD + 4, PAD)
+	f.paste:SetWidth(96)
+	Teach(f.paste, "Paste One", "/comfy import",
+		"Empty the box so you can paste a profile somebody sent you. Your own " ..
+		"settings are kept and /comfy undo puts them back.")
+
 	tinsert(UISpecialFrames, "ComfyRainShare")
 	shareBox = f
 end
@@ -1211,12 +1238,30 @@ end
 -- note overrides the default caption. /comfy about reuses this box for the
 -- project URL, and telling somebody that a GitHub link can be "pasted back" to
 -- another ComfyRain user would be nonsense.
-local function ShowShare(text, note)
+function ShowShare(text, note)
 	if not shareBox then BuildShare() end
 	shareBox.edit:SetText(text or "")
+	-- Both halves of the round trip are spelled out, because a string in a box
+	-- with no instructions is a string nobody uses. The import caption leads
+	-- with the undo: the reason people do not paste a stranger's profile is
+	-- that they expect to lose their own.
 	shareBox.note:SetText(note or (text
-		and "Ctrl-C copies it. Anyone running ComfyRain can paste it back."
-		or "Paste a profile here and press Enter."))
+		and "Ctrl-C copies it, then send it to them. To use one somebody " ..
+		    "sent you, press Paste One."
+		or "Ctrl-V pastes it in, then press Enter. Your own settings are " ..
+		   "saved first, and /comfy undo puts them back."))
+
+	-- Only when this is a profile of ours to hand out. /comfy about borrows the
+	-- box for a URL, and offering to import a GitHub link would be nonsense.
+	if text and not note then shareBox.paste:Show() else shareBox.paste:Hide() end
+
+	-- A caption that wrapped to two lines used to be drawn underneath the text
+	-- well, which read as the sentence being cut off. The frame grows instead.
+	local h = shareBox.note.GetStringHeight
+		and shareBox.note:GetStringHeight() or NOTE_LINE
+	if not h or h < NOTE_LINE then h = NOTE_LINE end
+	shareBox:SetHeight(SHARE_BASE + (h - NOTE_LINE))
+
 	shareBox:Show()
 	shareBox.edit:SetFocus()
 	-- Selected on open: the whole point is that copying it costs one keystroke

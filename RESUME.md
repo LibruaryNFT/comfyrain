@@ -517,6 +517,31 @@ a later flavour must not put a red warning on a panel whose sound is fine — an
 quiet while `sound` is off, because the panel already says that. All nine CVar names were
 checked against `WowB.exe` 1.60.1.70425, with an invented name as the negative control.
 
+### Sharing a profile: caption, the way in, the way back — DONE 2026-10-19
+
+Three things, asked together.
+
+**The caption was not cut off, it was wrapping off the bottom.** `ComfyRainShare` was a
+fixed 104px with the caption at `-32` and the text well at `-48` — 16px, one line. Anything
+longer was drawn underneath the well and read as a sentence stopping mid-word. The well now
+hangs off the caption's `BOTTOMLEFT` and `ShowShare` sizes the frame from
+`note:GetStringHeight()`, so the caption can be as long as it needs to be. That is what
+makes the rest possible.
+
+**Nobody was told how to paste one.** `/comfy import` with no argument already opened the
+box empty; it was a command nobody had been given. The box now has a **Paste One** button
+(hidden when `/comfy about` borrows the frame for the project URL), and both captions spell
+out the round trip.
+
+**Import is undoable, and that was the right answer to "without overwriting".** A preview
+dialog listing twenty values is the wrong shape for a 330px window, and "merge without
+changing anything" is a contradiction — the profile *is* the settings. What stops someone
+trying a friend's profile is expecting to lose their own, so the import takes
+`ExportProfile()` first and `/comfy undo` puts it back. In `db.undo`, so it survives a
+reload ("import, /reload to be sure, change my mind" is the obvious way to use it), on the
+FURNITURE list in the coverage spec, armed only when the import actually landed, and
+cleared on use — one step back, not a history, and it says so when it is spent.
+
 ## Blizzard assets used, by FileDataID
 
 Addons can pass a numeric FileDataID to `SetTexture` and `PlaySoundFile`, so the client's own

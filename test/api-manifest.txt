@@ -49,6 +49,7 @@ PRESENT GetPlayerMapPosition
 PRESENT GetPoint
 PRESENT GetRealZoneText
 PRESENT GetScale
+PRESENT GetStringHeight
 PRESENT GetSubZoneText
 PRESENT GetText
 PRESENT GetTime
@@ -87,6 +88,7 @@ PRESENT SetGradient
 PRESENT SetHeight
 PRESENT SetHighlightTexture
 PRESENT SetJustifyH
+PRESENT SetJustifyV
 PRESENT SetMask
 PRESENT SetMinMaxValues
 PRESENT SetModel

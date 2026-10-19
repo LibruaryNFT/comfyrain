@@ -550,7 +550,8 @@ it("has a Reset for every section a setting can live in", function()
 
 	local FURNITURE = { minimap = true, minimapAngle = true, ui = true,
 	                    migrated = true, calib = true, calibrating = true,
-	                    probe = true, where = true, seen = true, seenUI = true }
+	                    probe = true, where = true, seen = true, seenUI = true,
+	                    undo = true }
 	local covered = {}
 	for _, name in ipairs(w.env.ComfyRainAPI.SectionOrder) do
 		ok(w:button("Reset " .. name:gsub("^%l", string.upper)),
@@ -1144,4 +1145,146 @@ it("keeps quiet about the channel while the sound is switched off", function()
 	w:open()
 	w:slash("sound off")
 	eq(w:says("%(muted%)"), nil, "one explanation, not two")
+end)
+
+--------------------------------------------------------------------------------
+-- Sharing a profile: the caption, and the way back
+--------------------------------------------------------------------------------
+--
+-- Asked 2026-10-19: the caption on the share box is cut off, we never tell
+-- anybody how to paste one, and should pasting be allowed to overwrite their
+-- own settings?
+--
+-- The caption was not cut off, it was wrapping onto a second line that was
+-- drawn underneath the text well, in a frame fixed at 104 tall. The frame now
+-- grows to its caption, which is what lets the caption be long enough to say
+-- anything useful.
+--
+-- On overwriting: a preview dialog listing twenty values in a 330px window is
+-- the wrong shape, and "merge without changing anything" is a contradiction -
+-- the profile IS the settings. What actually stops somebody trying a friend's
+-- profile is expecting to lose their own, so the answer is one step back.
+-- /comfy undo, armed by the import itself, surviving a reload.
+
+local function shareNote(w)
+	local box = w:shareBox()
+	return box and box.note and box.note.text or ""
+end
+
+it("grows the share box to fit a caption that needs two lines", function()
+	local w = H.world()
+	w:open()
+	w:button("Share"):Click()
+	local box = w:shareBox()
+	local noteH = box.note:GetStringHeight()
+	H.gt(noteH, 16, "the caption really does need more than one line")
+	-- 88 is the box minus the single line it used to allow for. Anything less
+	-- and the wrapped remainder is drawn over the text well.
+	H.gt(box:GetHeight(), 88 + noteH - 1, "and the frame made room for all of it")
+end)
+
+it("keeps the box its old size for a caption that fits", function()
+	-- The growth is for the caption that needs it, not a taller box for
+	-- everyone. /comfy about borrows this frame for a one-line URL note.
+	local w = H.world()
+	w:slash("about")
+	eq(w:shareBox():GetHeight(), 104, "one line, one box")
+end)
+
+it("tells you how to use a profile somebody sent you", function()
+	-- The whole round trip was a slash command nobody had been told about.
+	local w = H.world()
+	w:open()
+	w:button("Share"):Click()
+	contains(shareNote(w), "Paste One", "the caption names the way in")
+	ok(w:button("Paste One"), "and the button is actually there")
+end)
+
+it("empties the box when you say you want to paste one", function()
+	local w = H.world()
+	w:open()
+	w:button("Share"):Click()
+	contains(w:editBox():GetText(), "ComfyRain1:", "your own, to start with")
+
+	w:button("Paste One"):Click()
+	eq(w:editBox():GetText(), "", "the box is cleared for theirs")
+	ok(w:editBox():HasFocus(), "with the cursor in it")
+	contains(shareNote(w), "undo", "and it says how to change your mind")
+end)
+
+it("does not offer to import the project URL", function()
+	-- /comfy about reuses this box. Offering to paste a GitHub link back in as
+	-- a weather profile would be nonsense.
+	local w = H.world()
+	w:slash("about")
+	eq(w:button("Paste One"):IsShown(), false, "no import button on a URL")
+end)
+
+it("puts your own settings back after an import you did not want", function()
+	local w = H.world()
+	w:slash("snow")
+	w:slash("alpha 0.4")
+	local mine = w.env.ComfyRainAPI.Export()
+
+	w:slash("rain")
+	w:slash("alpha 0.9")
+	local theirs = w.env.ComfyRainAPI.Export()
+
+	w:slash("import " .. mine)
+	eq(w:db().weather, "snow", "their profile landed")
+	near(w:db().scale, 0.4, 1e-9, "all of it")
+
+	w:slash("undo")
+	eq(w:db().weather, "rain", "and undo put mine back")
+	near(w:db().scale, 0.9, 1e-9, "every value, not just the obvious one")
+	eq(w.env.ComfyRainAPI.Export(), theirs, "exactly as it was")
+end)
+
+it("says so plainly when there is nothing to undo", function()
+	local w = H.world()
+	w:slash("undo")
+	contains(table.concat(w.mock.printed, " | "), "nothing to undo",
+		"rather than silently doing something")
+end)
+
+it("is one step back, not a history", function()
+	-- A second undo must not restore from two imports ago. An undo that is
+	-- quietly a stack is an undo nobody can predict.
+	local w = H.world()
+	w:slash("alpha 0.3")
+	w:slash("import ComfyRain1:scale=0.8")
+	w:slash("undo")
+	near(w:db().scale, 0.3, 1e-9, "back where I was")
+
+	w:slash("undo")
+	near(w:db().scale, 0.3, 1e-9, "and a second undo moves nothing")
+	-- It also has to SAY there is nothing left, or a player cannot tell an
+	-- undo that is spent from one that is still armed.
+	contains(w.mock.printed[#w.mock.printed], "nothing to undo",
+		"and says the way back has been used")
+end)
+
+it("arms nothing when the paste was not a profile at all", function()
+	local w = H.world()
+	w:slash("alpha 0.3")
+	w:slash("import this is not a profile")
+	near(w:db().scale, 0.3, 1e-9, "the junk changed nothing")
+	w:slash("undo")
+	contains(table.concat(w.mock.printed, " | "), "nothing to undo",
+		"and it did not arm an undo for a change that never happened")
+end)
+
+it("still remembers the way back after a reload", function()
+	-- "Import it, reload to be sure, change my mind" is the obvious way to use
+	-- this, so the undo lives in the saved variables rather than in memory.
+	local w = H.world()
+	w:slash("alpha 0.3")
+	w:slash("import ComfyRain1:scale=0.8")
+	local saved = w:db()
+
+	local two = H.world({ loaded = false })
+	two.env.ComfyRainDB = saved
+	two:load()
+	two:slash("undo")
+	near(two:db().scale, 0.3, 1e-9, "the way back survived the reload")
 end)

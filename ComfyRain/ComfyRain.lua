@@ -1638,6 +1638,7 @@ local function Help()
 	print("  |cffffd100/comfy stop|r - everything off, including the light, in one go")
 	print("  |cffffd100/comfy reset|r - back to defaults; |cffffd100reset look||sound||time|r for one part")
 	print("  |cffffd100/comfy share|r - a string to send someone; |cffffd100/comfy import|r to paste theirs")
+	print("  |cffffd100/comfy undo|r - put your own settings back after an import")
 	print("  |cffffd100/comfy density|r - is the client even allowed to draw real weather?")
 	print("  |cffffd100/comfy watch on|r - shout when the game's OWN rain starts, then just play")
 	print("  |cffffd100/comfy probe|r - answer the client-gated questions before the beta dies")
@@ -1951,14 +1952,40 @@ local function HandleSlash(input, source)
 			msg("usage: |cffffd100/comfy import ComfyRain1:...|r")
 			return
 		end
+		-- Taken BEFORE the import, and only kept if the import actually landed.
+		-- The thing that stops somebody trying a profile a friend sent them is
+		-- expecting to lose their own, and the addon already knows how to write
+		-- its settings down - so the answer is not a preview dialog listing
+		-- twenty values in a 330px window, it is being able to get back.
+		-- Survives a reload because "import, /reload to be sure, change my
+		-- mind" is the obvious way to use this.
+		local before = ExportProfile()
 		local n, why = ImportProfile(rawArg)
 		if not n then
 			msg("|cffff6666" .. tostring(why) .. "|r")
 			return
 		end
-		msg(string.format("imported %d settings%s.", n,
+		db.undo = before
+		msg(string.format("imported %d settings%s. |cffffd100/comfy undo|r " ..
+			"puts yours back.", n,
 			(type(why) == "number" and why > 0)
 				and (", ignored " .. why .. " this version does not know") or ""))
+	elseif cmd == "undo" then
+		if type(db.undo) ~= "string" then
+			msg("nothing to undo: no profile has been imported.")
+			return
+		end
+		-- Cleared first, and the saved string held locally, so an undo that
+		-- somehow fails cannot leave a stale one armed to restore settings from
+		-- two imports ago. Undo is one step on purpose.
+		local text = db.undo
+		db.undo = nil
+		local n, why = ImportProfile(text)
+		if not n then
+			msg("|cffff6666could not put it back: " .. tostring(why) .. "|r")
+			return
+		end
+		msg(string.format("put your own %d settings back.", n))
 	elseif cmd == "status" then
 		Status()
 		return

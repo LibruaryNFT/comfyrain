@@ -173,6 +173,21 @@ function FontString:SetJustifyV(j) self.justifyV = j end
 function FontString:SetFontObject(o) self.fontObject = o end
 function FontString:SetFont(f, size) self.font, self.fontSize = f, size end
 function FontString:SetWordWrap(v) self.wordWrap = v and true or false end
+-- Crude but monotonic. The mock cannot measure a font, so it assumes a fixed
+-- character width and a 16px line. That is enough for the only question any
+-- spec needs to ask of it - does this caption need more than one line, and did
+-- the frame around it grow to suit - which is the failure that made a
+-- two-line caption look like a sentence cut off mid-word.
+function FontString:GetStringHeight()
+	local text = self.text or ""
+	local w = self:GetWidth()
+	if not self.wordWrap or not w or w <= 0 then return 16 end
+	local perLine = math.max(1, math.floor(w / 5.2))
+	return math.max(1, math.ceil(#text / perLine)) * 16
+end
+function FontString:GetStringWidth()
+	return #(self.text or "") * 5.2
+end
 
 --------------------------------------------------------------------------------
 -- Frames
