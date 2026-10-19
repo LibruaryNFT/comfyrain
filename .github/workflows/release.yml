@@ -53,10 +53,28 @@ jobs:
       #
       # rain-v1..v5.ogg are deliberately not added. They are gain-staging
       # variants the build emits for comparison, not shipping assets.
+      #
+      # Re-pointing the tag is the other half of this step and is just as
+      # load-bearing. The commit above moves HEAD one past the tag, so the
+      # packager sees an untagged commit and behaves completely differently:
+      # it names the zip Duskfall-v1.0.0-1-gabc1234 instead of Duskfall-v1.0.0,
+      # and - the part that actually breaks the release - it treats the build
+      # as an alpha and SKIPS publishing to GitHub entirely. The v1.0.0-rc1
+      # rehearsal packaged a perfect zip, said "Packaging complete", and
+      # created no release at all. The tag move is local to the runner and is
+      # never pushed.
       - name: Make the generated assets visible to the packager
         run: |
           git add -f Duskfall/*.tga Duskfall/rain.ogg Duskfall/thunder.ogg
           git -c user.email=ci@local -c user.name=ci commit -qm "ci: stage built assets"
+          tag="${GITHUB_REF#refs/tags/}"
+          if [ "$tag" != "$GITHUB_REF" ]; then
+            git tag -f "$tag" HEAD
+            echo "TAG=$tag" >> "$GITHUB_ENV"
+            echo "re-pointed $tag at the asset commit"
+          else
+            echo "not a tag build; the packager will produce an alpha"
+          fi
 
       - name: Build the package
         uses: BigWigsMods/packager@v2.6.1
@@ -94,6 +112,21 @@ jobs:
           if grep -q '@project-version@' /tmp/verify/Duskfall/Duskfall.toc; then
             echo "::error::version token was not substituted"
             missing=1
+          fi
+          # And it must be substituted with the TAG, not with a git describe
+          # string. `v1.0.0-1-gabc1234` in the addon list is the visible
+          # symptom of the packager having lost the tag, and the invisible one
+          # is that no GitHub release gets published.
+          if [ -n "${TAG:-}" ]; then
+            if ! grep -qx "## Version: ${TAG}" /tmp/verify/Duskfall/Duskfall.toc; then
+              echo "::error::version is not the tag ${TAG}:"
+              grep '^## Version:' /tmp/verify/Duskfall/Duskfall.toc
+              missing=1
+            fi
+            case "$zip" in
+              *"Duskfall-${TAG}-"*) ;;
+              *) echo "::error::zip name does not carry the bare tag: $zip"; missing=1 ;;
+            esac
           fi
           [ "$missing" -eq 0 ] || exit 1
           echo "zip contents:"
