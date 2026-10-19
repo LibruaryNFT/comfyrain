@@ -68,6 +68,31 @@ The streaks survive as background texture at a third of their old contrast.
 
 159 specs, all green.
 
+## 2026-10-19 — the dark-screen trap, found from live play
+
+> "my screen is too dark and i cant reset it easily, like i want to turn off the changes
+> it made but i cant"
+
+**`/comfy off` did not turn off the light grading.** `tod` is the one drawing frame
+parented to `WorldFrame` rather than to the overlay — `gloom`, `whiteout` and `flash` are
+all overlay textures and were already going down with it. `UpdateTimeOfDay` only checked
+`db.timeMode` and `cinematic`, so switching the addon off hid the rain and left a
+fullscreen MOD texture holding the light at whatever hour was set.
+
+The saved profile had `timeMode = "fixed"`, `timeFixed = 21`, `timeStrength = 1` and
+`gloom = 2`, so the world was being held at 9pm with no rain on screen to explain it.
+The escape hatch existed (`/comfy time off`) and was unguessable from a dark screen.
+
+| | Before | After |
+|---|---|---|
+| `/comfy off` | rain gone, light still graded | everything down |
+| Cause discoverable in game | no | `off`/`on` print what the light did |
+
+Fixed at the top of `UpdateTimeOfDay` with an `db.enabled` check, plus a printed line on
+`on`/`off` naming the hour, silent when the grading is already off. Both
+mutation-checked. **An addon that cannot be switched all the way off is a trap** — worth
+re-auditing any future frame that is not a child of `overlay`.
+
 ## 2026-10-19 (later) — zoom response, the barbershop, and 3D probe round two
 
 Three things, all from live play on the beta client. **166 specs, all green**, every new
