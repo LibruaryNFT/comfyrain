@@ -10,6 +10,7 @@
 PRESENT AddLine
 PRESENT C_Map
 PRESENT C_Map.GetBestMapForUnit
+PRESENT C_Map.GetPlayerMapPosition
 PRESENT C_Sound
 PRESENT C_Sound.PlaySoundWithOptions
 PRESENT C_Timer
@@ -37,6 +38,7 @@ PRESENT GetHeight
 PRESENT GetModelFileID
 PRESENT GetPhysicalScreenSize
 PRESENT GetPlayerFacing
+PRESENT GetPlayerMapPosition
 PRESENT GetPoint
 PRESENT GetRealZoneText
 PRESENT GetScale
@@ -111,6 +113,7 @@ PRESENT UnregisterAllEvents
 PRESENT UnregisterEvent
 LUA AddSearchTags
 LUA CreateColor
+LUA GetXY
 LUA RegisterAddOnCategory
 LUA RegisterCanvasLayoutCategory
 LUA ReloadUI

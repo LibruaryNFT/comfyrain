@@ -690,6 +690,18 @@ function M.install(env)
 
 	env.C_Map = {
 		GetBestMapForUnit = function() return M.state.uiMapID end,
+		-- Returns a vector with a GetXY method, which is how the live client
+		-- hands it over: GetPlayerMapPosition is in the executable, GetXY is a
+		-- FrameXML mixin on the object it returns. Modelled with the method so
+		-- the addon's preferred path is the one the specs exercise, and state.pos
+		-- = false makes it return nil, which is what an instance does.
+		GetPlayerMapPosition = function()
+			local p = M.state.pos
+			if p == false then return nil end
+			p = p or { x = 0.4821, y = 0.6317 }
+			return { x = p.x, y = p.y,
+			         GetXY = function(self) return self.x, self.y end }
+		end,
 	}
 
 	-- C_Weather reads only. There is no setter anywhere in the API; that absence

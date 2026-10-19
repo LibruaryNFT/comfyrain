@@ -339,6 +339,48 @@ it("takes cover faster than it leaves it", function()
 	lt(w:layers().far:GetAlpha(), outside * 0.5, "still dim 0.8s after stepping out")
 end)
 
+it("writes down WHERE a doorway was wrong, not just which district", function()
+	-- Five readings off the live client all said "Stormwind City / Trade
+	-- District". That is fifty doorways, a bridge and two awnings: enough to
+	-- know something was wrong and not enough to go back and look at it. The
+	-- log is the whole instrument for the indoor question, so it has to name a
+	-- spot somebody can walk back to.
+	local w = H.world()
+	w.mock.state.uiMapID = 84
+	w.mock.state.pos = { x = 0.5512, y = 0.6688 }
+	w:advance(1.0, 0.1)
+
+	w.mock.state.sheltered = true
+	w:advance(2.0, 0.1)
+	local log = w:db().where
+	gt(#log, 0, "the transition was logged")
+	local e = log[#log]
+	eq(e.reason, "entered", "and logged as an entry")
+	eq(e.uiMapID, 84, "with the map it happened on")
+	near(e.x, 0.5512, 1e-4, "and the spot, to four places")
+	near(e.y, 0.6688, 1e-4, "both axes")
+	-- The pair of flags, not only the conclusion: this entry is the awning
+	-- case, and a log that stored only `sheltered` could not show that.
+	eq(e.indoors, false, "neither flag was set")
+	eq(e.outdoors, false, "which is what an awning looks like")
+end)
+
+it("logs the doorway anyway when the client will not give a position", function()
+	-- Instances restrict player position, and GetXY is a FrameXML mixin that is
+	-- not in the executable at all. Either can be missing on the build we ship
+	-- to. Losing the coordinate must cost the coordinate and nothing else.
+	local w = H.world()
+	w.mock.state.pos = false
+	w:advance(1.0, 0.1)
+	w.mock.state.sheltered = true
+	w:advance(2.0, 0.1)
+	local e = w:db().where[#w:db().where]
+	ok(e, "still logged")
+	eq(e.x, nil, "with no coordinate")
+	eq(e.sheltered, true, "and the reading itself intact")
+	eq(#w.mock.errors, 0, "errors")
+end)
+
 it("gusts: one shared signal, lagged per layer, and switchable off", function()
 	-- The single biggest tell that this is a scrolling texture is that it
 	-- scrolls at exactly one rate forever. These assert the three properties

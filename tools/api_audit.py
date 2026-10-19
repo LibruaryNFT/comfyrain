@@ -66,6 +66,10 @@ LUA_SIDE = {
     # surprise: it is exactly why every call to them in this addon is pcall'd
     # and has a hand-drawn fallback behind it.
     "RegisterAddOnCategory", "RegisterCanvasLayoutCategory", "SetBackdrop",
+    # Vector2DMixin, on the object C_Map.GetPlayerMapPosition returns. The
+    # function is in the executable and the mixin method on its result is not,
+    # which is why MapPos() tries GetXY and then falls back on .x / .y.
+    "GetXY",
 }
 
 # Methods the addon defines on its own widgets. Not client API at all.

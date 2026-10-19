@@ -918,15 +918,50 @@ local ENTER_IN, ENTER_OUT = 0.35, 1.2
 -- row with a subzone on it. Capped, because it runs for the life of the
 -- character and SavedVariables is read on every login.
 local WHERE_MAX = 300
+
+-- Where the player is standing, as map coordinates, or nil.
+--
+-- The subzone alone is not enough to act on. Five readings off the live client
+-- all said "Stormwind City / Trade District", which is fifty doorways, a
+-- bridge and two awnings: enough to know something was wrong and not enough to
+-- go back and look at it. A coordinate makes a bad doorway findable.
+--
+-- Guarded three deep because each layer can fail separately. C_Map.
+-- GetPlayerMapPosition is in the binary (confirmed against WowB.exe
+-- 1.60.1.70425); GetXY is a FrameXML mixin and is not, so it is tried and then
+-- fallen back on the plain fields; and position is restricted in instances,
+-- where it returns nil rather than erroring.
+local function MapPos()
+	if not (C_Map and C_Map.GetBestMapForUnit and C_Map.GetPlayerMapPosition) then return end
+	local id = Readable(C_Map.GetBestMapForUnit("player"))
+	if not id then return end
+	local ok, pos = pcall(C_Map.GetPlayerMapPosition, id, "player")
+	if not ok or not pos then return end
+	local x, y
+	if pos.GetXY then
+		local got
+		got, x, y = pcall(pos.GetXY, pos)
+		if not got then x, y = nil, nil end
+	end
+	x, y = x or pos.x, y or pos.y
+	if type(x) ~= "number" or type(y) ~= "number" then return end
+	return id, x, y
+end
+
 local function WhereLog(reason)
 	if not db then return end
 	db.where = db.where or {}
 	while #db.where >= WHERE_MAX do table.remove(db.where, 1) end
+	local uiMapID, x, y = MapPos()
 	db.where[#db.where + 1] = {
 		at        = time(),
 		reason    = reason,
 		zone      = GetRealZoneText(),
 		subzone   = GetSubZoneText(),
+		-- A subzone names a district; this names a doorway.
+		uiMapID   = uiMapID,
+		x         = x and math.floor(x * 10000 + 0.5) / 10000 or nil,
+		y         = y and math.floor(y * 10000 + 0.5) / 10000 or nil,
 		-- All three, because the bug has always been in the gap between the
 		-- first two, and a log that stored only the conclusion could not show
 		-- which of the two APIs produced it.
@@ -1743,9 +1778,11 @@ local function HandleSlash(input, source)
 			math.floor(IndoorFactor() * 100 + 0.5),
 			math.floor(IndoorFactor("hear") * 100 + 0.5)))
 		local sub = GetSubZoneText()
-		msg(string.format("   %s%s   zoom %.1f yd",
+		local _, px, py = MapPos()
+		msg(string.format("   %s%s%s   zoom %.1f yd",
 			GetRealZoneText() or "?",
 			(sub and sub ~= "") and (" / " .. sub) or "",
+			px and string.format("  |cffffd100%.1f, %.1f|r", px * 100, py * 100) or "",
 			Readable(GetCameraZoom and GetCameraZoom()) or -1))
 		WhereLog("asked")
 		msg(string.format("logged; %d doorway readings saved so far", #(db.where or {})))
