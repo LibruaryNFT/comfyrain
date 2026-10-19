@@ -927,11 +927,51 @@ picks deliberately, on an effect they turned on, with a Darkness slider in the w
 is consent; Blizzard's undisableable fog was not. The reasoning is in a comment on `DEFAULTS`
 so it is not re-tried blind.
 
+5. **The repo exists: `LibruaryNFT/duskfall`, pushed, CI green.** Created **private**
+   deliberately, not as an oversight. This file is in it, and this file contains the
+   download ceilings, the kill number and four research prompts. Flipping it public is one
+   command and is the author's call, not the agent's:
+
+   ```
+   gh repo edit LibruaryNFT/duskfall --visibility public --accept-visibility-change-consequences
+   ```
+
+   Either flip it, or add `RESUME.md` and `dr-prompt-*.md` to a `.gitignore` first. Nothing
+   else in the repo is sensitive.
+
+**The release pipeline is proven, not assumed.** Four rehearsal tags, `v1.0.0-rc1` through
+`v1.0.0-rc4`, were cut against the real workflow rather than reading it and hoping. Three of
+the four found a separate defect that would have hit the launch tag on 4 November. All four
+defects are invisible to review and two of them are **silent** — green check, exit 0, nothing
+shipped.
+
+| Rehearsal | What broke | Why no error |
+|---|---|---|
+| rc1 (CI, pre-tag) | `make_rain_audio.py` shells out to `ffmpeg`, absent from the runner | bare `FileNotFoundError`, named neither audio nor ffmpeg |
+| rc1 | zip named `Duskfall-v1.0.0-rc1-1-g7935820`, and no release published | the asset commit moved HEAD past the tag, so the packager built an alpha; **exit 0** |
+| rc2 | verify's own `grep -qx '## Version: ...'` never matched | the packager writes a **CRLF** `.toc`; the line ends in `\r` |
+| rc3, rc1 | **no GitHub release at all** | the packager reads `GITHUB_OAUTH`, never `GITHUB_TOKEN`; `upload_github` opens with `[[ -z "$github_token" ]] && return 0`; **exit 0** |
+
+The `GITHUB_OAUTH` one is the dangerous one and is worth reading twice. `release.sh` accepts
+exactly `GITHUB_OAUTH` and `GITHUB_API_TOKEN`. Pass `GITHUB_TOKEN` and it builds a perfect
+zip, prints "Packaging complete", uploads nothing, and succeeds. Its own banner is the tell:
+`GitHub: owner/repo [token set]` when the token is readable, and it stops at the slug when it
+is not. Both failing logs stopped at the slug.
+
+Two guards were added so none of this can recur quietly: the verify step asserts `## Version`
+equals the bare tag and the zip name carries it, and a final step asks the **GitHub API**
+whether the release exists and has the zip attached, because the packager's exit code is not
+evidence that it does.
+
+Proven by downloading the published `v1.0.0-rc4` artifact and unzipping it: 15 files, all
+three rain/snow texture pairs, `icon.tga`, both `.ogg`, `## Version: v1.0.0-rc4`, no
+`Probe.lua`. `v1.0.0-rc4` is left on the repo, marked prerelease, as the working reference.
+
 **Still open:**
 
-5. Public GitHub repo at `LibruaryNFT/duskfall`, and a tag.
-6. One 10-second looping GIF for CurseForge, Reddit and Discord. `README.md` already links
-   `docs/preview.gif`, which does not exist yet.
+6. One 10-second looping GIF for CurseForge, Reddit and Discord. The README's hero image is
+   commented out until `docs/preview.gif` exists - a broken image at the top of the page is
+   worse than none, and it is the first thing anyone sees on both sites. One uncomment.
 7. The CurseForge project itself, then `## X-Curse-Project-ID` in the TOC and a `CF_API_KEY`
    repo secret. The workflow publishes to GitHub without it rather than failing, so a tag
    pushed before the project exists still produces a downloadable release.
