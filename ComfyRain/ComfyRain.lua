@@ -631,6 +631,22 @@ local function ApplyTextures()
 	end
 end
 
+-- How far to lerp the screen towards the weather's tint, before the indoor
+-- factor and the clamp. Below 1 the slider scales the preset down and 0 is a
+-- true no-op, which is what it has always done. Above 1 it does NOT keep
+-- multiplying: multiplying tops out wherever the preset happens to sit, so at
+-- normal rain the slider's maximum of 2 reached 0.38 * 2 = 0.76 and the last
+-- quarter of the available darkness was unreachable while the control still
+-- looked like it had travel left. Above 1 it closes the gap to the clamp
+-- instead, so the right-hand end means "as dark as this addon goes" at every
+-- intensity, and the middle still means "whatever this intensity looks like".
+-- The slider itself stops at 2, and the caller clamps, so this does not need
+-- its own ceiling.
+local function GloomAmount(preset, slider)
+	if slider <= 1 then return preset * slider end
+	return preset + (1 - preset) * (slider - 1)
+end
+
 local function ApplyAlphas()
 	ApplyTextures()
 	local w, p, s = W(), Preset(), db.scale * IndoorFactor()
@@ -643,7 +659,7 @@ local function ApplyAlphas()
 
 	-- MOD multiplies the frame by this colour, so strength lives in the colour
 	-- itself: 1 is untouched, and we lerp towards the tint from there.
-	local g = math.min(p.gloom * db.gloom * IndoorFactor(), 1.0)
+	local g = math.min(GloomAmount(p.gloom, db.gloom) * IndoorFactor(), 1.0)
 	baseGloom = g
 	gloom:SetColorTexture(
 		1 - g * (1 - w.tint[1]),

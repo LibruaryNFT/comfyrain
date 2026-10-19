@@ -77,6 +77,36 @@ Two still outside the route: #4 needs a full exit and relaunch with the flavour 
 staged into `_forever_`, and #5 is eyeballing the quads at several `UIParent:GetScale()`
 values, which cannot be done headlessly because the overlay is parented to `WorldFrame`.
 
+## 2026-10-19 — the Darkness slider could not reach full dark
+
+> "maybe im wrong but i thought we could get it darker before"
+
+He was right, and the reason was the slider, not the gloom. `GloomAmount` used to be
+`p.gloom * db.gloom`, so the slider's maximum of 2 landed wherever twice the preset
+happened to sit. His live SavedVariables had `gloom = 2` at `intensity = "normal"`, which
+is `0.38 * 2 = 0.76` against an available 1.0. **The control looked like it had travel
+left and did not**, and how much it had left changed with the intensity.
+
+| Intensity (rain) | Preset | Old max (x2) | New max |
+|---|---|---|---|
+| light | 0.18 | 0.36 | 1.00 |
+| normal | 0.38 | 0.76 | 1.00 |
+| heavy | 0.75 | 1.00 | 1.00 |
+| monsoon | 0.95 | 1.00 (clamped from 1.9) | 1.00 |
+
+Only heavy and monsoon ever reached the clamp, which is why this read as "it used to be
+darker" — it was, at the intensities he happened to be using when it was tuned.
+
+Below 1 the slider still scales the preset and 0 is still a true no-op. Above 1 it now
+closes the remaining gap to full instead of multiplying, so the right-hand end means "as
+dark as this addon goes" in every weather and the middle still means the measured preset
+curve from the 2026-10-15 screenshot sweep. Monotone across the join; three new specs,
+mutation-checked (multiply-only and no-lower-branch both die).
+
+Two other things were suppressing his darkness and neither is a bug: `timeMode = "off"`
+turns off the second, independent darkening layer (the `tod` fullscreen MOD curtain), and
+`scale = 0` means no rain is being drawn at all.
+
 ## 2026-10-19 (last) — two checks that need no client
 
 The beta client is withdrawn **21 October** and the next one lands **4 November**, which

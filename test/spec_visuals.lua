@@ -62,9 +62,68 @@ it("tints gloom cool, and clamps it before it becomes a blackout", function()
 
 	w:slash("monsoon")
 	w:slash("gloom 2")
-	-- 0.95 * 2 would be 1.9; the clamp holds it at 1.0, which multiplies the
-	-- world by the tint itself and is dark without being a blackout.
-	near(w:gloom().colour[1], 1 - 1.0 * (1 - 0.55), 1e-6, "gloom is clamped at 1.0")
+	-- The top of the slider is 1.0, which multiplies the world by the tint
+	-- itself and is dark without being a blackout.
+	near(w:gloom().colour[1], 1 - 1.0 * (1 - 0.55), 1e-6, "gloom tops out at 1.0")
+end)
+
+it("lets the top of the Darkness slider reach full dark at every intensity",
+function()
+	-- Until 2026-10-19 the slider simply multiplied the preset, so its maximum
+	-- of 2 landed wherever 2x the preset happened to be: 0.76 at normal rain,
+	-- 0.36 at light. The control looked like it had travel left and did not.
+	-- Anything above 1 now closes the remaining gap to full instead, so the
+	-- right-hand end means the same thing in every weather.
+	for _, weather in ipairs({ "rain", "snow" }) do
+		for _, step in ipairs({ "light", "normal", "heavy" }) do
+			local w = H.world()
+			w:slash(weather)
+			w:slash(step)
+			w:slash("gloom 2")
+			local tint = (weather == "rain") and 0.55 or 0.62
+			near(w:gloom().colour[1], 1 - (1 - tint), 1e-6,
+				weather .. " at " .. step .. " reaches full dark at the top")
+		end
+	end
+end)
+
+it("leaves the middle of the Darkness slider on the measured preset curve",
+function()
+	-- 1 is the default and has to keep meaning "what this weather is supposed
+	-- to look like", or the 2026-10-15 screenshot sweep gets invalidated by a
+	-- change that was only ever about the slider's top half.
+	local w = H.world()
+	w:slash("rain")
+	for _, case in ipairs({ { "light", 0.18 }, { "normal", 0.38 }, { "heavy", 0.75 } }) do
+		w:slash(case[1])
+		w:slash("gloom 1")
+		near(w:gloom().colour[1], 1 - case[2] * (1 - 0.55), 1e-6,
+			case[1] .. " at gloom 1 is still the preset")
+		-- And half the slider is still half the preset.
+		w:slash("gloom 0.5")
+		near(w:gloom().colour[1], 1 - case[2] * 0.5 * (1 - 0.55), 1e-6,
+			case[1] .. " at gloom 0.5 is still half the preset")
+	end
+end)
+
+it("keeps Darkness monotone across the whole slider", function()
+	-- The two halves are different formulas joined at 1. A discontinuity or a
+	-- flat spot there would feel like the slider sticking.
+	local w = H.world()
+	w:slash("rain")
+	w:slash("normal")
+	local last = nil
+	for i = 0, 40 do
+		local v = i * 0.05
+		w:slash(string.format("gloom %.2f", v))
+		local red = w:gloom().colour[1]
+		if last then
+			lt(red, last + 1e-9, "gloom at " .. v .. " is no lighter than the step below")
+			lt(last - red, 0.03, "and no single step of the slider is a jump")
+		end
+		last = red
+	end
+	near(last, 1 - (1 - 0.55), 1e-6, "the far end is full dark")
 end)
 
 it("darkens monotonically as the weather gets worse", function()
