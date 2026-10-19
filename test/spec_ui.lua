@@ -478,35 +478,53 @@ it("draws its own minimap icon and repaints it with the weather", function()
 			"nothing on the button is a borrowed spell icon")
 	end
 
-	local function drops()
-		local out = {}
+	local function art()
 		for _, t in ipairs(b._textures) do
-			if t.layer == "ARTWORK" and t.colour then out[#out + 1] = t end
-		end
-		return out
-	end
-	local function sky()
-		for _, t in ipairs(b._textures) do
-			if t.layer == "BACKGROUND" then return t end
+			if t.layer == "ARTWORK" then return t end
 		end
 	end
 
-	local rain = drops()
-	gt(#rain, 3, "the rain is drawn as streaks")
-	gt(rain[1]:GetHeight(), rain[1]:GetWidth(), "which are taller than they are wide")
-	near(rain[1].rotation, -0.131, 1e-6, "slanted the same way the sheets are")
-
+	ok(art().texture:find("ComfyRain"), "the picture is one we shipped")
+	local rain = art().texture
 	w:slash("snow")
-	local flakes = drops()
-	near(flakes[1]:GetHeight(), flakes[1]:GetWidth(), 1e-9, "a flake is a dot")
-	eq(flakes[1].rotation, 0, "and does not slant")
+	ok(art().texture ~= rain, "and snow is not the same picture as rain")
 
-	local lit = { unpack(sky().colour) }
+	w:slash("rain")
 	w:slash("off")
-	local dark = sky().colour
-	ok(lit[1] ~= dark[1] or lit[3] ~= dark[3],
-		"the sky greys out when the weather is off")
-	ok(dark[3] <= dark[1] + 0.02, "no blue left in it")
+	eq(art().desaturated, true, "with the weather off the lamp goes out")
+	ok(art().vertexColour[1] < 0.8, "and the whole thing dims")
+	w:slash("on")
+	eq(art().desaturated, false, "and comes back when it is turned on")
+end)
+
+-- "the current one doesnt fix in the circle properly", 2026-10-19. The hole in
+-- MiniMap-TrackingBorder is not centred on the button: with the 53x53 border
+-- anchored TOPLEFT on a 31x31 button it is 20px across, centred at (17, -15)
+-- from the top-left corner, which is 1.5 right and 0.5 up from the button's
+-- own centre. The art was painted at (-1, +1) and so hung off the ring.
+it("centres the icon on the ring's hole, not on the button", function()
+	local w = H.world()
+	w.env.ComfyRain_Minimap()
+	local b = w.env.ComfyRainMinimapButton
+
+	local border
+	for _, t in ipairs(b._textures) do
+		if t.texture and t.texture:find("TrackingBorder") then border = t end
+	end
+	ok(border, "the button wears the client's own tracking ring")
+	eq(border:GetWidth(), 53, "at the size the hole's position is measured from")
+	eq(b:GetWidth(), 31, "on the button size it is measured against")
+
+	for _, t in ipairs(b._textures) do
+		if t.layer == "ARTWORK" or t.layer == "BACKGROUND" then
+			local p = t._lastPoint
+			near(p.x, 1.5, 1e-9, "the art sits over the hole's centre in x")
+			near(p.y, 0.5, 1e-9, "and in y")
+			gt(t:GetWidth(), 20,
+				"drawn wider than the 20px hole, so its soft edge tucks under "
+				.. "the brass instead of showing a seam against the map")
+		end
+	end
 end)
 
 --------------------------------------------------------------------------------

@@ -1532,89 +1532,80 @@ local minimap
 -- icon of a spell three other addons already use, and Spell_Frost_IceStorm -
 -- what this was - is a generic blue swirl that says nothing about weather.
 --
--- So: a dusk sky behind falling weather, built from colour quads, which is the
--- same toolkit the overlay itself is drawn with and needs no art file in the
--- package. It shows the CURRENT weather, which no stock icon can do: blue-grey
--- streaks for rain, pale dots for snow, and the whole thing greyed out when the
--- weather is off, so the button answers "is it on, and what is it" at a glance.
+-- So: our own art, rasterised by build/make_icon_tga.py and shipped in the
+-- package. It shows the CURRENT weather, which no stock icon can do - the
+-- rain and snow files are two renders of the same scene - and desaturates when
+-- the weather is off, so the button answers "is it on, and what is it" at a
+-- glance.
 --
--- Two optional APIs, both guarded, both degrading to something still worth
--- looking at: SetMask rounds the sky off inside the brass ring (without it, a
--- square of sky, which the ring mostly covers anyway) and SetRotation slants
--- the rain (without it, the streaks fall straight down).
+-- This was six colour quads until 2026-10-19: a dusk gradient with little
+-- streaks scattered over it. Twenty pixels is not enough room for scattered
+-- detail, so what it actually looked like was grey noise, which is what "it
+-- needs to be more comfy and maybe bigger" was looking at. A picture drawn at
+-- 256px and resampled once, by a good filter, offline, beats anything assembled
+-- from rectangles at draw time.
 local ROUND_MASK = "Interface\\CharacterFrame\\TempPortraitAlphaMask"
-local ICON_SIZE = 20
-local STREAKS = {
-	-- x, y, length: scattered by hand rather than randomly, because a random
-	-- scatter clumps and this is twenty pixels across.
-	{ -6,  3, 7 }, { -2, -2, 5 }, {  1,  4, 6 },
-	{  5, -1, 7 }, { -4, -5, 5 }, {  6,  5, 5 },
+local ICON_ART = {
+	rain = "Interface\\AddOns\\ComfyRain\\icon",
+	snow = "Interface\\AddOns\\ComfyRain\\icon-snow",
 }
+
+-- The hole in MiniMap-TrackingBorder is NOT centred on the button. With the
+-- 53x53 border anchored TOPLEFT on a 31x31 button - the arrangement every
+-- addon on CurseForge uses, and the one BuildMinimap uses - the round opening
+-- is 20px across with its centre at (17, -15) from the button's top-left
+-- corner. The button's own centre is at (15.5, -15.5), so the hole sits 1.5px
+-- right and 0.5px up from it.
+--
+-- Ours was painted at (-1, +1): two and a half pixels out on a twenty pixel
+-- disc. It overhung the brass on the left and left a crescent of bare map
+-- showing on the right, which is "the current one doesnt fix in the circle
+-- properly".
+local HOLE_X, HOLE_Y = 1.5, 0.5
+-- Two pixels wider than the hole, so the mask's soft edge lands under the
+-- brass lip instead of against the map, where it would read as a seam.
+local ICON_SIZE = 22
 
 local icon = {}
 
 local function BuildIcon(button)
-	local sky = button:CreateTexture(nil, "BACKGROUND")
-	sky:SetSize(ICON_SIZE, ICON_SIZE)
-	sky:SetPoint("CENTER", -1, 1)
-	sky:SetColorTexture(1, 1, 1, 1)
-	pcall(sky.SetMask, sky, ROUND_MASK)
-	icon.sky = sky
+	-- Behind the picture, and never removed. If the art file is missing - a
+	-- half-extracted zip, a packager that dropped a TGA - a bare button in the
+	-- ring is indistinguishable from a broken addon, and a warm disc is still
+	-- recognisably this one.
+	local back = button:CreateTexture(nil, "BACKGROUND")
+	back:SetSize(ICON_SIZE, ICON_SIZE)
+	back:SetPoint("CENTER", HOLE_X, HOLE_Y)
+	back:SetColorTexture(0.13, 0.10, 0.09, 1)
+	pcall(back.SetMask, back, ROUND_MASK)
+	icon.back = back
 
-	icon.drops = {}
-	for i, s in ipairs(STREAKS) do
-		local t = button:CreateTexture(nil, "ARTWORK")
-		t:SetPoint("CENTER", sky, "CENTER", s[1], s[2])
-		t.length = s[3]
-		pcall(t.SetMask, t, ROUND_MASK)
-		icon.drops[i] = t
-	end
+	local art = button:CreateTexture(nil, "ARTWORK")
+	art:SetSize(ICON_SIZE, ICON_SIZE)
+	art:SetPoint("CENTER", HOLE_X, HOLE_Y)
+	-- Rounds the square render off inside the ring. Without it the corners
+	-- show, and the brass covers all four of them anyway, so it is allowed to
+	-- fail on a client that does not have SetMask.
+	pcall(art.SetMask, art, ROUND_MASK)
+	icon.art = art
 	icon.button = button
 end
 
 -- Repainted whenever the weather changes, which is why it is not just set once
--- at build time. Cheap: eight SetColorTexture calls on a frame nobody redraws.
+-- at build time. Cheap: one SetTexture on a frame nobody redraws.
 local function PaintIcon()
-	if not icon.sky then return end
+	if not icon.art then return end
 	local db = ComfyRainAPI and ComfyRainAPI.DB()
 	if not db then return end
-	local snow = db.weather == "snow"
-	local lit = db.enabled
 
-	-- Dusk, which is the name of the addon: deep blue above a last band of
-	-- light at the horizon. Flat colour if the client will not do a gradient.
-	local function colour(r, g, b, a)
-		if CreateColor then return CreateColor(r, g, b, a) end
-		return { r = r, g = g, b = b, a = a,
-		         GetRGBA = function(s) return s.r, s.g, s.b, s.a end }
-	end
-	if lit then
-		icon.sky:SetColorTexture(0.09, 0.12, 0.21, 1)
-		pcall(icon.sky.SetGradient, icon.sky, "VERTICAL",
-			colour(0.40, 0.31, 0.33, 1), colour(0.07, 0.10, 0.20, 1))
+	icon.art:SetTexture(ICON_ART[db.weather] or ICON_ART.rain)
+	-- Off is the same picture with the lamp out: grey, and dimmer than the
+	-- ring around it so the eye reads it as inactive rather than as night.
+	pcall(icon.art.SetDesaturated, icon.art, not db.enabled)
+	if db.enabled then
+		icon.art:SetVertexColor(1, 1, 1)
 	else
-		icon.sky:SetColorTexture(0.14, 0.14, 0.15, 1)
-		pcall(icon.sky.SetGradient, icon.sky, "VERTICAL",
-			colour(0.22, 0.22, 0.23, 1), colour(0.11, 0.11, 0.12, 1))
-	end
-
-	for _, t in ipairs(icon.drops) do
-		if snow then
-			-- A flake is a dot, and it does not slant.
-			t:SetSize(2, 2)
-			pcall(t.SetRotation, t, 0)
-		else
-			t:SetSize(1.4, t.length)
-			-- The same 7.5 degrees the rain sheets are drawn at.
-			pcall(t.SetRotation, t, -0.131)
-		end
-		if not lit then
-			t:SetColorTexture(0.45, 0.45, 0.47, 0.55)
-		elseif snow then
-			t:SetColorTexture(0.95, 0.97, 1.00, 0.95)
-		else
-			t:SetColorTexture(0.68, 0.80, 0.98, 0.85)
-		end
+		icon.art:SetVertexColor(0.55, 0.55, 0.58)
 	end
 end
 

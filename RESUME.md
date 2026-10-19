@@ -77,6 +77,42 @@ Two still outside the route: #4 needs a full exit and relaunch with the flavour 
 staged into `_forever_`, and #5 is eyeballing the quads at several `UIParent:GetScale()`
 values, which cannot be done headlessly because the overlay is parented to `WorldFrame`.
 
+## 2026-10-19 — a new icon: a lit window, and a hole that was never centred
+
+> "can u make us a new comfyrain icon the current one doesnt fix in the circle
+> properly and it needs to be more comfy and maybe bigger"
+
+Three separate problems behind one complaint.
+
+**The minimap button was never using the icon.** `BuildIcon` drew six colour quads —
+a dusk gradient with little streaks on it — which is the design `make_icon_tga.py`'s own
+docstring had already rejected: "at 20 pixels looks like grey noise with a pink line in
+it". The 64x64 raindrop TGA made to replace it went into the addon list and the button
+was never switched over. It now draws the art file.
+
+**The hole in the ring is not centred on the button.** With the 53x53
+`MiniMap-TrackingBorder` anchored TOPLEFT on a 31x31 button, the opening is 20px across,
+centred at `(17, -15)` from the top-left corner — 1.5px right and 0.5px *up* from the
+button's own centre. The art was painted at `(-1, +1)`, a 2.5px error on a 20px disc: it
+overhung the brass on the left and left a crescent of bare map on the right. Drawn at
+22px now, so the mask's soft edge tucks under the brass lip rather than meeting the map.
+
+**Comfy is a warm picture, not a blue one.** Nobody calls rain comfy from outside in it;
+they call it comfy from indoors with a light on. The icon is now a warm lit cottage
+window at dusk with the weather coming down in front of it — one bright warm shape on
+one dark cool ground, which is the lowest-frequency contrast in the frame and so the
+last thing a downsample destroys. The composition is radial (bloom plus vignette, no
+horizon, no ground band), because a straight band inside a circular crop becomes a
+chord: the old drop only worked as a square.
+
+Two renders now, `icon.tga` and `icon-snow.tga`, so the button keeps the live weather
+readout it had as quads; off is the same picture desaturated and dimmed. Reference
+render at [docs/icon-preview.png](docs/icon-preview.png) — 64px and 20px, both weathers.
+
+`.pkgmeta` needed no change (the assets are gitignored and force-added), but the
+`icon-snow.tga` filename was added to the CI non-empty check and the release zip's
+contents check, both of which enumerate files by name.
+
 ## 2026-10-19 — rain you can hear and not see, and an off switch that wasn't
 
 > "we reload and hear rain but dont see anything, the construactsols are reytarded we
