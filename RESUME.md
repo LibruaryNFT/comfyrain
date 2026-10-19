@@ -50,9 +50,14 @@ Walk Stormwind, slowly, and go **under** things rather than past them:
 | The open street inside the Keep's walls | the false positive that would kill the feature | #1 |
 | Any real storm: `/console weatherDensity 0` | does engine lightning stop too | #3 |
 
-Nothing needs typing at a doorway. The addon writes a row on every committed transition,
-with coordinates. `/comfy where` is only for when something looks wrong and you want the
-reading in chat immediately.
+**Type `/comfy where` while standing under each roof.** The addon writes a row on every
+committed transition by itself, with coordinates, and that is enough for doorways that
+work. It is not enough for the bug being hunted. An awning the engine reads as open sky
+produces **no transition at all**, so it produces no row: the exact failure case is the
+one the automatic log is blind to. A Goldshire pass on 2026-10-19 logged three clean
+two-state transitions and zero awnings, which says nothing either way about awnings,
+because an awning that failed would have looked identical to one that was never visited.
+`/comfy where` forces a reading wherever you are standing.
 
 ### Step 3, when you are done
 
