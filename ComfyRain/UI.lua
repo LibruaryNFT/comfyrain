@@ -85,6 +85,30 @@ local ART = {
 	thumb = "Interface\\Buttons\\UI-SliderBar-Button-Horizontal",
 }
 
+-- Icons for the three buttons that name a kind of weather. Picked by rendering
+-- the candidates at 14px and looking at them, which is the size they are drawn
+-- at here, not by reading their names at 64px:
+--
+--   rain     IceStorm's shards lose their detail on the way down and what is
+--            left is slanted streaks, which is exactly what rain looks like.
+--   snow     FrostShock keeps a bold white snowflake at 14px. ChillingBlast is
+--            the better picture at full size and was the first choice, but it
+--            dissolves into a white diagonal slash that is indistinguishable
+--            from the rain icon beside it, and telling rain from snow is the
+--            one thing this row has to do.
+--   thunder  LightningBolt01 is still a bolt at 14px.
+--
+-- Worth recording because it is the kind of thing that gets "fixed" later: no
+-- icon anywhere in the game depicts rain. The whole 2.27M-file catalogue was
+-- searched, not just the classic range. So rain borrows a shape rather than a
+-- subject, and that is deliberate.
+local ICON = {
+	rain    = "Interface\\Icons\\Spell_Frost_IceStorm",
+	snow    = "Interface\\Icons\\Spell_Frost_FrostShock",
+	thunder = "Interface\\Icons\\Spell_Lightning_LightningBolt01",
+	gusts   = "Interface\\Icons\\Spell_Frost_ArcticWinds",
+}
+
 -- An unknown template name raises inside CreateFrame, so each is asked for once
 -- and the answer cached. Which templates a client has cannot be read out of the
 -- binary at all - they are defined in FrameXML, which lives in the game's data
@@ -230,6 +254,37 @@ local function Pill(parent, label, onClick)
 	end
 	b:SetLabel(label)
 
+	-- An icon on the left with the label sliding over to make room. Asked about
+	-- with HasArt rather than drawn blind, because a path this flavour does not
+	-- have leaves a 14px hole where the eye expects a picture, and a centred
+	-- label with no icon beats an off-centre one with a gap.
+	function b:SetIcon(path, off)
+		if path and not HasArt(path) then path = nil end
+		if not path then
+			if self.icon then self.icon:Hide() end
+			self.label:ClearAllPoints()
+			self.label:SetPoint("CENTER")
+			self.label:SetJustifyH("CENTER")
+			return
+		end
+		if not self.icon then
+			self.icon = self:CreateTexture(nil, "ARTWORK")
+			self.icon:SetSize(14, 14)
+			self.icon:SetPoint("LEFT", self, "LEFT", 6, 0)
+		end
+		self.icon:SetTexture(path)
+		self.icon:Show()
+		-- Greying it out is how the client itself says a thing is switched off,
+		-- and it is why the Thunder button can carry a picture instead of the
+		-- little lamp: one widget says both what it is and whether it is on.
+		if self.icon.SetDesaturated then
+			pcall(self.icon.SetDesaturated, self.icon, off and true or false)
+		end
+		self.label:ClearAllPoints()
+		self.label:SetPoint("LEFT", self, "LEFT", 24, 0)
+		self.label:SetJustifyH("LEFT")
+	end
+
 	function b:SetSelected(on)
 		self.selected = on and true or false
 		if self.native then
@@ -291,16 +346,44 @@ local function Toggle(parent, label, command, onClick)
 	b.label:SetJustifyH("LEFT")
 
 	function b:SetOn(on)
+		-- A toggle that has been given an icon says on/off by greying the picture,
+		-- which is the client's own idiom, and the lamp goes away rather than
+		-- sitting beside it saying the same thing twice.
+		if self.icon and self.icon:IsShown() then
+			self.lamp:Hide()
+			if self.icon.SetDesaturated then
+				pcall(self.icon.SetDesaturated, self.icon, not on)
+			end
+		else
+			self.lamp:Show()
+			if on then
+				self.lamp:SetColorTexture(ACCENT[1], ACCENT[2], ACCENT[3], 1)
+			else
+				self.lamp:SetColorTexture(0.25, 0.26, 0.30, 1)
+			end
+		end
 		if on then
-			self.lamp:SetColorTexture(ACCENT[1], ACCENT[2], ACCENT[3], 1)
 			self.label:SetTextColor(1, 1, 1)
 		else
-			self.lamp:SetColorTexture(0.25, 0.26, 0.30, 1)
 			self.label:SetTextColor(DIM[1], DIM[2], DIM[3])
 		end
 		self.on = on and true or false
 	end
 	b:SetOn(false)
+
+	-- Same icon as a plain pill, except that losing it has to put the label back
+	-- beside the lamp rather than in the middle of the button.
+	local setIcon = b.SetIcon
+	function b:SetIcon(path, off)
+		setIcon(self, path, off)
+		if not (self.icon and self.icon:IsShown()) then
+			self.label:ClearAllPoints()
+			self.label:SetPoint("LEFT", self, "LEFT", 19, 0)
+			self.label:SetJustifyH("LEFT")
+		end
+		self:SetOn(self.on)
+	end
+
 	Teach(b, label, command)
 	return b
 end
@@ -569,9 +652,12 @@ local function Refresh()
 
 	controls.sound:SetOn(db.sound)
 	controls.zoom:SetOn(db.zoom)
+	-- Rain has lightning, snow has gusts, and the button must say which. The
+	-- icon changes with the word, and SetIcon re-applies the on/off state, so
+	-- it is the last of the three to run.
 	controls.thunder:SetOn(db.thunder)
-	-- Rain has lightning, snow has gusts, and the button must say which.
 	controls.thunder:SetLabel(weather.flash and "Thunder" or "Gusts")
+	controls.thunder:SetIcon(weather.flash and ICON.thunder or ICON.gusts)
 	controls.indoors:SetLabel("Indoors: " .. Title(INDOORS(db)))
 	controls.channel:SetLabel("Channel: " .. db.channel)
 
@@ -720,11 +806,13 @@ local function Build()
 	controls.rain = Pill(top, "Rain", function() Run("rain") end)
 	controls.rain:SetPoint("TOPLEFT", top, "TOPLEFT", 0, 0)
 	controls.rain:SetWidth(third - 3)
+	controls.rain:SetIcon(ICON.rain)
 	Teach(controls.rain, "Rain", "/comfy rain")
 
 	controls.snow = Pill(top, "Snow", function() Run("snow") end)
 	controls.snow:SetPoint("TOPLEFT", top, "TOPLEFT", third, 0)
 	controls.snow:SetWidth(third - 3)
+	controls.snow:SetIcon(ICON.snow)
 	Teach(controls.snow, "Snow", "/comfy snow")
 
 	controls.power = Toggle(top, "Weather on", "/comfy", function()

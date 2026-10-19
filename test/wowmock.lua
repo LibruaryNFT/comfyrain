@@ -147,6 +147,11 @@ function Texture:SetDrawLayer(layer, sublevel) self.layer, self.sublevel = layer
 -- difference between rain and snow, and nothing else distinguishes them.
 function Texture:SetMask(file) self.mask = file end
 function Texture:SetRotation(r) self.rotation = r end
+-- Greyed out is how the panel says a weather option is switched off, so the
+-- flag is kept rather than swallowed: it is the only visible difference
+-- between an icon that is on and the same icon that is not.
+function Texture:SetDesaturated(on) self.desaturated = on and true or false end
+function Texture:IsDesaturated() return self.desaturated and true or false end
 
 --------------------------------------------------------------------------------
 -- Font strings

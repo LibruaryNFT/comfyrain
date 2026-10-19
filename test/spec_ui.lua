@@ -946,3 +946,76 @@ it("comes up on a client with none of it: no templates, no art", function()
 	eq(w:db().weather, "snow", "and clicking one still runs its command")
 	eq(#w.mock.errors, 0, "and nothing was thrown at the client")
 end)
+
+--------------------------------------------------------------------------------
+-- The weather icons
+--------------------------------------------------------------------------------
+--
+-- Same rule as the furniture above: the path is referenced, the file is not
+-- shipped. What is worth specifying here is the part that is easy to break by
+-- "improving" it later. There is no rain icon in this game - the whole 2.27M
+-- file catalogue was searched, not just the classic range - so Rain borrows
+-- IceStorm, whose shards lose their detail at 14px and leave slanted streaks.
+-- Snow is FrostShock rather than the prettier ChillingBlast because
+-- ChillingBlast reduces to a white diagonal slash at that size, which is the
+-- same shape as the rain icon beside it. Telling rain from snow is the one job
+-- this row has.
+
+local function iconOf(b)
+	return b and b.icon and b.icon:IsShown() and b.icon.texture or nil
+end
+
+it("puts a picture on each of the three weather buttons", function()
+	local w = H.world()
+	w:open()
+	ok(iconOf(w:button("Rain")), "Rain has one")
+	ok(iconOf(w:button("Snow")), "Snow has one")
+	ok(iconOf(w:button("Thunder")), "Thunder has one")
+end)
+
+it("never gives rain and snow the same picture", function()
+	-- The whole reason FrostShock won over the better-looking ChillingBlast.
+	-- Two icons that reduce to the same shape at 14px are worse than none.
+	local w = H.world()
+	w:open()
+	ok(iconOf(w:button("Rain")) ~= iconOf(w:button("Snow")),
+		"the two weathers do not wear the same shape")
+end)
+
+it("swaps the bolt for the wind when the weather turns to snow", function()
+	local w = H.world()
+	w:open()
+	local bolt = iconOf(w:button("Thunder"))
+	w:button("Snow"):Click()
+	local wind = iconOf(w:button("Gusts"))
+	ok(wind, "the renamed button still carries a picture")
+	ok(wind ~= bolt, "and it is not the lightning bolt any more")
+end)
+
+it("greys the picture out when the toggle is off, instead of lighting a lamp", function()
+	-- Desaturating is the client's own way of saying a thing is switched off,
+	-- and one widget saying it twice - a grey icon AND a dark lamp - is noise.
+	local w = H.world()
+	w:open()
+	local t = w:button("Thunder")
+	eq(t.icon:IsDesaturated(), false, "on by default, so the icon is in colour")
+	eq(t.lamp:IsShown(), false, "and the lamp has stood down")
+
+	w:slash("thunder off")
+	eq(t.icon:IsDesaturated(), true, "turned off, the icon goes grey")
+end)
+
+it("centres its labels again on a client that has not got the icons", function()
+	-- A path this flavour lacks draws nothing, so a button laid out for an
+	-- icon would show an off-centre label with a hole beside it.
+	local w = H.world({ artPaths = {} })
+	w:open()
+	eq(iconOf(w:button("Rain")), nil, "no picture was drawn")
+	local lp = w:button("Rain").label._lastPoint
+	ok(lp and lp.point == "CENTER", "and the word is centred")
+	eq(w:button("Thunder").lamp:IsShown(), true, "the toggle gets its lamp back")
+	eq(w:button("Thunder").label._lastPoint.x, 19, "with the label beside it")
+	w:button("Snow"):Click()
+	eq(w:db().weather, "snow", "and the buttons still work")
+	eq(#w.mock.errors, 0, "with nothing thrown at the client")
+end)
