@@ -353,6 +353,113 @@ local function CheckWeatherModel()
 end
 
 --------------------------------------------------------------------------------
+-- 8b. Can 3D particles be drawn OVER the world? The last open question.
+--
+-- Check 8 above proves only that a Model frame will load the weather M2. A
+-- loaded model is not a visible one and a visible one is not a useful one, and
+-- the difference between those three is the whole question. Asked 2026-10-19
+-- after the binary ruled out every other route to 3D or a skybox:
+--
+--   ApplyWeather, RemoveWeather, ApplyScreenEffect, ApplyTimeOfDay and
+--   SetDetailDoodadsOverride all sit in ONE contiguous block of the binary
+--   alongside ImportTimelineActor, IsTimelineEditing, EvalWorldStateExpression,
+--   LoadPath and ScriptPackageLoader::ScriptText. That is the server-driven
+--   scene-script binding table, not the addon Lua API. There is no SetSkybox,
+--   no C_Skybox, no SetWorldFogColor, no SetGamma. LightSkybox exists only as
+--   a DB2 record class. SetFogColor, SetLight, SetFogNear and SetFogFar are
+--   all `self:` Model-widget methods, confirmed by their usage strings.
+--
+-- So a Model frame is the only 3D surface an addon can create at all, and this
+-- check answers the three things that decide whether it beats a 2D sheet:
+--
+--   1. Does it draw TRANSPARENTLY over the world, or does it occlude it? A
+--      fullscreen panel that clears to black is the end of the idea.
+--   2. Do the M2's particle emitters actually emit in a UI model frame?
+--   3. Is ModelSceneFrame (which exists in this binary, and is the richer
+--      widget) creatable from an addon, and does it behave any differently?
+--
+-- It cannot be automated. Nothing in the API reports what was rasterised, so
+-- the only instrument is the player's eyes, which is why this ends in a
+-- question rather than a verdict.
+--
+-- Known in advance and NOT what this is testing: there is no world camera
+-- pitch or yaw to read. GetCameraZoom is a global and returns distance only;
+-- GetCameraPosition, GetCameraFacing and GetCameraRoll are Model-widget
+-- methods on the frame's OWN camera, not the world's. So even a perfect result
+-- here cannot track the view when the player looks up or down. That is a cost
+-- to weigh against the win, not a reason to skip the measurement.
+--------------------------------------------------------------------------------
+
+local function Say(text)
+	msg("|cffffd100" .. text .. "|r")
+end
+
+local function Build3DPanel(kind)
+	local f = CreateFrame(kind, nil, WorldFrame)
+	f:SetFrameStrata("BACKGROUND")
+	f:SetAllPoints(WorldFrame)
+	return f
+end
+
+local function Run3D(done)
+	store()
+	local notes = {}
+	local function note(s) notes[#notes + 1] = s end
+
+	-- Stage 1: a plain Model frame, fullscreen, hosting the weather M2.
+	local m
+	local ok, err = pcall(function()
+		m = Build3DPanel("Model")
+		m:SetModel(WEATHER_M2)
+		if m.SetParticlesEnabled then m:SetParticlesEnabled(true) end
+		-- A pulled-back camera is the difference between standing inside one
+		-- emitter and seeing a volume of rain. The numbers are a guess; if the
+		-- player reports particles at all, they are worth tuning.
+		if m.SetCameraDistance then m:SetCameraDistance(12) end
+		if m.SetPosition then m:SetPosition(0, 0, -6) end
+		if m.SetAnimation then m:SetAnimation(0) end
+	end)
+	note(ok and ("Model frame built, GetModelFileID=" ..
+			tostring(m and m.GetModelFileID and m:GetModelFileID()))
+		or ("Model frame raised: " .. tostring(err)))
+
+	Say("STAGE 1 of 2, 6 seconds. Watch the WORLD, not the chat window.")
+	Say("Is it unchanged, is it BLACK, or can you see falling particles?")
+
+	C_Timer.After(6, function()
+		pcall(function() m:Hide() m:SetParent(nil) end)
+
+		-- Stage 2: ModelSceneFrame, which exists in this binary (.?AVModelSceneFrame@@)
+		-- and carries CreateActor. If an addon can create one, it is a strictly
+		-- better host than Model: real actors, a settable scene camera.
+		local s, actor
+		local ok2, err2 = pcall(function()
+			s = Build3DPanel("ModelSceneFrame")
+			if s.CreateActor then
+				actor = s:CreateActor()
+				if actor and actor.SetModelByFileID then actor:SetModelByFileID(WEATHER_M2)
+				elseif actor and actor.SetModel then actor:SetModel(WEATHER_M2) end
+			end
+		end)
+		note(ok2 and ("ModelSceneFrame built, CreateActor=" .. tostring(s and s.CreateActor ~= nil)
+				.. ", actor=" .. tostring(actor ~= nil))
+			or ("ModelSceneFrame raised: " .. tostring(err2)))
+
+		Say("STAGE 2 of 2, 6 seconds. Same question.")
+
+		C_Timer.After(6, function()
+			pcall(function() s:Hide() s:SetParent(nil) end)
+			record("model_3d", "ask", table.concat(notes, " | "))
+			P.pendingEyes = "model_3d"
+			Say("Answer with ONE command:")
+			Say("/comfy probe saw <stage1> <stage2>")
+			Say("each word one of:  nothing  black  rain")
+			if done then done() end
+		end)
+	end)
+end
+
+--------------------------------------------------------------------------------
 -- 9. Geometry, which does not expire but costs ten seconds while we are here.
 --------------------------------------------------------------------------------
 
@@ -716,6 +823,26 @@ function ComfyRain_Probe(arg)
 		record(id, heard and "yes" or "no",
 			(r and r.detail or "") .. " |cffffffff[player heard it: " .. tostring(heard) .. "]|r")
 		P.pendingEars = nil
+	elseif sub == "3d" then
+		try("model_3d", function() Run3D() end)
+	elseif sub == "saw" then
+		store()
+		local id = P.pendingEyes
+		if not id then msg("nothing is waiting on your eyes right now.") return end
+		local a, b = rest:match("^(%S+)%s+(%S+)$")
+		local VALID = { nothing = true, black = true, rain = true }
+		if not (a and VALID[a] and VALID[b]) then
+			msg("need two words, each one of |cffffd100nothing|r, |cffffd100black|r, " ..
+			    "|cffffd100rain|r. Example: |cffffd100/comfy probe saw black nothing|r")
+			return
+		end
+		local r = P.results[id]
+		-- "rain" in either stage is the only outcome that reopens 3D. "black"
+		-- in either is proof the surface is opaque and the idea is dead.
+		local verdict = (a == "rain" or b == "rain") and "yes" or "no"
+		record(id, verdict, (r and r.detail or "") ..
+			" |cffffffff[stage1=" .. a .. " stage2=" .. b .. "]|r")
+		P.pendingEyes = nil
 	elseif sub == "shots" then
 		RunShots(function()
 			msg("shots done. |cffffd100/reload|r to write the manifest to disk.")
@@ -726,7 +853,7 @@ function ComfyRain_Probe(arg)
 		msg("probe results wiped.")
 	else
 		msg("|cffffd100/comfy probe|r, |cffffd100/comfy probe report|r, " ..
-		    "|cffffd100/comfy probe shots|r, " ..
+		    "|cffffd100/comfy probe shots|r, |cffffd100/comfy probe 3d|r, " ..
 		    "|cffffd100/comfy probe heard yes|no|r, |cffffd100/comfy probe wipe|r")
 	end
 end

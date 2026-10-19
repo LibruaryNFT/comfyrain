@@ -68,6 +68,54 @@ The streaks survive as background texture at a third of their old contrast.
 
 159 specs, all green.
 
+## 2026-10-19 — skybox and 3D rain, checked properly this time
+
+Asked again: can we do a skybox, or 3D rain like Blizzard's? The previous answer was
+"three research reports said no, do not re-litigate", which is an appeal to authority and
+not evidence. Re-done against the binary directly, `WowB.exe` build `1.60.1.70425`,
+934,670 extracted strings. **Positive controls:** `GetUnitSpeed` = 2 hits,
+`PlaySoundWithOptions` = 2, `SetModel` = 24, `GetModelFileID` = 3.
+
+| Candidate route | Result | Evidence |
+|---|---|---|
+| A skybox setter | **absent** | `SetSkyboxModel` 0, `C_Skybox` 0. `LightSkybox` appears only as a DB2 record class (`WowClientDB2<LightSkyboxRec_C>`), which is client data, not an API |
+| World fog / light / gamma | **absent** | `SetWorldFogColor` 0, `SetWorldLight` 0, `SetGamma` 0 |
+| `SetFogColor` / `SetLight` / `SetFogNear` / `SetFogFar` | **Model-widget methods** | each 1 hit, and each sits beside its own usage string of the form `Usage: local r, g, b, a = self:GetFogColor()`. The `self:` is the proof |
+| `ApplyScreenEffect` / `ClearScreenEffect` | **not addon-callable** | both sit in ONE contiguous block with `ApplyWeather`, `RemoveWeather`, `ApplyTimeOfDay`, `SetDetailDoodadsOverride`, `ImportTimelineActor`, `IsTimelineEditing`, `EvalWorldStateExpression`, `LoadPath`, `GetHousingHouseMatrix`, and `ScriptPackageLoader::ScriptText`. That is the server-driven scene-script binding table |
+| World camera orientation | **not readable** | `GetCameraPitch` 0, `GetCameraYaw` 0. `GetCameraZoom` is a global and sits with `CameraZoomIn`, `SaveView`, `SetView`, `MoveView*`, so distance only |
+| `GetCameraPosition` / `GetCameraFacing` / `GetCameraRoll` | **a false lead, resolved** | they exist, but their usage strings are `self:GetCameraPosition()`. They read a *Model frame's own* camera, not the world's |
+| Depth test control | **absent** | `SetDepthTest` 0, `SetUseDepthBuffer` 0. So nothing an addon draws can be occluded by terrain |
+
+**What a Model frame actually has**, all confirmed present at 1 hit each with usage
+strings: `SetModelScale`, `SetCamera`, `SetCameraPosition`, `SetCameraTarget`,
+`SetPosition`, `SetFacing`, `SetPitch`, `SetRoll`, `SetTransform`, `SetViewTranslation`,
+`SetViewInsets`, `SetParticlesEnabled`, `SetAnimation`, `SetSpellVisualKit`,
+`SetDrawLayerEnabled`, `SetPaused`. **`ModelSceneFrame` exists as a frame type**
+(`.?AVModelSceneFrame@@`, `.?AVModelSceneFrameActor@@`, `CreateActor`).
+
+### The one thing the binary cannot answer
+
+A Model frame is the only 3D surface an addon can create. Whether a *fullscreen* one
+drawn over `WorldFrame` is transparent, and whether the M2's particle emitters emit
+inside it, is a question about rasterisation and nothing in the API reports it.
+
+`/comfy probe 3d` answers it: two stages of six seconds, a plain `Model` then a
+`ModelSceneFrame`, each fullscreen on `WorldFrame` at `BACKGROUND` hosting
+`WEATHER_M2 = 166249`, then one question. Answer with
+`/comfy probe saw <stage1> <stage2>`, each word one of `nothing`, `black`, `rain`.
+A junk answer is refused rather than recorded, which has a mutation-checked spec.
+
+**Interpreting the result in advance, so the answer is not rationalised after the fact:**
+
+- `black` in either stage — the surface is opaque, 3D over the world is dead, done.
+- `nothing` in both — emitters do not run in a UI model frame. Dead.
+- `rain` in either — **it reopens**, but it is still not Blizzard's rain. There is no
+  depth test, so terrain and buildings will never occlude it, and there is no readable
+  world camera pitch, so the volume cannot track the view when the player looks up or
+  down. The honest ceiling is "3D-looking particles with correct internal parallax,
+  floating in front of everything", which is better than two flat sheets for depth and
+  worse for anything near the camera. Worth a day, not a week, and not before launch.
+
 ## The finding that shaped it
 
 Investigated client `WowB.exe`, build **1.60.1.70338** (`_classic_beta_`, portal `test`).

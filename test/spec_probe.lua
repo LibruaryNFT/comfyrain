@@ -126,6 +126,39 @@ it("asks the player's ears rather than claiming the ambience was audible", funct
 	eq(w:db().probe.pendingEars, nil, "nothing left waiting")
 end)
 
+it("asks the player's eyes about 3D particles, and refuses a junk answer", function()
+	-- Same reasoning as the ears check, for the last open engineering question.
+	-- Nothing in the API reports what was rasterised, so a fullscreen Model
+	-- frame that drew nothing, drew black, or drew rain are indistinguishable
+	-- from Lua. Recording anything but "ask" here would be inventing a result.
+	local w = H.world()
+	w:slash("probe 3d")
+	w:advance(20)
+	eq(results(w).model_3d.verdict, "ask", "verdict before the player answers")
+	eq(w:db().probe.pendingEyes, "model_3d", "and it knows what it is waiting on")
+
+	-- A typo must not be silently recorded as a finding. This is the whole
+	-- reason the answer is two constrained words and not free text.
+	w:slash("probe saw maybe")
+	eq(results(w).model_3d.verdict, "ask", "one word is not an answer")
+	w:slash("probe saw rain sideways")
+	eq(results(w).model_3d.verdict, "ask", "an unknown word is not an answer")
+	eq(w:db().probe.pendingEyes, "model_3d", "still waiting after both")
+
+	w:slash("probe saw black nothing")
+	eq(results(w).model_3d.verdict, "no", "black or nothing kills the idea")
+	contains(results(w).model_3d.detail, "stage1=black stage2=nothing", "recorded verbatim")
+	eq(w:db().probe.pendingEyes, nil, "nothing left waiting")
+
+	-- Rain in EITHER stage is what reopens it, because the two stages are two
+	-- different widgets and only one of them has to work.
+	local w2 = H.world()
+	w2:slash("probe 3d")
+	w2:advance(20)
+	w2:slash("probe saw nothing rain")
+	eq(results(w2).model_3d.verdict, "yes", "particles in stage 2 alone is still a yes")
+end)
+
 it("restores the music cvar it changed", function()
 	-- Leaving Sound_EnableMusic at 0 would silence the player's music for the
 	-- rest of the session, from a diagnostic they ran once.
