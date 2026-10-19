@@ -115,3 +115,45 @@ it("gives up quietly when the realm clock is unreadable", function()
 	eq(w:tod():IsShown(), false, "grade with no realm clock")
 	eq(#w.mock.errors, 0, "errors")
 end)
+
+it("takes the curtain down when the addon is switched off", function()
+	-- Reported from live play 2026-10-19: "my screen is too dark and I can't
+	-- turn off the changes it made". The time-of-day curtain is its own frame
+	-- parented to WorldFrame, not a child of the overlay, so every existing
+	-- teardown path missed it - /comfy off hid the rain and left a fullscreen
+	-- MOD texture holding the light at whatever hour was set, with no visible
+	-- cause. An addon that cannot be switched all the way off is a trap.
+	local w = H.world()
+	w:slash("time 21")
+	w:advance(1)
+	eq(w:tod():IsShown(), true, "curtain up at a held hour")
+
+	w:slash("off")
+	w:advance(1)
+	eq(w:tod():IsShown(), false, "and down the moment the addon is off")
+
+	w:slash("on")
+	w:advance(1)
+	eq(w:tod():IsShown(), true, "back again on the way in")
+end)
+
+it("says the light came back, so the dark screen has a visible cause", function()
+	-- The curtain being gone is not enough on its own. A player who does not
+	-- know a rain addon also grades the light has no reason to look here, and
+	-- the only thing standing between him and a reinstall is one printed line.
+	local w = H.world()
+	w:slash("time 21")
+	w.mock.printed = {}
+	w:slash("off")
+	gt(#w.mock.printedMatching("light is back"), 0, "off names the light")
+
+	w.mock.printed = {}
+	w:slash("on")
+	gt(#w.mock.printedMatching("21:00"), 0, "and on says what it went back to")
+
+	-- Silent when there is nothing to explain.
+	w:slash("time off")
+	w.mock.printed = {}
+	w:slash("off")
+	eq(#w.mock.printedMatching("light"), 0, "nothing to say with the grading off")
+end)
