@@ -77,6 +77,47 @@ Two still outside the route: #4 needs a full exit and relaunch with the flavour 
 staged into `_forever_`, and #5 is eyeballing the quads at several `UIParent:GetScale()`
 values, which cannot be done headlessly because the overlay is parented to `WorldFrame`.
 
+## 2026-10-19 — rain you can hear and not see, and an off switch that wasn't
+
+> "we reload and hear rain but dont see anything, the construactsols are reytarded we
+> cant even turn oiff the raiun sound, but we love the UI of this so keep that"
+
+Two bugs, both confirmed mechanically before anything was changed. A throwaway probe
+through the mock printed, with `indoors = true`: `far` alpha `0`, overlay `shown false`,
+the bed still playing, and the settings window still saying **"Drawing normal rain."**
+
+| Bug | Cause | Fix |
+|---|---|---|
+| Hears rain, sees none, window insists it is drawing | the status sentence was computed from `db` alone, and the window was never told when the world moved | `ComfyRainAPI.State()` + `WeatherPhrase()`, and `ComfyRain_Refresh` calls `changed()` on a real change |
+| Sound off still plays rain | `ApplySuppression`'s `active` included `db.sound`, so turning ours off unmuted the realm's own ambience loops | dropped `db.sound` from `active` |
+
+**The sound bug was a swap, not a failure.** Our bed did stop — the mock shows two stop
+events for two plays. Unmuting Blizzard's `AMBIENCE_LOOPS` in the same breath handed the
+realm's rain straight back, so the player unticked Sound and went on hearing rain. Off
+has to mean silence, and the box they just unticked is the visible cause, which is the
+only thing the old rule was protecting against. A cinematic and `indoors off` still hand
+the loops back: there ComfyRain has stood down rather than been asked to be quiet, and a
+realm muted by an addon drawing and playing nothing is silence with no visible cause.
+
+**A status line that describes the settings is not a status line.** Under a roof the
+overlay is hidden and the bed keeps playing — that is the design — but the settings were
+truthfully on, so the sentence was true about the settings and a lie about the screen.
+`State()` is recomputed on the spot and caches nothing, so it cannot go stale between
+the poll and the refresh. The window now says `Indoors: rain heard, not drawn`,
+`Indoors: nothing drawn`, or `Paused for the cutscene`.
+
+**Why the repaint is guarded.** The indoor poll runs a `Refresh` every 0.3s; `changed()`
+only fires when `draw`, `want` or `indoorsNow` actually move, so a doorway costs two
+repaints rather than three a second. Anything the player clicks already calls `changed()`
+on its own way out, so this only covers the world moving: doorways, cutscenes, loading
+screens.
+
+The UI from the previous section is untouched, as asked.
+
+256 specs green. Both fixes mutation-checked: restoring `db.sound` to `active` fails the
+suppression spec, hard-wiring `WeatherPhrase` past `State()` fails the new status spec,
+and so does severing the `changed()` call.
+
 ## 2026-10-19 — the column, the fonts, the glass, and a switch that waited
 
 > "we clicked turn it all off and it didnt change quick enough

@@ -322,6 +322,9 @@ local fade, fadeTarget, fadeTime = 1, 1, FADE_WALK
 -- What db.enabled was at the last Refresh, which is how the switch is told
 -- apart from the doorway without every caller having to say which it is.
 local lastEnabled
+-- The live picture as the settings window last saw it, so Refresh can tell it
+-- when the world moved rather than repainting on every 0.3s poll.
+local lastDraw, lastWant, lastIndoors
 local indoorTicker
 
 local function msg(text)
@@ -1443,12 +1446,19 @@ end
 -- their rain went quiet.
 local function ApplySuppression()
 	if not MuteSoundFile or not UnmuteSoundFile then return end
-	-- Keyed on whether we are actually playing, not merely on db.enabled. The
-	-- two come apart in three ordinary cases - sound off, inside with indoors
-	-- set to off, and a cinematic - and in every one of them the old test left
-	-- the realm's loops muted while ComfyRain played nothing at all. Silence
-	-- with no visible cause is the worst failure an audio addon has.
-	local active = db.suppress and db.sound and ShouldRain()
+	-- Keyed on whether ComfyRain is the weather here, NOT on whether it is
+	-- making a noise. Those two came apart on `sound off` and the result was
+	-- reported 2026-10-19 as "we cant even turn off the rain sound": turning
+	-- our sound off unmuted the realm's own rain loops, so the player pressed
+	-- off and went on hearing rain. Off has to mean silence. The box they just
+	-- unticked is the visible cause, which is the whole thing the old rule was
+	-- protecting against.
+	--
+	-- A cinematic and indoors=off still hand the loops straight back, because
+	-- in those two ComfyRain has stood down completely rather than been asked
+	-- to be quiet, and leaving the realm muted there is silence with no
+	-- visible cause - which is the worst failure an audio addon has.
+	local active = db.suppress and ShouldRain()
 	local keep = active and LoopsInUse() or {}
 	for _, id in ipairs(AMBIENCE_LOOPS) do
 		pcall(UnmuteSoundFile, id)
@@ -1640,6 +1650,21 @@ function ComfyRain_Refresh()
 	elseif lightningTimer then
 		lightningTimer:Cancel()
 		lightningTimer = nil
+	end
+
+	-- The window is a readout of what is HAPPENING, so it goes stale on
+	-- anything that changes the picture without the player touching a control:
+	-- a doorway, a cutscene, a loading screen. Nothing told it, which is half
+	-- of "we reload and hear rain but dont see anything" - the other half was
+	-- the sentence itself. A control the player clicks already calls changed()
+	-- on its own way out, so this only has to cover the world moving.
+	--
+	-- Guarded on a real change because the indoor poll runs a Refresh every
+	-- 0.3s, and repainting every widget three times a second to re-type the
+	-- same sentence is a cost with no reader.
+	if draw ~= lastDraw or want ~= lastWant or indoorsNow ~= lastIndoors then
+		lastDraw, lastWant, lastIndoors = draw, want, indoorsNow
+		if ComfyRainAPI and ComfyRainAPI.changed then ComfyRainAPI.changed() end
 	end
 end
 local Refresh = ComfyRain_Refresh
@@ -2079,6 +2104,20 @@ ComfyRainAPI = {
 	-- still goes through the slash parser like everything else.
 	Sections     = SECTIONS,
 	SectionOrder = SECTION_ORDER,
+	-- What is happening RIGHT NOW, as opposed to what the settings ask for.
+	-- The window had no way to tell the two apart and so said "Drawing normal
+	-- rain." while standing in a doorway drawing nothing, which is exactly
+	-- what "we reload and hear rain but dont see anything" was looking at.
+	-- Read-only and recomputed on the spot: nothing caches it, so it cannot
+	-- go stale between the poll and the refresh.
+	State        = function()
+		return {
+			indoors = indoorsNow,
+			drawing = ShouldDraw(),
+			hearing = ShouldRain() and db.sound and true or false,
+			cinematic = cinematic,
+		}
+	end,
 	-- So the per-slider resets can grey out a value already sitting on its
 	-- default without the window keeping a second copy of these numbers.
 	Defaults     = DEFAULTS,

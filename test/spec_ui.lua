@@ -1095,6 +1095,35 @@ it("gives the status line the whole row once there is nothing left to stop", fun
 	gt(line:GetWidth(), narrow, "so the sentence gets the room the button was holding")
 end)
 
+-- Reported 2026-10-19: "we reload and hear rain but dont see anything". Under
+-- a roof the overlay is hidden and the bed keeps playing, which is the design
+-- - but the window went on saying "Drawing normal rain." because the sentence
+-- was computed from the settings alone and the settings were, truthfully, on.
+-- A status line that describes the settings is not a status line.
+it("says what the screen is doing, not what the settings ask for", function()
+	local w = H.world()
+	w:open()
+	ok(w:says("^Drawing normal rain"), "outdoors it is drawing, and says so")
+
+	w:advance(0.5)
+	w.mock.state.indoors = true
+	w:advance(3.0, 0.1)
+	eq(w:overlay():IsShown(), false, "the roof has stopped the drawing")
+	eq(w:db().enabled, true, "with the setting still on, which is the trap")
+	ok(w:says("heard, not drawn"),
+		"so the window says it is heard and not seen, rather than 'Drawing'")
+
+	-- The positive control. If the sentence had simply been hard-wired to the
+	-- indoor wording, the assertion above would pass for the wrong reason.
+	w:slash("sound off")
+	ok(w:says("Indoors: nothing drawn"),
+		"and with the sound off too, nothing is claimed at all")
+
+	w.mock.state.indoors = false
+	w:advance(3.0, 0.1)
+	ok(w:says("^Drawing normal rain"), "back outside, it is drawing again")
+end)
+
 it("stands the checkbox on the panel, not on a button face", function()
 	-- "the button doesnt look right for zoom response" was this: a checkbox
 	-- drawn inside a UIPanelButton face, which is a promise that the face does

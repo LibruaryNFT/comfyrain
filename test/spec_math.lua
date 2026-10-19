@@ -196,11 +196,22 @@ it("runs the thunder through the volume slider, like the rain", function()
 	lt(loudest(0.2), 0.35, "and quietly when the slider is down")
 end)
 
-it("hands the realm its loops back whenever it is not using them", function()
+it("hands the realm its loops back when it stands down, and not when it is told to be quiet",
+function()
 	-- Suppression mutes Blizzard's ambience files so ours is the only weather
-	-- audible. It was keyed on db.enabled, which is not the same question as
-	-- "are we playing": sound off, indoors with indoors=off, and a cinematic
-	-- all left the realm muted while ComfyRain played nothing.
+	-- audible. The question it is keyed on is "is ComfyRain the weather here",
+	-- which is NOT "is ComfyRain making a noise", and getting those two
+	-- confused goes wrong in opposite directions:
+	--
+	--   `sound off` was handing the loops back, so pressing off swapped our
+	--   rain for the realm's and the player went on hearing rain. Reported
+	--   2026-10-19 as "we cant even turn off the rain sound". Off means
+	--   silence, and the box they just unticked is the visible cause.
+	--
+	--   `indoors off` and a cinematic must still hand them back, because
+	--   there ComfyRain has stood down rather than been asked to be quiet,
+	--   and a realm muted by an addon that is drawing and playing nothing is
+	--   silence with no visible cause at all.
 	local function mutedCount(w)
 		local n = 0
 		for _ in pairs(w.mock.muted or {}) do n = n + 1 end
@@ -212,10 +223,20 @@ it("hands the realm its loops back whenever it is not using them", function()
 	gt(mutedCount(w), 0, "suppression mutes the loops we are not using")
 
 	w:slash("sound off")
-	eq(mutedCount(w), 0, "sound off gives every one of them back")
+	gt(mutedCount(w), 0, "sound off is silence, not the realm's rain instead")
+	local quiet = 0
+	for _, s in ipairs(w.mock.sounds) do if s.file then quiet = quiet + 1 end end
+	w:advance(120, 0.5)
+	local after = 0
+	for _, s in ipairs(w.mock.sounds) do if s.file then after = after + 1 end end
+	eq(after, quiet, "and we are not playing anything either, two minutes on")
 
 	w:slash("sound on")
-	gt(mutedCount(w), 0, "and takes them again when we resume")
+	gt(mutedCount(w), 0, "still taken when we resume")
+
+	w:slash("off")
+	eq(mutedCount(w), 0, "weather off hands every one of them back")
+	w:slash("on")
 
 	w:slash("indoors off")
 	w:advance(0.5)

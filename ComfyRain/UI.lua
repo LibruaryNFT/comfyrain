@@ -884,13 +884,40 @@ local function LightPhrase(db)
 	return string.format("light held at %02d:00", db.timeFixed)
 end
 
+-- The weather half of the sentence, which is not the same question as "is the
+-- weather switched on".
+--
+-- Reported 2026-10-19: "we reload and hear rain but dont see anything". Under
+-- a roof the engine counts as indoors - and that includes awnings, cave
+-- mouths and most doorways - "dim" means heard and not seen, and the window
+-- went on saying "Drawing normal rain." the whole time. The setting was on,
+-- so the old sentence was true about the setting and a lie about the screen,
+-- which is the only thing the player was looking at.
+local function WeatherPhrase(db)
+	if not db.enabled then return nil end
+	local full = db.intensity .. " " .. db.weather
+	local st = (ComfyRainAPI and ComfyRainAPI.State and ComfyRainAPI.State()) or {}
+	-- No State() means an addon older than this window; drawing is the honest
+	-- assumption there, because that is what every build before today did.
+	if st.drawing == false then
+		if st.cinematic then return "Paused for the cutscene" end
+		if st.indoors then
+			return st.hearing
+				and "Indoors: " .. db.weather .. " heard, not drawn"
+				or  "Indoors: nothing drawn"
+		end
+		return full .. ", not drawn"
+	end
+	return "Drawing " .. full
+end
+
 local function StatusPhrase(db)
 	local light = LightPhrase(db)
-	local weather = db.enabled and (db.intensity .. " " .. db.weather) or nil
+	local weather = WeatherPhrase(db)
 	if weather and light then
-		return "Drawing " .. weather .. ", " .. light .. ".", GOLD
+		return weather .. ", " .. light .. ".", GOLD
 	elseif weather then
-		return "Drawing " .. weather .. ".", GOLD
+		return weather .. ".", GOLD
 	elseif light then
 		-- The dangerous state, and the one that generated the report: the
 		-- weather is off, so the player believes the addon is off, and the
