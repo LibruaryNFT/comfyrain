@@ -445,6 +445,52 @@ local SECTIONS = {
 }
 local SECTION_ORDER = { "look", "sound", "time" }
 
+-- Whole scenes, one command each. Nobody opens a window of fifteen controls
+-- already knowing which four of them add up to "storm", and the cost of not
+-- knowing is not a worse-looking screen, it is a player who concludes the
+-- addon does not do the thing they installed it for. Working out that
+-- Visibility 0 with Darkness up is an overcast sky took a session with the
+-- author in it.
+--
+-- Every preset writes the SAME nine keys, which is the part that matters: a
+-- scene the player can leave as cleanly as they entered it. Setting seven keys
+-- here and eight there leaves one setting behind from the last press, and two
+-- presses of the same button would then give two different screens.
+--
+-- Deliberately NOT touched: volume, channel, indoors, defer, zoom, minimap and
+-- everything under Time of Day. Those are how this player likes the addon to
+-- behave and where their clock is, not what the weather looks like, and a
+-- scene button that moves them is a scene button that gets pressed once.
+local PRESETS = {
+	{ key = "cozy", label = "Cozy",
+	  blurb = "a light rain with the sound up and no thunder",
+	  set = { enabled = true, weather = "rain", intensity = "light",
+	          scale = 0.85, speed = 0.9, gloom = 0.8, gust = 0.6,
+	          sound = true, thunder = false } },
+	{ key = "storm", label = "Storm",
+	  blurb = "a monsoon, dark, with the wind and the thunder in it",
+	  set = { enabled = true, weather = "rain", intensity = "monsoon",
+	          scale = 1.0, speed = 1.3, gloom = 1.5, gust = 1.6,
+	          sound = true, thunder = true } },
+	{ key = "snow", label = "Snow",
+	  blurb = "snow coming down steadily",
+	  set = { enabled = true, weather = "snow", intensity = "normal",
+	          scale = 1.0, speed = 0.8, gloom = 1.0, gust = 0.8,
+	          sound = true, thunder = false } },
+	-- The one nobody finds on their own. scale 0 stops the drops drawing while
+	-- the darkening and the ambience carry on, so it is a heavy grey sky with
+	-- nothing falling out of it. dim 2.0 rather than a number nearer the
+	-- preset: GloomAmount lands every preset on exactly 1.0 at 2.0, so this is
+	-- as dark as the addon goes whatever intensity it came from.
+	{ key = "overcast", label = "Overcast",
+	  blurb = "no drops at all, just the dark sky and the sound",
+	  set = { enabled = true, weather = "rain", intensity = "normal",
+	          scale = 0, speed = 1.0, gloom = 2.0, gust = 1.0,
+	          sound = true, thunder = false } },
+}
+local PRESET_BY_KEY = {}
+for _, p in ipairs(PRESETS) do PRESET_BY_KEY[p.key] = p end
+
 -- Everything a shared profile carries. Deliberately NOT where the window was
 -- dragged to, which minimap angle it sits at, or whether the first-run notice
 -- has been seen: those are this installation's furniture, and importing
@@ -1910,6 +1956,7 @@ local function Help()
 	msg("commands:")
 	print("  |cffffd100/comfy ui|r - open the settings window, which has all of this in it")
 	print("  |cffffd100/comfy|r - toggle; |cffffd100/comfy on|r and |cffffd100/comfy off|r say which")
+	print("  |cffffd100/comfy preset cozy||storm||snow||overcast|r - a whole look in one go")
 	print("  |cffffd100/comfy rain||snow|r - which weather to draw")
 	print("  |cffffd100/comfy light||normal||heavy|r - intensity")
 	print("  |cffffd100/comfy monsoon|r, |cffffd100/comfy blizzard|r - the top of each, weather included")
@@ -1969,6 +2016,26 @@ local function HandleSlash(input, source)
 		db.intensity, db.enabled = cmd, true
 		StartBed()
 		ScheduleLightning()
+	elseif cmd == "preset" or cmd == "scene" then
+		local p = PRESET_BY_KEY[arg:match("^%S*") or ""]
+		if not p then
+			local names = {}
+			for _, q in ipairs(PRESETS) do
+				names[#names + 1] = "|cffffd100" .. q.key .. "|r"
+			end
+			msg("usage: |cffffd100/comfy preset " ..
+			    table.concat(names, "|r / |cffffd100") .. "|r")
+			return
+		end
+		for k, v in pairs(p.set) do db[k] = v end
+		-- Belt and braces: the intensity names are per-weather, and a preset
+		-- table edited later to pair "snow" with "monsoon" should land on the
+		-- nearest snow intensity rather than on a preset that does not exist.
+		NormaliseIntensity()
+		StartBed()
+		ScheduleLightning()
+		msg("|cff66ff66" .. p.label .. "|r - " .. p.blurb ..
+		    ". Every slider below it still works.")
 	elseif cmd == "auto" then
 		-- Follow the realm's own weather if it is telling us anything. This is
 		-- a one-shot match, not a mode: C_Weather is a poll with no event, and
@@ -2433,6 +2500,10 @@ ComfyRainAPI = {
 	-- still goes through the slash parser like everything else.
 	Sections     = SECTIONS,
 	SectionOrder = SECTION_ORDER,
+	-- Read-only, and in order: the window draws one button per entry and the
+	-- press goes back through Command like every other control, so the row of
+	-- scenes cannot drift away from what /comfy preset does.
+	Presets      = PRESETS,
 	-- What is happening RIGHT NOW, as opposed to what the settings ask for.
 	-- The window had no way to tell the two apart and so said "Drawing normal
 	-- rain." while standing in a doorway drawing nothing, which is exactly

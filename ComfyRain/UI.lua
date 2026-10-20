@@ -1144,6 +1144,31 @@ local function Build()
 		"Weather, sound and the light grading, all off in one press. " ..
 		"Your settings are kept; this is a switch, not a reset.")
 
+	-- Scenes, before any heading, because this row is the answer to the only
+	-- question most people open the window with. Fifteen controls is a mixing
+	-- desk, and a mixing desk is the right thing to have and the wrong thing
+	-- to be handed first: the sliders stay exactly where they are, but nobody
+	-- has to touch four of them to find out what a storm looks like.
+	--
+	-- Built from ComfyRainAPI.Presets rather than from a list here, so adding a
+	-- scene is one table entry in the addon and the window follows. Each press
+	-- is the typed command, like every other control in this file.
+	local scenes = (ComfyRainAPI and ComfyRainAPI.Presets) or {}
+	if #scenes > 0 then
+		local row = add(CreateFrame("Frame", nil, panel), { gap = 6 })
+		row:SetHeight(ROW)
+		local slot = (WIDTH - PAD * 2) / #scenes
+		for i, p in ipairs(scenes) do
+			local b = Pill(row, p.label, function() Run("preset " .. p.key) end)
+			b:SetPoint("TOPLEFT", row, "TOPLEFT", slot * (i - 1), 0)
+			b:SetWidth(slot - 3)
+			Teach(b, p.label, "/comfy preset " .. p.key,
+				"Sets the weather, the intensity, the visibility, the speed, " ..
+				"the darkness, the wind and the thunder in one press: " ..
+				p.blurb .. ". Everything below stays adjustable afterwards.")
+		end
+	end
+
 	add(Heading(panel, "Weather", "look"), { gap = 4 })
 
 	-- The master switch first, because it is the one control in the section

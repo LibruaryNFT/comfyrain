@@ -1645,3 +1645,65 @@ function()
 	eq(w:panelText():find("Weather and Sound below") ~= nil, false,
 		"and the line is gone once the weather is on")
 end)
+
+it("puts a whole look one press away", function()
+	-- "can we not have like quick preset buttons, this is riduclous and not
+	-- user friendly at all", 2026-10-20, after a session spent dragging four
+	-- sliders to get one screenshot. The sliders are not the problem and are
+	-- all still there; arriving at them with nothing to start from was.
+	local w = H.world()
+	w:open()
+
+	local storm = w:button("Storm")
+	ok(storm, "there is a Storm button")
+	storm:Click()
+	local db = w:db()
+	eq(db.enabled, true, "storm turns the weather on")
+	eq(db.weather, "rain", "storm is rain")
+	eq(db.intensity, "monsoon", "at the top of it")
+	eq(db.thunder, true, "with thunder")
+	gt(db.gust, 1, "and wind")
+
+	-- The one a player does not find on their own: a dark sky with nothing
+	-- falling out of it. This is the composition that took a session to
+	-- discover, and it is now a button.
+	w:button("Overcast"):Click()
+	db = w:db()
+	eq(db.enabled, true, "overcast leaves the addon on")
+	eq(db.scale, 0, "with the drops not drawing")
+	eq(db.gloom, 2, "and the darkening as far as it goes")
+	eq(db.sound, true, "the sound stays")
+end)
+
+it("leaves nothing behind from the scene before it", function()
+	-- Every preset writes the same keys, so pressing two of them in a row ends
+	-- on the second one and not on a mixture. A preset that sets eight keys
+	-- after one that set nine is how a button stops being reproducible.
+	local w = H.world()
+	w:open()
+	w:button("Storm"):Click()
+	w:button("Cozy"):Click()
+	local a = {}
+	for k, v in pairs(w:db()) do a[k] = v end
+
+	local w2 = H.world()
+	w2:open()
+	w2:button("Cozy"):Click()
+	for _, k in ipairs({ "enabled", "weather", "intensity", "scale", "speed",
+	                     "gloom", "gust", "sound", "thunder" }) do
+		eq(a[k], w2:db()[k], "Cozy after Storm matches Cozy from fresh: " .. k)
+	end
+end)
+
+it("teaches the command the button ran, like every other control", function()
+	local w = H.world()
+	w:open()
+	local _, tip = w:hover(w:button("Snow"))
+	contains(tip, "/comfy preset snow", "the scene button names its command")
+
+	-- And the command works typed, which is the half a button cannot prove.
+	w:slash("preset overcast")
+	eq(w:db().scale, 0, "typed preset lands the same way")
+	w:slash("preset nonsense")
+	gt(#w.mock.printedMatching("usage"), 0, "and an unknown name lists the real ones")
+end)
