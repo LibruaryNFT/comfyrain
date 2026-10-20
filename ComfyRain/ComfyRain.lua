@@ -723,6 +723,44 @@ local function GradeIsFlat()
 	return off ~= nil and off < GRADE_FLAT
 end
 
+-- How bright the frame actually is right now, 0 to 1: the realm's own light for
+-- this hour, times whatever the grade is doing to it. Rec.709 luma, so green
+-- carries most of it, which is what the eye does.
+local function SceneLuma()
+	local h = RealmHour()
+	if not h then return 1 end
+	local r, g, b = LightAt(h)
+	local _, mr, mg, mb = GradeShift()
+	if mr then r, g, b = r * mr, g * mg, b * mb end
+	return 0.2126 * r + 0.7152 * g + 0.0722 * b
+end
+
+-- The darkening is calibrated against DAYLIGHT. Its tint is what a real storm
+-- does to a lit world, and multiplying a lit frame by it reads as weather.
+-- Multiplying a frame that is already dark by the same number does not: it
+-- reads as mud, and at midnight the Snow preset was taking a scene the player
+-- could just about see and closing it down to a black rectangle.
+--
+-- From screenshots 2026-10-20 in Goldshire at night: every preset measured
+-- median luma 10-25 out of 255, where a readable one wants 60-100. The first
+-- answer offered was /console gamma, which is both outside the addon and the
+-- wrong shape - "thats weird and too bright not sure why u dont just make the
+-- presets or whatever nicer". It is the presets.
+--
+-- So the darkening now scales with how much light there is to take. Full
+-- daylight is 1.0 and nothing moves, which is deliberate: the 2026-10-15 sweep
+-- calibrated the preset curve at noon and this may not disturb it. Deep night
+-- keeps NIGHT_FLOOR of the darkening, not none of it - some wash still reads as
+-- weather, and a storm that stops darkening at dusk is its own kind of wrong.
+local NIGHT_FLOOR = 0.35
+local NIGHT_LUMA = 0.37   -- luma of the LIGHT curve at its darkest, 03:00
+
+local function NightEase()
+	local t = (SceneLuma() - NIGHT_LUMA) / (1 - NIGHT_LUMA)
+	if t < 0 then t = 0 elseif t > 1 then t = 1 end
+	return NIGHT_FLOOR + (1 - NIGHT_FLOOR) * t
+end
+
 local function UpdateTimeOfDay()
 	if not tod then return end
 	-- The curtain is its own frame, not a child of the overlay, so hiding the
@@ -855,7 +893,7 @@ local function ApplyAlphas()
 
 	-- MOD multiplies the frame by this colour, so strength lives in the colour
 	-- itself: 1 is untouched, and we lerp towards the tint from there.
-	local g = math.min(GloomAmount(p.gloom, db.gloom) * IndoorFactor(), 1.0)
+	local g = math.min(GloomAmount(p.gloom, db.gloom) * IndoorFactor() * NightEase(), 1.0)
 	baseGloom = g
 	local gr, gg, gb = GloomColor(g, w, db.gloom)
 	gloom:SetColorTexture(gr, gg, gb, 1)
@@ -1572,6 +1610,10 @@ local function BuildOverlay()
 	UpdateTimeOfDay()
 	todTicker = C_Timer.NewTicker(20, function()
 		UpdateTimeOfDay()
+		-- The darkening is scaled by NightEase, which moves with the realm
+		-- clock and with nothing else. Without this a scene set at dusk is
+		-- still carrying dusk's darkening at midnight.
+		ApplyAlphas()
 		-- Whether the grade is doing anything visible is the one piece of
 		-- window state that changes with nothing but the server clock, so
 		-- it is the one thing no control press will ever come along and

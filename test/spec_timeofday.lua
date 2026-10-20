@@ -174,3 +174,59 @@ it("says the light is still on, so the dark screen has a visible cause", functio
 	w:slash("off")
 	eq(#w.mock.printedMatching("light"), 0, "nothing to say with the grading off")
 end)
+
+it("takes less light out of a world that has little left to give", function()
+	-- The darkening's tint is calibrated against daylight: it is what a storm
+	-- does to a lit frame. Multiplying an already-dark midnight frame by the
+	-- same number reads as mud, not as weather, which is how every Goldshire
+	-- night screenshot on 2026-10-20 came back at a tenth of a usable
+	-- brightness. So it scales with how much light there is to take.
+	local day = H.world({ state = { gameHour = 12, gameMinute = 0 } })
+	day:slash("preset snow")
+	local dr, dg, db_ = colourOf(day:gloom())
+
+	local night = H.world({ state = { gameHour = 2, gameMinute = 0 } })
+	night:slash("preset snow")
+	local nr, ng, nb = colourOf(night:gloom())
+
+	-- MOD: higher is lighter. The same preset must leave more of a night frame
+	-- standing than it leaves of a noon one.
+	gt(nr, dr, "night keeps more red")
+	gt(ng, dg, "night keeps more green")
+	gt(nb, db_, "night keeps more blue")
+
+	-- But not all of it. A storm that stops darkening after dusk is its own
+	-- kind of broken, so the floor is a fraction, never nothing.
+	lt(nr, 1, "night is still darkened")
+	lt(ng, 1, "night is still darkened, green")
+end)
+
+it("leaves the daylight calibration exactly where the sweep put it", function()
+	-- The 2026-10-15 screenshot sweep tuned every preset at noon. Scaling the
+	-- darkening by the hour is only safe because full daylight is the identity
+	-- case, so this is the test that stops the next tweak moving it.
+	local w = H.world({ state = { gameHour = 12, gameMinute = 0 } })
+	for _, key in ipairs({ "cozy", "storm", "snow", "overcast" }) do
+		w:slash("preset " .. key)
+		local r, g, b = colourOf(w:gloom())
+		local off = H.world({ state = { gameHour = 15, gameMinute = 0 } })
+		off:slash("preset " .. key)
+		local r2, g2, b2 = colourOf(off:gloom())
+		near(r, r2, 1e-9, key .. " red is flat across the lit hours")
+		near(g, g2, 1e-9, key .. " green is flat across the lit hours")
+		near(b, b2, 1e-9, key .. " blue is flat across the lit hours")
+	end
+end)
+
+it("follows the realm clock down into the night on its own", function()
+	-- Nothing presses a button between dusk and midnight. The 20s tick is the
+	-- only thing that can notice, so the darkening has to ride it.
+	local w = H.world({ state = { gameHour = 12, gameMinute = 0 } })
+	w:slash("preset storm")
+	local lit = select(2, colourOf(w:gloom()))
+
+	w.mock.state.gameHour = 2
+	w:advance(21, 0.5)
+	local dark = select(2, colourOf(w:gloom()))
+	gt(dark, lit, "the darkening eased off without a press")
+end)
