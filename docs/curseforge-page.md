@@ -88,7 +88,7 @@ Three textured quads and a timer. No combat log parsing, no unit scanning, no ta
 
 ## Found a problem?
 
-Type `/comfy bug`. It writes one line carrying your settings, where you were standing and what the addon was doing, already selected and ready to copy. Paste it into an issue on GitHub. The addon sends nothing anywhere.
+Type `/comfy bug`. It writes one line carrying your settings, where you were standing and what the addon was doing, already selected and ready to copy. Paste it into an issue at [github.com/LibruaryNFT/comfyrain/issues](https://github.com/LibruaryNFT/comfyrain/issues), or leave it in the comments here. The addon sends nothing anywhere.
 
 ## Free and open source
 
@@ -135,14 +135,13 @@ MIT License
 https://github.com/LibruaryNFT/comfyrain
 ```
 
-## Issues URL
+## Issues
 
-CurseForge has no issue tracker of its own, only a comments section. This field is the
-only place a tracker link goes.
-
-```
-https://github.com/LibruaryNFT/comfyrain/issues
-```
+CurseForge's authors console has an Issues tab that is its OWN tracker, with no field
+for an external one, whatever the support docs say about linking GitHub. Verified in
+the live UI 2026-10-20. So the GitHub tracker is linked from the description's "Found
+a problem?" section instead, and CurseForge's tracker is left enabled as a second
+channel rather than fought with.
 
 ## Wiki URL
 
