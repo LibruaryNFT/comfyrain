@@ -26,7 +26,7 @@ comfy-rain
 ## Summary
 
 ```
-Rain or snow wherever you are, for as long as you want. One command and it is raining in Durotar, in Elwynn, on the deck of the boat. Four intensities, Blizzard's own weather audio, gusting wind and distant thunder.
+Makes it rain or snow anywhere in the game, with sound. Type /comfy to start it, type it again to stop.
 ```
 
 ## Logo
