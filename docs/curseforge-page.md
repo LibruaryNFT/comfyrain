@@ -151,29 +151,61 @@ Leave empty.
 
 ## The file to upload
 
-Attach the preview build so the project does not enter moderation empty — a project with
+Attach the preview build so the project does not enter moderation empty - a project with
 no downloadable file sits in the queue longer and reads as abandoned to whoever approves
 it. Mark it **Alpha**, not Release.
 
+`v0.9.2-alpha` is the one uploaded, not `v0.9.1-alpha`: it is the first build carrying
+the new icon art, and the icon is what a player sees in their addon list for the two
+weeks before launch.
+
 ```
-https://github.com/LibruaryNFT/comfyrain/releases/tag/v0.9.1-alpha
+https://github.com/LibruaryNFT/comfyrain/releases/tag/v0.9.2-alpha
 ```
 
-Release type: **Alpha**. Game version: **Forever (1.60.1)**.
+Release type: **Alpha**. Game version: **Forever**. Display name `Comfy Rain 0.9.2-alpha`,
+not the filename, which is build plumbing. Related Projects: none, the addon has no
+dependencies.
 
 File changelog:
 
 ```
-Pre-launch preview. The build that ran on the beta client all week. First Release is 4 November.
+Pre-launch preview. This is the build that ran on the Forever beta client all week.
+
+First proper release is 4 November, when Forever goes live.
 ```
 
 ---
 
-## Still to do on the page after it is approved
+## Source tab
+
+Source Code: **GitHub**. Repository URL as above.
+
+**Automatic Packaging: No automatic packaging.** This is load-bearing, not a preference.
+The `.tga` and `.ogg` files are gitignored because they are deterministic outputs of the
+scripts in `build/`, so the scripts are what git holds. CurseForge's packager would zip
+the repo and ship an addon with no rain textures and no sound - the exact failure our own
+CI produced once, and the reason `release.yml` runs the build scripts and force-adds the
+output before packaging. GitHub Actions stays the single packager.
+
+---
+
+## The description editor takes HTML, not Markdown
+
+The `</>` source view is HTML. Markdown pasted into it survives as literal text inside
+`<p>` tags: the `##` and `-` characters render on the page. The Markdown above is the
+master copy; convert it to `<h2>`, `<p>`, `<ul>/<li>`, `<hr>`, `<strong>`, `<code>` and
+`<a>` before pasting, and paste into the source view rather than the WYSIWYG box.
+
+---
+
+## Still to do on the page
 
 | Item | Status |
 |---|---|
 | Project avatar / icon | Done at creation: `docs/logo.png` |
-| Gallery image | `docs/preview.jpg` is a real in-game frame, upload it now |
-| Launch GIF | Not captured. Issue #10. Rain is motion and a still undersells it |
-| Description screenshots | None yet; the beta client is gone until 4 November |
+| Gallery image | `docs/preview.jpg`, a real in-game frame |
+| Moderation approval | Waiting, out of our hands |
+| `## X-Curse-Project-ID` + `CF_API_KEY` secret | Blocked on approval. Until both exist every upload here is manual |
+| Launch GIF | Not captured. Issue #10. Blocked until the client returns 4 November, and a still undersells a moving effect |
+| v1.0.0 as Release | 4 November |
