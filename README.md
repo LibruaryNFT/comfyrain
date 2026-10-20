@@ -25,7 +25,7 @@ the way rain should, and where the real thing exists it is simply the better of 
 | **Rain and snow** | Four intensities each, from a drizzle to a monsoon or a whiteout blizzard |
 | **Sound** | Blizzard's own weather loops, layered and endlessly varied, with distant thunder |
 | **Wind** | Gusts that move the rain, the sound and the light together, not on a timer |
-| **Time of day** | Hold the world at dusk, or run it on your clock instead of the realm's |
+| **Time of day** | Hold the world at dusk, or run it on your clock instead of the realm's. Works on its own, with the rain switched off |
 | **Indoors** | Fades down under a roof instead of raining on the ceiling |
 | **A settings window** | `/comfyrain`. Every slider shows you the command it ran, so you learn them by using it |
 
@@ -60,7 +60,9 @@ That is the whole thing. Everything below is optional.
 | `/comfy volume 0.5` | How loud, over the weather only |
 | `/comfy thunder on \| off` | Lightning and thunder |
 | `/comfy channel Ambience \| SFX \| Master` | Which of the game's volume sliders owns it |
-| `/comfy time` | Time-of-day grading. See the settings window |
+| `/comfy time local` | Light the world by your clock, not the realm's. Works with the rain off |
+| `/comfy time 21` · `/comfy time +9` | Hold one hour, or shift the realm's by that many |
+| `/comfy time strength 0.6` | How far towards that hour. The rest is in the settings window |
 | `/comfy status` | What it currently thinks it is doing |
 | `/comfy reset` | Back to defaults |
 

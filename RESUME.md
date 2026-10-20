@@ -35,6 +35,20 @@ Visibility tooltip now says what 0 gives you and a spec pins the combination. `/
 status` also calls out `alpha 0` in words, because every other line of it says "on" and
 the number alone reads as a broken addon.
 
+**The light grading no longer needs the rain switched on.** `UpdateTimeOfDay` was gated
+on `db.enabled`; it is now gated only on `timeMode`. The case is a player a long way
+from their realm — the Australian on a US realm who wants night at their own 10pm and
+no weather at all — and making them run rain to get light was the addon refusing the
+one thing asked for. `/comfy time local` is the whole answer, from a cold start.
+
+That coupling existed for a day, added after *"my screen is too dark and I can't turn
+off the changes it made"* (live play, 2026-10-19). **The fault there was an effect with
+no visible cause, not an effect that outlived the rain**, and that is fixed three
+separate ways now: `/comfy status` leads with the mode, the window names the held hour
+every refresh (`LightPhrase`), and `/comfy stop` kills everything including the grade.
+`/comfy off` now prints that the light is still held and points at both switches. Two
+specs pin it, one for the curtain surviving `off` and one for `stop` taking it down.
+
 **Still true, and it is a limitation not a bug:** the gloom layer is a fullscreen MOD
 multiply, so it dims lamps and torches by the same factor as everything else. It cannot
 make a light source glow. Compositions whose whole appeal is warm lamps against cold

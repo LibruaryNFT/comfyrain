@@ -860,7 +860,8 @@ local TIME_MODES = {
 	{ key = "off",    label = "Off",      cmd = "time off",
 	  note = "Leave the realm's own day and night alone." },
 	{ key = "local",  label = "My Clock", cmd = "time local",
-	  note = "Light the world by your clock instead of the realm's." },
+	  note = "Light the world by your clock instead of the realm's. " ..
+	         "For playing a long way from your realm. Works with the rain off." },
 	{ key = "offset", label = "Shifted",  cmd = "time +9",
 	  note = "Move the realm's clock by a set number of hours." },
 	{ key = "fixed",  label = "Held",     cmd = "time 21",

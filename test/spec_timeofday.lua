@@ -116,13 +116,16 @@ it("gives up quietly when the realm clock is unreadable", function()
 	eq(#w.mock.errors, 0, "errors")
 end)
 
-it("takes the curtain down when the addon is switched off", function()
-	-- Reported from live play 2026-10-19: "my screen is too dark and I can't
-	-- turn off the changes it made". The time-of-day curtain is its own frame
-	-- parented to WorldFrame, not a child of the overlay, so every existing
-	-- teardown path missed it - /comfy off hid the rain and left a fullscreen
-	-- MOD texture holding the light at whatever hour was set, with no visible
-	-- cause. An addon that cannot be switched all the way off is a trap.
+it("keeps the light graded when the rain is switched off", function()
+	-- The light is not weather, and the commonest reason to want it is nothing
+	-- to do with rain: a player nine hours from their realm wants their own
+	-- clock and no weather at all. Making them run the rain to get the light
+	-- is the addon refusing the only thing they asked for.
+	--
+	-- This was the other way round for one day, after "my screen is too dark
+	-- and I can't turn off the changes it made" from live play 2026-10-19. The
+	-- fault there was an effect with no visible cause, not an effect that
+	-- outlived the rain, and the two specs below are what actually fix it.
 	local w = H.world()
 	w:slash("time 21")
 	w:advance(1)
@@ -130,26 +133,40 @@ it("takes the curtain down when the addon is switched off", function()
 
 	w:slash("off")
 	w:advance(1)
-	eq(w:tod():IsShown(), false, "and down the moment the addon is off")
+	eq(w:tod():IsShown(), true, "still up with the rain off")
 
-	w:slash("on")
+	w:slash("time off")
 	w:advance(1)
-	eq(w:tod():IsShown(), true, "back again on the way in")
+	eq(w:tod():IsShown(), false, "and down when the light itself is turned off")
 end)
 
-it("says the light came back, so the dark screen has a visible cause", function()
-	-- The curtain being gone is not enough on its own. A player who does not
-	-- know a rain addon also grades the light has no reason to look here, and
-	-- the only thing standing between him and a reinstall is one printed line.
+it("takes the curtain down on /comfy stop", function()
+	-- stop is the one switch for a player looking at a screen they cannot
+	-- explain, so it has to mean everything. It is the escape hatch that makes
+	-- the spec above safe.
+	local w = H.world()
+	w:slash("time 21")
+	w:advance(1)
+	eq(w:tod():IsShown(), true, "curtain up at a held hour")
+
+	w:slash("stop")
+	w:advance(1)
+	eq(w:tod():IsShown(), false, "and stop takes it with everything else")
+	eq(w:db().timeMode, "off", "and clears the mode so a reload stays clear")
+end)
+
+it("says the light is still on, so the dark screen has a visible cause", function()
+	-- The curtain outliving the rain is only safe if turning the rain off says
+	-- so. A player who does not know a rain addon also grades the light has no
+	-- reason to look in the Time of Day section, and the only thing standing
+	-- between him and a reinstall is one printed line naming it.
 	local w = H.world()
 	w:slash("time 21")
 	w.mock.printed = {}
 	w:slash("off")
-	gt(#w.mock.printedMatching("light is back"), 0, "off names the light")
-
-	w.mock.printed = {}
-	w:slash("on")
-	gt(#w.mock.printedMatching("21:00"), 0, "and on says what it went back to")
+	gt(#w.mock.printedMatching("light is still held"), 0, "off names the light")
+	gt(#w.mock.printedMatching("21:00"), 0, "and says what it is held at")
+	gt(#w.mock.printedMatching("/comfy stop"), 0, "and points at the one switch")
 
 	-- Silent when there is nothing to explain.
 	w:slash("time off")

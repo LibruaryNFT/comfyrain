@@ -612,14 +612,20 @@ end
 
 local function UpdateTimeOfDay()
 	if not tod then return end
-	-- db.enabled first, and it is not a redundant check. The time-of-day
-	-- curtain is its own frame, not a child of the overlay, so hiding the
-	-- overlay does nothing to it. Without this line /comfy off left a
-	-- fullscreen MOD texture over the world holding the light at whatever hour
-	-- was set, with no visible cause and nothing in the status line about it -
-	-- reported from live play 2026-10-19 as "my screen is too dark and I can't
-	-- turn it off". Off has to mean off, including the parts that are not rain.
-	if not db.enabled or db.timeMode == "off" or cinematic then tod:Hide() return end
+	-- The curtain is its own frame, not a child of the overlay, so hiding the
+	-- overlay does nothing to it. It is also not weather: a player on a realm
+	-- nine hours from home wants the light fixed and no rain at all, and
+	-- making them switch the rain on to get it is the addon refusing to do the
+	-- one thing they asked for.
+	--
+	-- This was briefly coupled to db.enabled, after "my screen is too dark and
+	-- I can't turn it off" from live play 2026-10-19. The real fault there was
+	-- not the coupling, it was that a standing grade had no visible cause. It
+	-- has three now: /comfy status leads with the mode whenever it is not off,
+	-- the window names the held hour every refresh (LightPhrase in UI.lua),
+	-- and /comfy stop is the one switch that kills everything including this.
+	-- So timeMode is the only thing that decides whether the curtain draws.
+	if db.timeMode == "off" or cinematic then tod:Hide() return end
 
 	local realm = RealmHour()
 	local want = ApparentHour()
@@ -1986,15 +1992,18 @@ local function HandleSlash(input, source)
 		-- Name the second thing it draws. The light grading is the part a
 		-- player does not associate with a rain addon, so "the screen went
 		-- dark and I can't undo it" is a support ticket waiting to happen
-		-- unless turning it off says out loud that the light came back.
+		-- unless turning the weather off says out loud that the light is a
+		-- separate thing, still running, with its own switch.
 		if db.timeMode ~= "off" then
 			local at = (db.timeMode == "fixed" and ("%02d:00"):format(db.timeFixed))
 				or (db.timeMode == "offset" and ("%+g h from realm time"):format(db.timeOffset))
 				or "your own clock"
 			msg(db.enabled
 				and ("the light is held at " .. at ..
-				     " again - |cffffd100/comfy time off|r for the realm's own")
-				or "the light is back to the realm's own.")
+				     " - |cffffd100/comfy time off|r for the realm's own")
+				or ("the rain is off. The light is still held at " .. at ..
+				    " - |cffffd100/comfy time off|r for the realm's own, or " ..
+				    "|cffffd100/comfy stop|r for all of it"))
 		end
 	elseif cmd == "alpha" then
 		local v = Num(arg)
