@@ -3,7 +3,7 @@
 Create the project here:
 
 ```
-https://legacy.curseforge.com/project/create?game=wow
+https://authors.curseforge.com/#/projects/create/choose-game
 ```
 
 Each block below is one field. Copy the block, paste it in the field named above it.
@@ -31,55 +31,60 @@ Rain or snow wherever you are, for as long as you want. One command and it is ra
 
 ## Description
 
+Set the editor to **Markdown**, not WYSIWYG, then paste this. (CurseForge offers both;
+it does not take BBCode.)
+
 ```
-[h2]The weather switch the game does not give you[/h2]
+## The weather switch the game does not give you
 
 World of Warcraft decides when it rains. The server picks the weather, it picks it per zone, and a lot of zones never get any.
 
-Type [b]/comfy[/b] and it is raining. Type it again and it stops. That is the whole addon. Everything else is optional.
+Type **/comfy** and it is raining. Type it again and it stops. That is the whole addon. Everything else is optional.
 
-[h2]What you get[/h2]
+## What you get
 
-[list]
-[*][b]Rain and snow[/b] — four intensities each, from a drizzle to a monsoon or a whiteout blizzard
-[*][b]Sound[/b] — Blizzard's own weather loops, layered and endlessly varied, with distant thunder
-[*][b]Wind[/b] — gusts that move the rain, the sound and the light together, not on a timer
-[*][b]Time of day[/b] — hold the world at dusk, or run it on your clock instead of the realm's
-[*][b]Indoors[/b] — fades down under a roof instead of raining on the ceiling, and knows that Ironforge has no sky even though the game says it does
-[*][b]A settings window[/b] — every slider shows you the command it just ran, so you learn them by using it
-[*][b]Shareable settings[/b] — export your setup as one line and paste it to a friend
-[/list]
+- **Rain and snow** - four intensities each, from a drizzle to a monsoon or a whiteout blizzard
+- **Sound** - Blizzard's own weather loops, layered and endlessly varied, with distant thunder
+- **Wind** - gusts that move the rain, the sound and the light together, not on a timer
+- **Time of day** - hold the world at dusk, or run it on your clock instead of the realm's
+- **Indoors** - fades down under a roof instead of raining on the ceiling, and knows that Ironforge has no sky even though the game says it does
+- **A settings window** - every slider shows you the command it just ran, so you learn them by using it
+- **Shareable settings** - export your setup as one line and paste it to a friend
 
-[h2]It knows when to get out of the way[/h2]
+## It knows when to get out of the way
 
-If the server sends a real storm, Comfy Rain stands aside and lets it fall. The game's own rain is 3D, so it stops under an arch or a bridge the way rain should. Where the real thing exists, it is simply the better of the two, and this gets out of its way without being asked.
+If the server sends a real storm, Comfy Rain stands aside and lets it fall. The game's own rain is 3D, so it stops under an arch or a bridge the way rain should. Where the real thing exists it is simply the better of the two, and this gets out of its way without being asked.
 
-[h2]Getting started[/h2]
+## Getting started
 
-[code]/comfy[/code]
+    /comfy
 
-[list]
-[*][b]/comfy rain[/b] · [b]/comfy snow[/b] — pick which
-[*][b]/comfy light[/b] · [b]normal[/b] · [b]heavy[/b] — how hard
-[*][b]/comfy monsoon[/b] · [b]/comfy blizzard[/b] — the two extremes
-[*][b]/comfy auto[/b] — match whatever the server is doing right now
-[*][b]/comfyrain[/b] — open the settings window
-[/list]
+| Command | What it does |
+|---|---|
+| `/comfy rain` / `/comfy snow` | Pick which |
+| `/comfy light` / `normal` / `heavy` | How hard |
+| `/comfy monsoon` / `/comfy blizzard` | The two extremes |
+| `/comfy auto` | Match whatever the server is doing right now |
+| `/comfyrain` | Open the settings window |
 
-[h2]Found a problem?[/h2]
+## Found a problem?
 
-Type [b]/comfy bug[/b]. It writes one line carrying your settings, where you were standing and what the addon was doing, already selected and ready to copy. Paste it into an issue on GitHub. Nothing is sent anywhere by the addon.
+Type **/comfy bug**. It writes one line carrying your settings, where you were standing and what the addon was doing, already selected and ready to copy. Paste it into an issue on GitHub. Nothing is sent anywhere by the addon.
 
-[h2]Free and open source[/h2]
+## Free and open source
 
 MIT licensed. Fork it, read it, take what you like.
 ```
 
 ## Categories
 
+Pick from whatever the WoW form offers. Primary:
+
 ```
 Graphic Enhancements
 ```
+
+Secondary, if a second is allowed:
 
 ```
 Roleplay
