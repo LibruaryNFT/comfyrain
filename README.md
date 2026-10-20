@@ -27,7 +27,7 @@ the way rain should, and where the real thing exists it is simply the better of 
 | **Wind** | Gusts that move the rain, the sound and the light together, not on a timer |
 | **Time of day** | Hold the world at dusk, or run it on your clock instead of the realm's. Works on its own, with the rain switched off |
 | **Indoors** | Fades down under a roof instead of raining on the ceiling |
-| **Four one-press scenes** | Cozy, Storm, Snow, Overcast. A whole look without touching a slider |
+| **One-press scenes** | Cozy, Storm, Snow, Overcast for the weather; Dusk and Night for the light alone, with nothing falling |
 | **A settings window** | `/comfyrain`. Every slider shows you the command it ran, so you learn them by using it |
 
 ## Getting started
@@ -41,7 +41,8 @@ That is the whole thing. Everything below is optional.
 | Command | What it does |
 |---|---|
 | `/comfy` | Turn the weather on or off |
-| `/comfy preset cozy` · `storm` · `snow` · `overcast` | A whole look in one go. Also four buttons at the top of the settings window |
+| `/comfy preset cozy` · `storm` · `snow` · `overcast` | A whole look in one go. Also buttons at the top of the settings window |
+| `/comfy preset dusk` · `night` | Just the light, no weather at all. Press a weather scene after it to have both |
 | `/comfy rain` · `/comfy snow` | Pick which |
 | `/comfy light` · `normal` · `heavy` | How hard |
 | `/comfy monsoon` · `/comfy blizzard` | The two extremes |

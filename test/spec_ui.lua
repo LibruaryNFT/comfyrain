@@ -1707,3 +1707,94 @@ it("teaches the command the button ran, like every other control", function()
 	w:slash("preset nonsense")
 	gt(#w.mock.printedMatching("usage"), 0, "and an unknown name lists the real ones")
 end)
+
+it("keeps the storm's rain at the speed the preset table was calibrated at",
+function()
+	-- "storm feels too fast and fake to be honest", 2026-10-20. monsoon's own
+	-- fall speed is 2.76, the highest in the table and already measured; a
+	-- multiplier above 1 on top of that is how a 2D sheet stops reading as
+	-- rain and starts reading as a scrolling texture. Density and dark are
+	-- what sell heavy rain, not pace.
+	local w = H.world()
+	w:open()
+	w:button("Storm"):Click()
+	local db = w:db()
+	ok(db.speed <= 1.0, "storm does not speed the drops up past the preset")
+	lt(db.gust, 1.5, "nor swing them as hard as it did")
+	eq(db.intensity, "monsoon", "it is still a monsoon")
+	gt(db.gloom, 1.0, "and still dark")
+end)
+
+it("changes the light on its own, with nothing falling", function()
+	-- "maybe we want just like night and day without weather", 2026-10-20.
+	-- A light preset is a different kind of thing from a weather one and
+	-- writes a disjoint set of keys, which is what lets the two compose.
+	local w = H.world({ state = { gameHour = 12, gameMinute = 0 } })
+	w:open()
+
+	w:button("Night"):Click()
+	local db = w:db()
+	eq(db.enabled, false, "night turns the weather off")
+	eq(db.timeMode, "fixed", "and holds an hour")
+	eq(db.timeFixed, 22, "a late one")
+	w:advance(1)
+	eq(w:tod():IsShown(), true, "with the grade actually up")
+	lt(w:dim().colour[1], 0.6, "and the scene darkened")
+	gt(w:dim().colour[3], w:dim().colour[1], "cooler than it is dark")
+
+	-- Composable: a weather scene on top keeps the hour, because the two kinds
+	-- never write the same key.
+	w:button("Cozy"):Click()
+	db = w:db()
+	eq(db.enabled, true, "a weather scene turns it back on")
+	eq(db.timeFixed, 22, "and leaves the held hour alone")
+	eq(db.intensity, "light", "while setting its own look")
+end)
+
+it("names its own off switch when a light preset darkens the screen", function()
+	-- The one state this addon has already been reported for is a dark screen
+	-- with no visible cause. A button that produces it does not get to arrive
+	-- without saying how to leave.
+	local w = H.world()
+	w:open()
+	w.mock.printed = {}
+	w:slash("preset dusk")
+	gt(#w.mock.printedMatching("/comfy time off"), 0, "dusk names the way back")
+end)
+
+it("writes the same keys for every preset of the same kind", function()
+	-- The invariant the whole preset table rests on, checked structurally
+	-- rather than by eye. A preset that sets eight keys where its siblings set
+	-- nine leaves the ninth behind from whatever was pressed before it, so the
+	-- same button gives two different screens on two different days. By kind,
+	-- because weather and light presets write deliberately disjoint sets.
+	local w = H.world()
+	local seen = {}
+	for _, p in ipairs(w.env.ComfyRainAPI.Presets) do
+		local keys = {}
+		for k in pairs(p.set) do keys[#keys + 1] = k end
+		table.sort(keys)
+		local sig = table.concat(keys, ",")
+		ok(p.kind, p.key .. " declares a kind")
+		if seen[p.kind] then
+			eq(sig, seen[p.kind].sig,
+				p.key .. " writes the same keys as " .. seen[p.kind].key)
+		else
+			seen[p.kind] = { sig = sig, key = p.key }
+		end
+	end
+
+	-- And the two kinds really are disjoint, which is what makes Night then
+	-- Cozy a light rain at ten at night instead of a fight.
+	local weather, light = {}, {}
+	for _, p in ipairs(w.env.ComfyRainAPI.Presets) do
+		for k in pairs(p.set) do
+			(p.kind == "light" and light or weather)[k] = true
+		end
+	end
+	for k in pairs(light) do
+		if k ~= "enabled" then
+			eq(weather[k], nil, "no weather preset also writes " .. k)
+		end
+	end
+end)

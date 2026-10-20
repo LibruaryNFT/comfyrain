@@ -1153,19 +1153,33 @@ local function Build()
 	-- Built from ComfyRainAPI.Presets rather than from a list here, so adding a
 	-- scene is one table entry in the addon and the window follows. Each press
 	-- is the typed command, like every other control in this file.
+	-- One row per kind, and the slot width is a fixed quarter rather than a
+	-- share of however many buttons that row has. A two-button row stretched
+	-- to fill the window would be two buttons twice the size of the four above
+	-- them, which reads as "these are the important ones" and they are not.
 	local scenes = (ComfyRainAPI and ComfyRainAPI.Presets) or {}
-	if #scenes > 0 then
-		local row = add(CreateFrame("Frame", nil, panel), { gap = 6 })
+	local slot, rows, order = (WIDTH - PAD * 2) / 4, {}, {}
+	for _, p in ipairs(scenes) do
+		local kind = p.kind or "weather"
+		if not rows[kind] then rows[kind] = {} order[#order + 1] = kind end
+		table.insert(rows[kind], p)
+	end
+	for ri, kind in ipairs(order) do
+		local row = add(CreateFrame("Frame", nil, panel), { gap = ri == 1 and 6 or 3 })
 		row:SetHeight(ROW)
-		local slot = (WIDTH - PAD * 2) / #scenes
-		for i, p in ipairs(scenes) do
+		for i, p in ipairs(rows[kind]) do
 			local b = Pill(row, p.label, function() Run("preset " .. p.key) end)
 			b:SetPoint("TOPLEFT", row, "TOPLEFT", slot * (i - 1), 0)
 			b:SetWidth(slot - 3)
 			Teach(b, p.label, "/comfy preset " .. p.key,
-				"Sets the weather, the intensity, the visibility, the speed, " ..
-				"the darkness, the wind and the thunder in one press: " ..
-				p.blurb .. ". Everything below stays adjustable afterwards.")
+				(kind == "light"
+				 and ("Changes the light and nothing else, with the weather " ..
+				      "switched off: " .. p.blurb ..
+				      ". Press a weather scene afterwards to have both.")
+				 or ("Sets the weather, the intensity, the visibility, the " ..
+				     "speed, the darkness, the wind and the thunder in one " ..
+				     "press: " .. p.blurb ..
+				     ". Everything below stays adjustable afterwards.")))
 		end
 	end
 

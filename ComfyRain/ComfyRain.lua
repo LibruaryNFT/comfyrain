@@ -452,27 +452,45 @@ local SECTION_ORDER = { "look", "sound", "time" }
 -- Visibility 0 with Darkness up is an overcast sky took a session with the
 -- author in it.
 --
--- Every preset writes the SAME nine keys, which is the part that matters: a
--- scene the player can leave as cleanly as they entered it. Setting seven keys
--- here and eight there leaves one setting behind from the last press, and two
--- presses of the same button would then give two different screens.
+-- Two KINDS, and the split is the design. A "weather" preset writes the same
+-- nine look-and-sound keys every time and never touches the clock; a "light"
+-- preset writes the clock and switches the weather off, and never touches a
+-- look key. Within a kind the key set is identical on purpose: setting seven
+-- keys here and eight there leaves one setting behind from the last press, and
+-- two presses of the same button then give two different screens.
 --
--- Deliberately NOT touched: volume, channel, indoors, defer, zoom, minimap and
--- everything under Time of Day. Those are how this player likes the addon to
--- behave and where their clock is, not what the weather looks like, and a
--- scene button that moves them is a scene button that gets pressed once.
+-- Because the two kinds write disjoint keys they compose. Night then Cozy is a
+-- light rain at ten at night, and that is the whole reason not to fold the
+-- clock into the weather presets.
+--
+-- Deliberately NOT touched by anything here: volume, channel, indoors, defer,
+-- zoom and minimap. Those are how this player likes the addon to behave rather
+-- than what it looks like, and a scene button that moves them is a scene
+-- button that gets pressed once.
+--
+-- There is no "Day", and that is not an omission. Brightening is an ADD quad
+-- clamped at LIFT_CAP because it can raise the black level but cannot give
+-- back contrast, and the skybox keeps its stars regardless; a button labelled
+-- Day that does almost nothing is worse than no button. /comfy time off is the
+-- honest way back to the realm's own light.
 local PRESETS = {
-	{ key = "cozy", label = "Cozy",
+	{ key = "cozy", label = "Cozy", kind = "weather",
 	  blurb = "a light rain with the sound up and no thunder",
 	  set = { enabled = true, weather = "rain", intensity = "light",
 	          scale = 0.85, speed = 0.9, gloom = 0.8, gust = 0.6,
 	          sound = true, thunder = false } },
-	{ key = "storm", label = "Storm",
+	-- speed 0.9, not the 1.3 this shipped with for an hour. monsoon's own
+	-- calibrated fall speed is 2.76, the highest in the table, and a multiplier
+	-- on top of it put the sheets at 3.59: past a certain rate a 2D sheet stops
+	-- reading as rain and starts reading as a scrolling texture, which is
+	-- exactly what it is. Heavy rain sells itself with density and dark, not
+	-- with pace. Same for the wind, down from 1.6.
+	{ key = "storm", label = "Storm", kind = "weather",
 	  blurb = "a monsoon, dark, with the wind and the thunder in it",
 	  set = { enabled = true, weather = "rain", intensity = "monsoon",
-	          scale = 1.0, speed = 1.3, gloom = 1.5, gust = 1.6,
+	          scale = 1.0, speed = 0.9, gloom = 1.5, gust = 1.2,
 	          sound = true, thunder = true } },
-	{ key = "snow", label = "Snow",
+	{ key = "snow", label = "Snow", kind = "weather",
 	  blurb = "snow coming down steadily",
 	  set = { enabled = true, weather = "snow", intensity = "normal",
 	          scale = 1.0, speed = 0.8, gloom = 1.0, gust = 0.8,
@@ -482,11 +500,25 @@ local PRESETS = {
 	-- nothing falling out of it. dim 2.0 rather than a number nearer the
 	-- preset: GloomAmount lands every preset on exactly 1.0 at 2.0, so this is
 	-- as dark as the addon goes whatever intensity it came from.
-	{ key = "overcast", label = "Overcast",
+	{ key = "overcast", label = "Overcast", kind = "weather",
 	  blurb = "no drops at all, just the dark sky and the sound",
 	  set = { enabled = true, weather = "rain", intensity = "normal",
 	          scale = 0, speed = 1.0, gloom = 2.0, gust = 1.0,
 	          sound = true, thunder = false } },
+
+	-- Light only. These turn the weather OFF, because the request they answer
+	-- is "night and day without weather": somebody who wants the hour changed
+	-- and nothing falling. The grade is a ratio against the realm clock, so
+	-- both of these are no-ops on a realm already at that hour, which is
+	-- correct and is why the window names the held hour underneath.
+	{ key = "dusk", label = "Dusk", kind = "light",
+	  blurb = "golden hour, warm and low, with no weather at all",
+	  set = { enabled = false, timeMode = "fixed", timeFixed = 19,
+	          timeStrength = 0.9 } },
+	{ key = "night", label = "Night", kind = "light",
+	  blurb = "late and cold-blue, with no weather at all",
+	  set = { enabled = false, timeMode = "fixed", timeFixed = 22,
+	          timeStrength = 1.0 } },
 }
 local PRESET_BY_KEY = {}
 for _, p in ipairs(PRESETS) do PRESET_BY_KEY[p.key] = p end
@@ -1957,6 +1989,7 @@ local function Help()
 	print("  |cffffd100/comfy ui|r - open the settings window, which has all of this in it")
 	print("  |cffffd100/comfy|r - toggle; |cffffd100/comfy on|r and |cffffd100/comfy off|r say which")
 	print("  |cffffd100/comfy preset cozy||storm||snow||overcast|r - a whole look in one go")
+	print("  |cffffd100/comfy preset dusk||night|r - just the light, with no weather at all")
 	print("  |cffffd100/comfy rain||snow|r - which weather to draw")
 	print("  |cffffd100/comfy light||normal||heavy|r - intensity")
 	print("  |cffffd100/comfy monsoon|r, |cffffd100/comfy blizzard|r - the top of each, weather included")
@@ -2034,8 +2067,14 @@ local function HandleSlash(input, source)
 		NormaliseIntensity()
 		StartBed()
 		ScheduleLightning()
+		UpdateTimeOfDay()
+		-- A light preset leaves a dark screen with no rain on it, which is the
+		-- one state this addon has already been reported for. It does not get
+		-- to arrive without naming its own off switch.
 		msg("|cff66ff66" .. p.label .. "|r - " .. p.blurb ..
-		    ". Every slider below it still works.")
+		    (p.kind == "light"
+		     and ". |cffffd100/comfy time off|r for the realm's own light again."
+		     or ". Every slider below it still works."))
 	elseif cmd == "auto" then
 		-- Follow the realm's own weather if it is telling us anything. This is
 		-- a one-shot match, not a mode: C_Weather is a poll with no event, and

@@ -7,41 +7,58 @@ because the client cannot be told to actually change the weather.
 Stormwind. v2 switches all audio and the drop sprite to Blizzard's own assets and stops
 the rain indoors; needs `/reload` to pick up (no new files, so no client restart).
 
-## 2026-10-20 — Four scene presets, because fifteen sliders is not a product
+## 2026-10-20 — Six scene presets, in two kinds
 
 "can we not have like quick preset buttons, this is riduclous and not user friendly at
 all" — said after a session spent dragging four sliders to get one screenshot, and it is
 the right read. The window had grown to roughly fifteen controls across three sections
 with no starting point in it, so the first thing a new installer sees is a mixing desk.
 
-`PRESETS` in `ComfyRain.lua` (beside `SECTIONS`) is the single source of truth. Four
-scenes, each writing **the same nine keys**: `enabled`, `weather`, `intensity`, `scale`,
-`speed`, `gloom`, `gust`, `sound`, `thunder`.
+`PRESETS` in `ComfyRain.lua` (beside `SECTIONS`) is the single source of truth. Six
+scenes in two kinds, each kind writing a fixed set of keys: `weather` presets write
+`enabled`, `weather`, `intensity`, `scale`, `speed`, `gloom`, `gust`, `sound`, `thunder`;
+`light` presets write `enabled`, `timeMode`, `timeFixed`, `timeStrength`.
 
-| Preset | What it is | The unusual part |
+| Preset | Kind | What it is |
 |---|---|---|
-| `cozy` | light rain, quiet, no thunder | — |
-| `storm` | monsoon, dark, wind and thunder | — |
-| `snow` | steady snow | — |
-| `overcast` | dark sky, nothing falling | `scale 0` + `dim 2.0`: the composition it took a whole session to discover |
+| `cozy` | weather | light rain, quiet, no thunder |
+| `storm` | weather | monsoon, dark, wind and thunder |
+| `snow` | weather | steady snow |
+| `overcast` | weather | `scale 0` + `dim 2.0`: dark sky, nothing falling. The composition it took a whole session to discover |
+| `dusk` | light | hour 19 at strength 0.9, weather off. Golden hour |
+| `night` | light | hour 22 at full strength, weather off. Cold blue |
 
-- **The same nine keys every time** is the load-bearing bit. Seven here and eight there
+- **Two kinds writing disjoint keys** is the design. Weather presets write the nine
+  look-and-sound keys and never touch the clock; light presets write the clock plus
+  `enabled = false` and never touch a look key. So they compose: Night then Cozy is a
+  light rain at ten at night. A spec walks the table and asserts both halves of this.
+- **The same key set within a kind** is the load-bearing bit. Seven here and eight there
   leaves a setting behind from the previous press, and the same button then gives two
   different screens. A spec asserts Cozy-after-Storm equals Cozy-from-fresh.
-- **Deliberately not touched:** volume, channel, indoors, defer, zoom, minimap, and all
-  of Time of Day. Those are how this player likes the addon to behave and where their
-  clock is, not what the weather looks like. A scene button that moves them gets pressed
-  once.
+- **Storm is `speed 0.9`, not 1.3.** "storm feels too fast and fake to be honest".
+  monsoon's own calibrated fall speed is 2.76, the highest in the table; a multiplier on
+  top put it at 3.59, and past some rate a 2D sheet reads as a scrolling texture rather
+  than as rain. Density and dark sell heavy rain, not pace. Gust came down 1.6 → 1.2.
+- **There is no `day`, deliberately.** Brightening is an ADD quad clamped at `LIFT_CAP`
+  because it can raise the black level but cannot restore contrast, and the skybox keeps
+  its stars. A button called Day that does almost nothing is worse than no button;
+  `/comfy time off` is the honest way back to the realm's light.
+- **Deliberately not touched:** volume, channel, indoors, defer, zoom, minimap. How this
+  player likes the addon to behave, not what it looks like.
+- A light preset's chat line always names `/comfy time off`, because a dark screen with
+  no rain on it is the exact state this addon has already been reported for.
 - **`dim 2.0` for overcast, not a number near the preset.** `GloomAmount` lands every
   preset on exactly 1.0 at slider 2.0, so the result is as dark as the addon goes no
   matter which intensity it arrived from.
-- **UI:** a four-pill row at the very top of the window, above the Weather heading, built
-  by iterating `ComfyRainAPI.Presets` — adding a scene is one table entry and the window
-  follows. Each press runs `Run("preset <key>")`, so it is the typed command like every
-  other control, and the tooltip teaches it.
-- Also `/comfy scene` as an alias, and an unknown name prints the four real ones.
+- **UI:** two pill rows at the very top of the window, above the Weather heading, one per
+  kind, built by iterating `ComfyRainAPI.Presets` — adding a scene is one table entry and
+  the window follows. Slot width is a fixed quarter of the inner width rather than a
+  share of that row's count, so the two-button light row is not two giant buttons under
+  four small ones. Each press runs `Run("preset <key>")`, so it is the typed command like
+  every other control, and the tooltip teaches it.
+- Also `/comfy scene` as an alias, and an unknown name prints the real ones.
 
-274 specs green, api_audit clean at 123 client APIs.
+278 specs green, api_audit clean at 123 client APIs.
 
 ## 2026-10-20 — Darkness now actually goes dark
 
