@@ -9,9 +9,16 @@ the rain indoors; needs `/reload` to pick up (no new files, so no client restart
 
 ## 2026-10-20 — the CurseForge logo
 
-`docs/logo.png` is now three blue drops falling on a diagonal with rain streaks behind
-them, cropped at 512 from an image-model contact sheet and committed. It replaces the
+`docs/logo.png` is now three blue drops falling with trails behind them, cropped at 512
+from an image-model contact sheet and committed. It replaces the
 rendered-from-`make_icon_tga.py` version.
+
+**Drop proportions are a hard constraint, not a style note.** The first pick was a
+diagonal cell whose drops had a long tapered neck over a bulbous base. Justin, instantly:
+*"its too close to a penis rather than a rain drop"*. He is right and it cannot be
+unseen. Any future drop art keeps classic teardrop proportions — wide round bottom,
+short point on top, neck no longer than the bulb is wide — and gets looked at by a human
+before it ships.
 
 **How it was chosen, because the method is the reusable part.** Four models were each
 given the same ideation prompt (nine distinct concepts, not nine renders of one), then
