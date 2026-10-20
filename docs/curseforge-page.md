@@ -26,7 +26,21 @@ comfy-rain
 ## Summary
 
 ```
-Rain or snow wherever you are, for as long as you want. One command and it is raining in Durotar, in Elwynn, on the deck of the boat. Four intensities each, Blizzard's own weather audio with distant thunder, gusting wind that moves the light with it, and a time-of-day hold so you can keep the world at dusk. It stands aside when the server sends a real storm, and fades down indoors instead of raining on the ceiling.
+Rain or snow wherever you are, for as long as you want. One command and it is raining in Durotar, in Elwynn, on the deck of the boat. Four intensities, Blizzard's own weather audio, gusting wind and distant thunder.
+```
+
+## Logo
+
+Required. 512x512, rendered rather than upscaled from the 64px in-game icon:
+
+```
+/home/mycomputer/code/wow-alwaysrain/docs/logo.png
+```
+
+## Class
+
+```
+Addons
 ```
 
 ## Description
@@ -76,19 +90,27 @@ Type **/comfy bug**. It writes one line carrying your settings, where you were s
 MIT licensed. Fork it, read it, take what you like.
 ```
 
-## Categories
-
-Pick from whatever the WoW form offers. Primary:
+## Main category
 
 ```
-Graphic Enhancements
+Audio & Video
 ```
 
-Secondary, if a second is allowed:
+## Additional categories
 
 ```
 Roleplay
 ```
+
+```
+Artwork
+```
+
+## Toggles
+
+- **Allow Comments:** on. It is the only feedback channel CurseForge gives you.
+- **Unlisted project:** off. Unlisted means it never appears in search, which is the
+  whole point of being on CurseForge.
 
 ## Owner / Author
 
@@ -147,7 +169,7 @@ Pre-launch preview. The build that ran on the beta client all week. First Releas
 
 | Item | Status |
 |---|---|
-| Project avatar / icon | `docs/icon-preview.png` exists, upload it |
+| Project avatar / icon | Done at creation: `docs/logo.png` |
 | Gallery image | `docs/preview.jpg` is a real in-game frame, upload it now |
 | Launch GIF | Not captured. Issue #10. Rain is motion and a still undersells it |
 | Description screenshots | None yet; the beta client is gone until 4 November |

@@ -6,7 +6,7 @@
 ## IconTexture: Interface\AddOns\ComfyRain\icon
 ## X-Website: https://github.com/LibruaryNFT/comfyrain
 ## X-License: MIT
-## X-Category: Graphic Enhancements
+## X-Category: Audio & Video
 ## SavedVariables: ComfyRainDB
 ## OptionalDeps: AlwaysRain, Duskfall
 
