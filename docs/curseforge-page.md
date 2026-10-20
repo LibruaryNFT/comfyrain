@@ -49,45 +49,50 @@ Set the editor to **Markdown**, not WYSIWYG, then paste this. (CurseForge offers
 it does not take BBCode.)
 
 ```
-## The weather switch the game does not give you
+## What it does
 
-World of Warcraft decides when it rains. The server picks the weather, it picks it per zone, and a lot of zones never get any.
+World of Warcraft decides when it rains. The server picks the weather, it picks it per zone, and plenty of zones never get any. Comfy Rain gives you the switch: rain or snow wherever you are, for as long as you want it.
 
-Type **/comfy** and it is raining. Type it again and it stops. That is the whole addon. Everything else is optional.
+It is built for ambience. If you spend time sitting in Goldshire, fishing in Stranglethorn, or running a roleplay night, this is the weather the game would not give you.
 
-## What you get
+## Features
 
-- **Rain and snow** - four intensities each, from a drizzle to a monsoon or a whiteout blizzard
-- **Sound** - Blizzard's own weather loops, layered and endlessly varied, with distant thunder
-- **Wind** - gusts that move the rain, the sound and the light together, not on a timer
-- **Time of day** - hold the world at dusk, or run it on your clock instead of the realm's
-- **Indoors** - fades down under a roof instead of raining on the ceiling, and knows that Ironforge has no sky even though the game says it does
-- **A settings window** - every slider shows you the command it just ran, so you learn them by using it
-- **Shareable settings** - export your setup as one line and paste it to a friend
+- **Rain and snow**, four intensities each, from a drizzle up to a monsoon or a whiteout blizzard
+- **Weather audio** built from the game's own sound files, layered so it does not loop obviously, with distant thunder
+- **Wind** that gusts, moving the rain, the sound and the light together rather than on a timer
+- **Time of day**, hold the world at dusk or run it on your own clock instead of the realm's
+- **Indoors handling**, it fades down under a roof instead of raining on the ceiling, and it knows places like Ironforge have no sky even when the game says otherwise
+- **A settings panel** with a minimap button, everything previews live, no Apply button
+- **Shareable settings**, export your setup as one line of text and send it to someone
 
-## It knows when to get out of the way
+## Using it
 
-If the server sends a real storm, Comfy Rain stands aside and lets it fall. The game's own rain is 3D, so it stops under an arch or a bridge the way rain should. Where the real thing exists it is simply the better of the two, and this gets out of its way without being asked.
+Click the minimap button, or type `/comfyrain`. Everything is in the panel.
 
-## Getting started
+Every control in the panel also shows the slash command it just ran, so if you prefer typing you pick the commands up by using the window. `/comfy` on its own turns the weather on and off.
 
-    /comfy
+## Real storms
 
-| Command | What it does |
-|---|---|
-| `/comfy rain` / `/comfy snow` | Pick which |
-| `/comfy light` / `normal` / `heavy` | How hard |
-| `/comfy monsoon` / `/comfy blizzard` | The two extremes |
-| `/comfy auto` | Match whatever the server is doing right now |
-| `/comfyrain` | Open the settings window |
+When the server sends an actual storm, Comfy Rain stands aside and lets it fall. The game's own rain is 3D, so it stops under an arch or a bridge the way rain should, and where the real thing exists it is the better of the two.
+
+## What it is, honestly
+
+Comfy Rain draws a screen-space overlay: scrolling layers of rain in front of the camera, with the frame dimmed behind them. Addons are not allowed near the game's 3D weather, its particles, its lighting or its sky. So:
+
+- It looks right when you are looking at the world.
+- It cannot put rain outside a window while you stand indoors. There is one overlay and no way to ask the client which pixels are sky, so indoors it fades to a faint wash instead.
+- It cannot change the sky, the clouds or the fog.
+- It does not make puddles, wet the ground, or stop you drowning.
+
+Three textured quads and a timer. No combat log parsing, no unit scanning, no taint, and it stops drawing entirely when the weather is off.
 
 ## Found a problem?
 
-Type **/comfy bug**. It writes one line carrying your settings, where you were standing and what the addon was doing, already selected and ready to copy. Paste it into an issue on GitHub. Nothing is sent anywhere by the addon.
+Type `/comfy bug`. It writes one line carrying your settings, where you were standing and what the addon was doing, already selected and ready to copy. Paste it into an issue on GitHub. The addon sends nothing anywhere.
 
 ## Free and open source
 
-MIT licensed. Fork it, read it, take what you like.
+MIT licensed. The code is on GitHub: read it, fork it, take what you like.
 ```
 
 ## Main category
