@@ -681,3 +681,66 @@ it("lets the player switch deference off and draw over the real thing", function
 	w:advance(3.0)
 	eq(w:overlay():IsShown(), false, "and standing aside again")
 end)
+
+-- Ironforge. "its weird how it rains inside ironforge though", 2026-10-20.
+--
+-- The client reports IsOutdoors in the Great Forge, which is a cavern, and
+-- there is no second API to ask. Deference cannot cover it either: Blizzard
+-- runs no weather in Ironforge, so there is nothing to stand aside for and
+-- ours is the only rain in the room. The only fix is to overrule the client on
+-- maps that have no sky anywhere on them.
+local IRONFORGE, ELWYNN = 1455, 1429
+
+it("overrules the client on a map that has no sky anywhere on it", function()
+	local w = H.world()
+	w:slash("gust 0")
+	w:slash("indoors off")
+
+	-- Elwynn first, as the positive control: the same open-sky reading that
+	-- gets ignored in Ironforge has to still draw rain where it is true.
+	w.mock.state.uiMapID = ELWYNN
+	w.mock.state.indoors, w.mock.state.sheltered = false, false
+	w:advance(3.0, 0.1)
+	eq(w:overlay():IsShown(), true, "open sky outdoors means rain")
+
+	-- Same two flags, different map. Nothing about the client's answer changed.
+	w.mock.state.uiMapID = IRONFORGE
+	w:advance(3.0, 0.1)
+	eq(w:overlay():IsShown(), false, "and the same reading in Ironforge does not")
+end)
+
+it("leaves a sealed map to the indoors setting rather than forcing rain off", function()
+	-- The map being sealed reports shelter; it does not seize the decision. A
+	-- player who has asked for rain indoors is asking for rain in Ironforge
+	-- too, and that is theirs to choose.
+	local w = H.world()
+	w:slash("gust 0")
+	w.mock.state.uiMapID = IRONFORGE
+	w:slash("indoors on")
+	w:advance(3.0, 0.1)
+	eq(w:overlay():IsShown(), true, "indoors on still draws in Ironforge")
+end)
+
+it("lets the player seal a map the built-in list never heard of", function()
+	-- The list is hand-written and permanently incomplete: no API answers "is
+	-- this map interior", so every tram, cave city and private-server map has
+	-- to be handed to the player instead of guessed at.
+	local w = H.world()
+	w:slash("gust 0")
+	w:slash("indoors off")
+	w.mock.state.uiMapID = 7777
+	w:advance(3.0, 0.1)
+	eq(w:overlay():IsShown(), true, "an unknown map is open sky like any other")
+
+	w:slash("indoorhere")
+	-- Long enough for the sheet to fade out, which is the same wait any other
+	-- way of going indoors takes.
+	w:advance(3.0, 0.1)
+	eq(w:overlay():IsShown(), false, "until the player says otherwise")
+	eq(w:db().indoorMaps[7777], true, "and it is remembered against the map id")
+
+	w:slash("indoorhere off")
+	w:advance(3.0, 0.1)
+	eq(w:overlay():IsShown(), true, "and undone on request")
+	eq(w:db().indoorMaps[7777], nil, "leaving nothing behind")
+end)

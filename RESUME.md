@@ -7,6 +7,61 @@ because the client cannot be told to actually change the weather.
 Stormwind. v2 switches all audio and the drop sprite to Blizzard's own assets and stops
 the rain indoors; needs `/reload` to pick up (no new files, so no client restart).
 
+## 2026-10-20 — it rains inside Ironforge, because the client says Ironforge is outdoors
+
+**Reported:** "its weird how it rains inside ironforge though."
+
+**Measured, off his own SavedVariables rather than from a new reading** (300-entry
+doorway log, `db.where`):
+
+| uiMapID | zone | IsIndoors / IsOutdoors readings |
+|---|---|---|
+| 1455 | Ironforge | `true/false` **and** `false/true` |
+| 1453 | Stormwind City | `true/false` 44, `false/true` 44 |
+| 1429 | Elwynn Forest | `false/true` 9, `true/false` 1 (the inn) |
+| 1431 / 1433 / 1436 | Duskwood / Redridge / Westfall | `false/true` only |
+
+Ironforge reads `IsOutdoors true` in the Great Forge. That is simply false - it is a
+cavern with a lava-lit ceiling and there is no point in the city where a drop of rain
+could land. The matching Stormwind, Elwynn, Duskwood, Redridge and Westfall IDs are
+exactly the canonical Classic uiMapID table, which is the positive control that the
+table applies to this client and that 1455 is really Ironforge.
+
+**Deference does not help here.** Blizzard runs no weather in Ironforge, so there is
+nothing to stand aside for; ours is the only rain in the room.
+
+**Fix: `SEALED_MAPS` in ComfyRain.lua**, consulted by `Sheltered()` ahead of the
+`IsIndoors()`/`IsOutdoors()` pair.
+
+- Keyed on **uiMapID, never `GetRealZoneText()`** - that string is localised, and a list
+  of English zone names would leave this broken for every non-English player, which is
+  the kind of bug that never gets reported.
+- Ships with two entries: **1455 Ironforge, 1458 Undercity**. Deliberately short. A map
+  only belongs on it if it is interior end to end, so that forcing it can never take
+  rain away from somebody who should have seen it. Stormwind, Orgrimmar, Darnassus and
+  Thunder Bluff have real open districts and are **not** on it.
+- **It reports shelter; it does not seize the decision.** A sealed map still runs through
+  `IndoorMode()`, so `/comfy indoors on` still draws rain in Ironforge. That is the
+  player's call.
+- **`/comfy indoorhere`** (alias `roof`, `off` to undo) adds the current map to a per-user
+  `db.indoorMaps`. The built-in list is permanently incomplete - no API answers "is this
+  map interior" - so the Deeprun Tram, cave cities and every private-server map have to
+  be handed to the player rather than guessed at. Deliberately **not** in `PROFILE_KEYS`:
+  it is machine-local state, not a shareable look setting.
+- `/comfy where` now prints `(map has no sky)` when we are overruling the client,
+  otherwise the line reads `IsOutdoors yes -> SHELTERED` and looks like a bug.
+- `/comfy bug` now carries `map<id>` and `sealed`.
+
+**Three specs in `spec_visuals.lua`, all mutation-checked:** removing the check from
+`Sheltered()` fails 2; making a sealed map force rain off instead of reporting shelter
+fails the `indoors on` spec; ignoring `db.indoorMaps` fails the `indoorhere` spec. The
+first spec drives Elwynn with the same flags as its positive control, so it cannot pass
+on a build that just stopped drawing rain everywhere.
+
+**Open:** the Deeprun Tram's uiMapID was not shipped because it could not be verified
+from his log or the client binary, and a guessed ID is worse than a missing one. It is
+covered by `/comfy indoorhere` until somebody reports it.
+
 ## 2026-10-20 — bug reports: what to ask users for, and how CurseForge handles it
 
 **CurseForge has no issue tracker.** A project page has a comments section and a set of

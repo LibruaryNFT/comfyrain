@@ -1259,7 +1259,10 @@ local function Build()
 	end))
 	Teach(controls.indoors.well, "Indoors", "/comfy indoors dim",
 		"Off stops it dead. Dim keeps the sound and draws nothing, the way " ..
-		"weather is from inside. On draws it at full strength.")
+		"weather is from inside. On draws it at full strength.\n\n" ..
+		"Caves and cities with no sky, like Ironforge, are already counted as " ..
+		"indoors even where the game says otherwise. If one is missed, stand " ..
+		"in it and type /comfy indoorhere.")
 
 	controls.channel = add(Select(panel, "Channel", function(d)
 		local db2, at = DB(), 1

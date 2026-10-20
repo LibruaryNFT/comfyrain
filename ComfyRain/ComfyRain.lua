@@ -1037,7 +1037,52 @@ end
 -- read every one of those as open sky and kept drawing rain on the ceiling.
 -- Asking both turns two states into three and treats "sheltered" as indoors,
 -- which is what it looks like.
+-- Maps with no sky anywhere on them, where the client's own answer is simply
+-- wrong and no amount of asking it again will help.
+--
+-- Ironforge is the reported case ("its weird how it rains inside ironforge
+-- though", 2026-10-20). The Great Forge is a cavern with a lava-lit ceiling and
+-- the client reports IsOutdoors there: his own doorway log has uiMapID 1455
+-- logged both ways, and one of those two readings is a lie, because there is no
+-- point in Ironforge where a drop of rain could land. Deference cannot save us
+-- either - Blizzard runs no weather in Ironforge, so there is nothing to stand
+-- aside for, and ours is the only rain in the room.
+--
+-- Keyed on uiMapID and never on GetRealZoneText(), which is localised: a list
+-- of English zone names would leave this broken for every player who is not
+-- playing in English, which is the kind of bug that never gets reported.
+--
+-- Deliberately short. A map only belongs here if it is interior end to end, so
+-- that forcing it can never take away rain somebody should have seen. Cities
+-- with real open districts - Stormwind, Orgrimmar, Darnassus, Thunder Bluff -
+-- are not on it and must not be. For everything this misses, see /comfy
+-- indoorhere, which lets a player add the map they are standing on without
+-- waiting for a patch.
+local SEALED_MAPS = {
+	[1455] = true,  -- Ironforge
+	[1458] = true,  -- Undercity
+}
+
+-- Which map the player is on, or nil. MapPos is the richer version of this and
+-- wants coordinates, but it is defined further down and Sheltered cannot wait.
+local function CurrentMapID()
+	if not (C_Map and C_Map.GetBestMapForUnit) then return end
+	return Readable(C_Map.GetBestMapForUnit("player"))
+end
+
+-- Answered first, ahead of IsIndoors, because the whole point is that the
+-- client's answer on these maps is not worth consulting. Note what this does
+-- NOT do: it reports shelter, it does not force rain off. A player who has set
+-- indoors to "on" still gets rain in Ironforge, which is their call to make.
+local function SealedMap()
+	local id = CurrentMapID()
+	if not id then return false end
+	if SEALED_MAPS[id] then return true end
+	return db and db.indoorMaps and db.indoorMaps[id] and true or false
+end
+
 local function Sheltered()
+	if SealedMap() then return true end
 	if IsIndoors() then return true end
 	if IsOutdoors() then return false end
 	return true
@@ -1990,8 +2035,38 @@ local function HandleSlash(input, source)
 		else
 			msg("usage: /comfy indoors off | dim | on  (dim is the default: " ..
 			    "quiet and faint, the way weather is from inside)")
+			-- Said here rather than in a help list nobody reads, because
+			-- somebody typing /comfy indoors is standing in the room that is
+			-- wrong at the time they type it.
+			msg("if a whole zone should count as indoors, stand in it and type " ..
+			    "|cffffd100/comfy indoorhere|r")
 			return
 		end
+	-- The escape hatch for SEALED_MAPS. That list is hand-written and will be
+	-- incomplete forever: there is no API that answers "is this map interior",
+	-- so every cave city, every tram, every map on a private server we have
+	-- never heard of has to be either guessed at or handed to the player. This
+	-- hands it to the player, and costs one key in the profile.
+	elseif cmd == "indoorhere" or cmd == "roof" then
+		local id = CurrentMapID()
+		if not id then msg("cannot tell which map this is, so there is nothing to remember") return end
+		db.indoorMaps = db.indoorMaps or {}
+		if arg == "off" then
+			db.indoorMaps[id] = nil
+			if SEALED_MAPS[id] then
+				msg("this map is built in as indoors and stays that way; " ..
+				    "use |cffffd100/comfy indoors on|r to draw here anyway")
+			else
+				msg("no longer treating " .. (GetRealZoneText() or "this map") ..
+				    " as indoors")
+			end
+		else
+			db.indoorMaps[id] = true
+			msg("treating " .. (GetRealZoneText() or "this map") ..
+			    " as indoors from now on. |cffffd100/comfy indoorhere off|r undoes it.")
+		end
+		indoorsNow = Sheltered()
+		indoorsSince = nil
 	elseif cmd == "channel" then
 		local valid = { ambience = "Ambience", sfx = "SFX", master = "Master",
 		                music = "Music", dialog = "Dialog" }
@@ -2041,9 +2116,13 @@ local function HandleSlash(input, source)
 		-- of reading the source settles which this client reports where.
 		-- Type this inside and then outside and the question is answered.
 		local function yn(v) return v and "|cff66ff66yes|r" or "|cffff6666no|r" end
-		msg(string.format("IsIndoors %s  IsOutdoors %s  -> %s",
+		msg(string.format("IsIndoors %s  IsOutdoors %s  -> %s%s",
 			yn(IsIndoors()), yn(IsOutdoors()),
-			Sheltered() and "SHELTERED" or "open sky"))
+			Sheltered() and "SHELTERED" or "open sky",
+			-- Without this the line reads "IsOutdoors yes -> SHELTERED" and
+			-- looks like the addon is broken, when it is overruling the client
+			-- on purpose.
+			SealedMap() and " |cffffd100(map has no sky)|r" or ""))
 		msg(string.format("addon state: %s, mode %s - seen |cffffd100%d%%|r, heard |cffffd100%d%%|r",
 			indoorsNow and "indoors" or "outdoors", IndoorMode(),
 			math.floor(IndoorFactor() * 100 + 0.5),
@@ -2174,8 +2253,13 @@ local function HandleSlash(input, source)
 				px and string.format(" %.1f,%.1f", px * 100, py * 100) or ""),
 			-- All three, never the conclusion alone: the gap between the first
 			-- two is where every shelter bug has lived.
-			string.format("in%d out%d shel%d", IsIndoors() and 1 or 0,
-				IsOutdoors() and 1 or 0, Sheltered() and 1 or 0),
+			-- map, and whether we overruled the client on it. "Rain stopped and
+			-- I don't know why" on a sealed map is a one-glance answer with
+			-- this and a hunt without it.
+			string.format("in%d out%d shel%d map%s%s", IsIndoors() and 1 or 0,
+				IsOutdoors() and 1 or 0, Sheltered() and 1 or 0,
+				tostring(CurrentMapID() or "?"),
+				SealedMap() and " sealed" or ""),
 			string.format("draw%d hear%d yield%d", st.drawing and 1 or 0,
 				st.hearing and 1 or 0, st.yielding and 1 or 0),
 			string.format("real=%s@%.2f dens%s", tostring(real or "?"), grade or 0,
