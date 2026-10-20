@@ -26,7 +26,7 @@ comfy-rain
 ## Summary
 
 ```
-Makes it rain or snow anywhere in the game, with sound. Pick the weather and how heavy it is from the settings panel or the minimap button.
+Makes it rain or snow anywhere in the game, with weather sounds, wind and thunder, all set from a settings panel or the minimap button.
 ```
 
 ## Logo
