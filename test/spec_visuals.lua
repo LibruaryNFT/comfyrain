@@ -592,3 +592,92 @@ it("leaves the field alone at any zoom once the zoom response is off", function(
 	end
 	near(tilesY(15), tilesY(0), 1e-9, "identical with the response off")
 end)
+
+-- Deference: standing aside while the client's own weather is falling.
+--
+-- This is the answer to a thing no code can fix. Blizzard's rain is world-space
+-- particles, so the arch at Stormwind's gate occludes them; ours is a flat
+-- sheet drawn in front of the camera and nothing in the world can ever be in
+-- front of it. "blizzards own rainfall doesnt go through it cuz they use 3d
+-- rain", 2026-10-20. Where the real thing is falling it is simply the better
+-- of the two, so ours gets out of the way.
+--
+-- Asserted on the overlay rather than on a layer's alpha, which is what the
+-- indoor specs above use. Those two are genuinely different mechanisms:
+-- "indoors" scales every layer through IndoorFactor and leaves the effect
+-- running, while deference stops the effect at ShouldRain and the layers keep
+-- whatever alpha they last had. A layer-alpha assertion here would pass on a
+-- build where deference did nothing at all.
+
+-- Both halves, because either one alone is a lie: C_Weather reports the
+-- server's weather whether or not the client is drawing it, and weatherDensity
+-- 0 means it is drawing none of it.
+local function realStorm(w)
+	w.mock.state.weather = { type = 1, intensity = 0.7 }
+	w.mock.cvars.weatherDensity = "3"
+end
+
+it("stands aside while the game's own weather is falling, and comes back after", function()
+	local w = H.world()
+	w:slash("gust 0")
+	w:advance(0.5)
+	eq(w:overlay():IsShown(), true, "ours is drawing to begin with")
+
+	realStorm(w)
+	w:advance(0.5)
+	eq(w:overlay():IsShown(), true,
+		"still ours inside the debounce - a storm ramps up and crosses zero twice")
+	w:advance(3.0)
+	eq(w:overlay():IsShown(), false, "theirs is falling, so ours stopped")
+
+	w.mock.state.weather = nil
+	-- Leaving is the slower of the two debounces on purpose: a dying storm dips
+	-- and recovers, and our sheet flickering back in for a second is worse than
+	-- a few seconds with no rain at all.
+	w:advance(2.0)
+	eq(w:overlay():IsShown(), false, "not back the instant their intensity dips")
+	w:advance(3.0)
+	eq(w:overlay():IsShown(), true, "back once their storm is really over")
+end)
+
+it("ignores real weather the client has been told never to draw", function()
+	-- weatherDensity has been 0 on the author's machine since before the addon
+	-- existed, which is why nothing here was ever calibrated against Blizzard's
+	-- rain. C_Weather still reports the server's weather on such a machine, so
+	-- deferring on C_Weather alone would hand the player an empty sky and call
+	-- it deference.
+	local w = H.world()
+	w:slash("gust 0")
+	w:advance(0.5)
+
+	w.mock.state.weather = { type = 1, intensity = 0.7 }
+	w.mock.cvars.weatherDensity = "0"
+	w:advance(3.0)
+	eq(w:overlay():IsShown(), true,
+		"their rain is reported but not drawn, so ours stays")
+
+	-- Positive control for the assertion above: the same weather with the CVar
+	-- up does stop us, so the test can tell the two apart.
+	w.mock.cvars.weatherDensity = "3"
+	w:advance(3.0)
+	eq(w:overlay():IsShown(), false, "and the CVar is what made the difference")
+end)
+
+it("lets the player switch deference off and draw over the real thing", function()
+	local w = H.world()
+	w:slash("gust 0")
+	realStorm(w)
+	w:advance(3.0)
+	eq(w:overlay():IsShown(), false, "standing aside by default")
+
+	w:slash("defer off")
+	-- No debounce when the player asks: the command re-seeds the state itself
+	-- rather than waiting for the next tick to notice.
+	w:advance(0.1)
+	eq(w:overlay():IsShown(), true, "drawing over theirs once told to")
+	eq(w:db().defer, false, "and it is remembered")
+
+	w:slash("defer on")
+	w:advance(3.0)
+	eq(w:overlay():IsShown(), false, "and standing aside again")
+end)

@@ -964,6 +964,9 @@ local function Refresh()
 
 	controls.sound:SetOn(db.sound)
 	controls.zoom:SetOn(db.zoom)
+	-- ~= false, not a plain read: this one defaults to ON, so an absent key
+	-- and an explicit false are different answers.
+	controls.defer:SetOn(db.defer ~= false)
 	-- Rain has lightning, snow has gusts, and the row must say which.
 	controls.thunder:SetOn(db.thunder)
 	controls.thunder:SetLabel(weather.flash and "Thunder" or "Gusts")
@@ -1209,6 +1212,16 @@ local function Build()
 	Teach(controls.zoom, "Zoom Response", "/comfy zoom off",
 		"Drops get bigger and faster the closer the camera is, finer and " ..
 		"denser when you pull back.")
+
+	-- Sits with the look rather than with the switches, because what it changes
+	-- is what you see when the real thing is already on screen. On by default,
+	-- which is the one default that argues with the addon's own name.
+	controls.defer = add(Check(panel, "Yield to Real Weather", "/comfy defer off",
+		function() Run(DB().defer ~= false and "defer off" or "defer on") end))
+	Teach(controls.defer, "Yield to Real Weather", "/comfy defer off",
+		"Stand aside while the game's own rain or snow is falling. Theirs is " ..
+		"3D and stops under an arch or a bridge; ours is drawn in front of " ..
+		"the camera and cannot. Where the real thing exists, it wins.")
 
 	add(Heading(panel, "Sound", "sound"), { gap = 4 })
 

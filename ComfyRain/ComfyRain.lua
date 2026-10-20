@@ -257,6 +257,13 @@ local DEFAULTS = {
 	minimap   = true,      -- show the minimap button
 	minimapAngle = 196,    -- degrees around the minimap ring
 	suppress  = false,    -- mute the realm's own weather loop; see AMBIENCE_LOOPS
+	-- Stand aside while the client's own weather is falling. On by default,
+	-- which is the one setting that argues with the name on the tin, and it is
+	-- right: Blizzard's rain is world-space and gets occluded by the geometry
+	-- it falls past, ours is a sheet in front of the camera and never can be.
+	-- Where the real thing exists it is simply the better of the two. See
+	-- RealPrecipHere.
+	defer     = true,
 	thunder   = true,
 	indoors   = "dim",     -- off | dim | on; see IndoorMode
 	channel   = "Ambience",
@@ -306,6 +313,9 @@ local lightningTimer
 local appliedTextures
 local drift = 0
 local cinematic, indoorsNow, indoorsSince = false, false, nil
+-- True while Blizzard's own weather is falling here, so ours can get out of
+-- the way. See PollWeather.
+local yieldNow, yieldSince = false, nil
 -- Forward-declared: ApplyAlphas is defined above where these are, and a
 -- function body that names a local declared later resolves to a global.
 local IndoorMode, IndoorFactor
@@ -421,7 +431,7 @@ local ENUM = {
 -- the suite rather than shipping quietly.
 local SECTIONS = {
 	look  = { "enabled", "weather", "intensity", "scale", "speed",
-	          "gloom", "gust", "zoom", "indoors" },
+	          "gloom", "gust", "zoom", "indoors", "defer" },
 	sound = { "sound", "volume", "channel", "thunder", "suppress" },
 	time  = { "timeMode", "timeOffset", "timeFixed", "timeStrength" },
 }
@@ -990,8 +1000,16 @@ function IndoorFactor(kind)
 	return kind == "hear" and INDOOR_HEAR or INDOOR_SEE
 end
 
+-- Deference is on unless it has been explicitly turned off, which is the one
+-- default in this addon that overrides the name on the tin.
+local function YieldMode()
+	if not db then return true end
+	return db.defer ~= false
+end
+
 local function ShouldRain()
 	if not db.enabled or cinematic then return false end
+	if yieldNow and YieldMode() then return false end
 	if indoorsNow and IndoorMode() == "off" then return false end
 	return true
 end
@@ -1092,6 +1110,53 @@ local function WhereLog(reason)
 		sheltered = Sheltered() and true or false,
 		mode      = IndoorMode(),
 	}
+end
+
+-- Is the client itself drawing precipitation here, right now?
+--
+-- This is the one thing our overlay can never do, and it is why deference is
+-- the answer to the arch at Stormwind's gate rather than a better indoor test.
+-- Blizzard's rain is world-space particles and the gate's geometry occludes
+-- them; ours is a flat sheet in front of the camera, so no API and no amount
+-- of code can put the arch in front of it. "blizzards own rainfall doesnt go
+-- through it cuz they use 3d rain", 2026-10-20. When the real thing is
+-- falling it is simply better than ours, so ours steps aside.
+--
+-- Two conditions, not one. weatherDensity 0 means the client has been told
+-- never to draw weather, and on this machine it has been 0 for most of the
+-- addon's life - so C_Weather can report rain that is not on screen, and
+-- yielding to rain nobody can see would leave the player with nothing at all.
+local function RealPrecipHere()
+	local name, grade = RealWeather()
+	if not name or name == "none" then return false end
+	if (grade or 0) <= 0 then return false end
+	local density = tonumber(GetCVar("weatherDensity") or "")
+	if density and density <= 0 then return false end
+	return true
+end
+
+-- Debounced the same way and for the same reason as shelter, but the other way
+-- round. Blizzard's weather ramps its intensity up and down continuously and
+-- crosses zero on the way out, so a bare test flickers at both ends of every
+-- storm. Yielding waits a full second to be sure the real thing has actually
+-- arrived; coming back is slower still, because a storm that is fading out
+-- dips and recovers, and our sheet snapping in and out of a dying storm is
+-- worse than a few seconds of no rain at all.
+local ENTER_YIELD, LEAVE_YIELD = 1.0, 3.0
+
+local function PollWeather()
+	local real = RealPrecipHere()
+	if real ~= yieldNow then
+		yieldSince = yieldSince or GetTime()
+		if GetTime() - yieldSince > (real and ENTER_YIELD or LEAVE_YIELD) then
+			yieldNow = real
+			yieldSince = nil
+			WhereLog(real and "yielded" or "resumed")
+			ComfyRain_Refresh()
+		end
+	else
+		yieldSince = nil
+	end
 end
 
 local function PollIndoors()
@@ -1316,7 +1381,10 @@ local function BuildOverlay()
 	UpdateTimeOfDay()
 	todTicker = C_Timer.NewTicker(20, UpdateTimeOfDay)
 	-- Off the overlay deliberately; see PollIndoors.
-	indoorTicker = C_Timer.NewTicker(0.3, PollIndoors)
+	indoorTicker = C_Timer.NewTicker(0.3, function()
+		PollIndoors()
+		PollWeather()
+	end)
 end
 
 --------------------------------------------------------------------------------
@@ -1899,6 +1967,18 @@ local function HandleSlash(input, source)
 		if ComfyRain_Minimap then pcall(ComfyRain_Minimap) end
 		msg(db.minimap and "minimap button shown." or
 			"minimap button hidden. |cffffd100/comfyrain|r still opens the window.")
+	elseif cmd == "defer" or cmd == "yield" then
+		db.defer = (arg ~= "off")
+		-- Re-seeded rather than left to the ticker, so turning it on while
+		-- standing in a storm takes effect now instead of in a second.
+		yieldNow = db.defer and RealPrecipHere() or false
+		yieldSince = nil
+		msg(db.defer
+			and "standing aside while the game's own weather is falling. " ..
+			    "Theirs is 3D and ours is not, so under an arch theirs is the " ..
+			    "one that stops."
+			or  "drawing over the game's own weather. |cffffd100/comfy defer on|r " ..
+			    "puts it back.")
 	elseif cmd == "sound" then
 		db.sound = (arg ~= "off")
 	elseif cmd == "thunder" then
@@ -1968,6 +2048,15 @@ local function HandleSlash(input, source)
 			indoorsNow and "indoors" or "outdoors", IndoorMode(),
 			math.floor(IndoorFactor() * 100 + 0.5),
 			math.floor(IndoorFactor("hear") * 100 + 0.5)))
+		-- The other reason the overlay can be off while everything in the
+		-- settings window says on, and the one that is invisible without
+		-- being told: the real weather is falling and we stood aside.
+		local realName, realGrade = RealWeather()
+		msg(string.format("game's own weather: %s at %.2f, density %s -> %s",
+			tostring(realName or "unknown"), realGrade or 0,
+			tostring(GetCVar("weatherDensity") or "?"),
+			yieldNow and "|cffffd100STANDING ASIDE|r"
+			          or (YieldMode() and "ours is drawing" or "deference off")))
 		local sub = GetSubZoneText()
 		local _, px, py = MapPos()
 		msg(string.format("   %s%s%s   zoom %.1f yd",
@@ -2290,6 +2379,10 @@ boot:SetScript("OnEvent", function(_, event, arg1)
 
 		indoorsNow = Sheltered()
 		indoorsSince = nil
+		-- Seeded, not debounced. Zoning into a storm should not mean a second
+		-- of our sheet before it notices the real one is already falling.
+		yieldNow = RealPrecipHere()
+		yieldSince = nil
 		Refresh()
 	end
 end)

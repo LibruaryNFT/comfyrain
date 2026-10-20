@@ -7,6 +7,73 @@ because the client cannot be told to actually change the weather.
 Stormwind. v2 switches all audio and the drop sprite to Blizzard's own assets and stops
 the rain indoors; needs `/reload` to pick up (no new files, so no client restart).
 
+## 2026-10-20 — our rain fell through the Stormwind gate arch, and the fix is to stand aside
+
+Reported from live play under the arch at Stormwind's gate: our rain falls straight
+through it. **It always will, and no amount of code changes that.**
+
+| | Blizzard's rain | ours |
+|---|---|---|
+| Where it lives | world-space particles | a flat sheet in front of the camera |
+| Occluded by the arch | yes | never possible |
+| Can an addon draw the first kind? | — | no: `ModelSceneFrame` does not exist on this build (probe, 2026-10-20) |
+
+A better indoor test is not the answer either. `/comfy where` under the arch reads
+`IsIndoors no  IsOutdoors yes  -> open sky`, so the client itself says there is no roof,
+and that pair is the entire API surface for the question.
+
+**So the addon defers instead of occluding.** When the client is already drawing real
+precipitation here, ours stops. Under the arch you now see theirs, correctly occluded by
+the geometry. It is on by default — the one default in this addon that argues with the
+name on the tin, and it is right, because where the real thing exists it is simply
+better than ours.
+
+- Gated on **two** conditions, not one: `C_Weather` reporting precipitation at intensity
+  above zero, **and** `weatherDensity > 0`. `weatherDensity` has been 0 on this machine
+  for most of the addon's life, and on such a machine `C_Weather` reports rain the client
+  is not drawing. Deferring on `C_Weather` alone hands the player an empty sky.
+- Debounced asymmetrically and in the opposite direction to shelter: **1s to yield, 3s to
+  come back.** A storm ramps across zero at both ends, and a dying one dips and recovers;
+  our sheet flickering back in for a second is worse than a few seconds of no rain.
+- `/comfy defer on|off`, a **Yield to Real Weather** checkbox under the look section, and
+  a line in `/comfy where` reading `game's own weather: rain at 0.67, density 3 ->
+  STANDING ASIDE`, so "everything says on and nothing is drawing" has a visible cause.
+- Seeded on `PLAYER_ENTERING_WORLD` rather than left to the ticker, so hearthing into a
+  storm does not show a second of our sheet first.
+
+Mutation-checked three ways (ignoring `yieldNow` fails 3 specs, dropping the
+`weatherDensity` guard fails 1, removing the debounce fails 1). The specs assert on the
+overlay, not on layer alpha: deference stops the effect at `ShouldRain`, while "indoors"
+scales the layers and leaves it running, so a layer-alpha assertion would pass on a build
+that deferred nothing.
+
+**Open:** whether deference should also silence our audio bed. Right now it stops the
+whole effect, sound included. Blizzard's own rain has its own loop, so the player is not
+left in silence, but that has not been checked by ear against a real storm.
+
+## 2026-10-20 — what the probe answered
+
+Run on build 70450. Full output: `python3 -I tools/probe.py report`.
+
+| Check | Answer |
+|---|---|
+| `screenshots` | **no.** Ten requested, zero landed; the 40 taken by hand on 2026-10-15 sit in the same folder and prove the folder was never the problem. `Screenshot()` is protected on this build, so `docs/preview.gif` has to be recorded from outside the client. |
+| `model_3d` | **no.** `CreateFrame("ModelSceneFrame")` raises *Unknown frame type*, and `Model:SetCameraDistance()` raises *Not using a custom camera*. Real 3D weather from an addon is closed off. |
+| `mute_self` | **yes, and it is a problem.** Muting Blizzard's rain files mutes ours too, because we play the same files. The suppression plan needs a different file. |
+| `finish_event` | **no.** The SoundKit variant of the finish event fires; the FileDataID variant does not. |
+| `weather_cvar` | writes land. `weatherDensity` read **3**, not `"0"` — the claim elsewhere in this file that it is still 0 is **stale**. |
+| `geometry` | 1916x1080, aspect 1.774, UIParent scale 0.711. **Not 21:9**, so issue #5 is only half-answerable from this session. |
+| `mute_reload` | **contested.** One run said the mute survived the reload, the next said it was dropped. Reapply on `PLAYER_LOGIN` regardless. |
+| `savedvars` | yes, the token survived a reload. |
+| `c_sound`, `sound_params`, `settings_panel`, `weather_model`, `ambience_musicoff` | all yes; the id key is `soundKitID`. |
+
+**Screenshots, the working method:** `Shift`+`PrintScreen` is the GNOME binding for an
+instant full-screen capture with no dialog, landing in `~/Pictures/Screenshots`. Plain
+`Print` opens the picker UI instead. Scripted capture from outside is **not** available
+on this box: GNOME Shell refuses `org.gnome.Shell.Screenshot` over D-Bus
+(*Screenshot is not allowed*) and an XWayland root grab via `ffmpeg -f x11grab` returns a
+pure black frame.
+
 ## THE 30-MINUTE ROUTE — do this before 21 October
 
 Everything client-gated is now a GitHub issue (`gh issue list --label client-gated`),
@@ -2641,9 +2708,9 @@ is the main thing selling the curtain as having depth.
   some large awnings and false in some open-roofed buildings. Nothing better is exposed.
 - Dungeons and raids are not specially handled; they report indoors, so the rain stops there.
 - `## Interface: 16001` is inferred from `SET engineSurveyPatch "16001"` in Config.wtf.
-- **`weatherDensity` is still `"0"`.** the author has therefore never seen this client render real
-  Blizzard rain, so there is no side-by-side to judge the overlay against. `/console
-  weatherDensity 3` and a rainy zone (Stranglethorn, Hillsbrad, Dustwallow) would give one.
+- ~~**`weatherDensity` is still `"0"`.**~~ **Superseded 2026-10-20:** the probe read it as
+  **3**, and Blizzard's own rain was seen falling in Elwynn the same session. The
+  side-by-side this bullet asked for exists now; see the deference section at the top.
 - Yaw parallax uses `GetPlayerFacing()`, which is the player, not the camera. Free-look
   (right-mouse held) moves the camera without moving facing, so the rain will not sweep then.
 - the author's beta client runs very low graphics (`RenderScale 0.65`, particles off). The overlay is
