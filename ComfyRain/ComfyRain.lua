@@ -347,7 +347,7 @@ local fade, fadeTarget, fadeTime = 1, 1, FADE_WALK
 local lastEnabled
 -- The live picture as the settings window last saw it, so Refresh can tell it
 -- when the world moved rather than repainting on every 0.3s poll.
-local lastDraw, lastWant, lastIndoors
+local lastDraw, lastWant, lastIndoors, lastFlat
 local indoorTicker
 
 local function msg(text)
@@ -688,6 +688,41 @@ local function ApparentHour()
 	return r and (r + db.timeOffset) or nil
 end
 
+-- The multipliers the grade is currently applying, and how far from 1 the
+-- furthest of them is. Separate from the drawing because the window needs the
+-- number too: the grade is a ratio against the server's own hour, so asking to
+-- hold 22:00 on a server already at 22:00 is correctly nothing at all - and a
+-- correct no-op looks exactly like a broken button unless something says which
+-- it is. Returns nil when there is no grade to describe.
+-- Below this much movement in the strongest channel, the grade is on and the
+-- player cannot see that it is. The number lives here, with the arithmetic,
+-- rather than in the window: the window asks whether the grade is doing
+-- anything, and does not get a vote on what "anything" means.
+local GRADE_FLAT = 0.02
+
+local function GradeShift()
+	if db.timeMode == "off" then return nil end
+	local server, want = RealmHour(), ApparentHour()
+	if not server or not want then return nil end
+
+	local wr, wg, wb = LightAt(want)
+	local rr, rg, rb = LightAt(server)
+	local s = db.timeStrength
+	local function channel(target, actual)
+		return 1 + ((target / math.max(actual, 0.05)) - 1) * s
+	end
+	local mr, mg, mb = channel(wr, rr), channel(wg, rg), channel(wb, rb)
+	local off = math.max(math.abs(mr - 1), math.abs(mg - 1), math.abs(mb - 1))
+	return off, mr, mg, mb
+end
+
+-- The grade is switched on and changing nothing the player can see, which is
+-- the state that looks identical to a broken button.
+local function GradeIsFlat()
+	local off = GradeShift()
+	return off ~= nil and off < GRADE_FLAT
+end
+
 local function UpdateTimeOfDay()
 	if not tod then return end
 	-- The curtain is its own frame, not a child of the overlay, so hiding the
@@ -705,22 +740,12 @@ local function UpdateTimeOfDay()
 	-- So timeMode is the only thing that decides whether the curtain draws.
 	if db.timeMode == "off" or cinematic then tod:Hide() return end
 
-	local realm = RealmHour()
-	local want = ApparentHour()
-	if not realm or not want then tod:Hide() return end
-
-	-- Grade by the ratio between the two, not by the target alone: the world is
-	-- already lit for the realm's hour, so at realm 22:00 wanting 22:00 there is
-	-- nothing to do. Without this it would double-darken every night.
-	local wr, wg, wb = LightAt(want)
-	local rr, rg, rb = LightAt(realm)
-	local s = db.timeStrength
-
-	local function channel(target, actual)
-		local ratio = target / math.max(actual, 0.05)
-		return 1 + (ratio - 1) * s
-	end
-	local mr, mg, mb = channel(wr, rr), channel(wg, rg), channel(wb, rb)
+	-- Graded by the ratio between the two hours, not by the target alone: the
+	-- world is already lit for the server's hour, so at server 22:00 wanting
+	-- 22:00 there is nothing to do. Without this it would double-darken every
+	-- night.
+	local _, mr, mg, mb = GradeShift()
+	if not mr then tod:Hide() return end
 
 	tod:Show()
 	-- Anything below 1 is a darkening and multiplies cleanly.
@@ -1545,7 +1570,19 @@ local function BuildOverlay()
 
 	-- Game time moves slowly; a third of a minute is finer than the eye needs.
 	UpdateTimeOfDay()
-	todTicker = C_Timer.NewTicker(20, UpdateTimeOfDay)
+	todTicker = C_Timer.NewTicker(20, function()
+		UpdateTimeOfDay()
+		-- Whether the grade is doing anything visible is the one piece of
+		-- window state that changes with nothing but the server clock, so
+		-- it is the one thing no control press will ever come along and
+		-- correct. A third of a minute late is fine for a sentence about
+		-- the hour; never is not.
+		local flat = GradeIsFlat()
+		if flat ~= lastFlat then
+			lastFlat = flat
+			if ComfyRainAPI and ComfyRainAPI.changed then ComfyRainAPI.changed() end
+		end
+	end)
 	-- Off the overlay deliberately; see PollIndoors.
 	indoorTicker = C_Timer.NewTicker(0.3, function()
 		PollIndoors()
@@ -1938,8 +1975,14 @@ function ComfyRain_Refresh()
 	-- Guarded on a real change because the indoor poll runs a Refresh every
 	-- 0.3s, and repainting every widget three times a second to re-type the
 	-- same sentence is a cost with no reader.
-	if draw ~= lastDraw or want ~= lastWant or indoorsNow ~= lastIndoors then
-		lastDraw, lastWant, lastIndoors = draw, want, indoorsNow
+	-- The flat grade is in the same guard for the same reason, and it is the
+	-- one piece of state here that changes with nothing but the server clock:
+	-- "it is already that hour" stops being true as the hour rolls on, with
+	-- nobody having touched a control.
+	local flat = GradeIsFlat()
+	if draw ~= lastDraw or want ~= lastWant or indoorsNow ~= lastIndoors
+	   or flat ~= lastFlat then
+		lastDraw, lastWant, lastIndoors, lastFlat = draw, want, indoorsNow, flat
 		if ComfyRainAPI and ComfyRainAPI.changed then ComfyRainAPI.changed() end
 	end
 end
@@ -2560,6 +2603,11 @@ ComfyRainAPI = {
 			-- and we stood aside. Without this the window says "normal rain,
 			-- not drawn" in the middle of a storm and looks broken.
 			yielding = yieldNow and YieldMode() and true or false,
+			-- The grade is on and the screen looks the same as it would with
+			-- it off, because the server is already at that light. The window
+			-- needs it to tell "Night did nothing because it is already
+			-- night" apart from "Night is broken".
+			lightFlat = GradeIsFlat(),
 		}
 	end,
 	-- So the per-slider resets can grey out a value already sitting on its
@@ -2648,6 +2696,11 @@ boot:SetScript("OnEvent", function(_, event, arg1)
 		-- The minimap button is the only way in that does not require knowing a
 		-- slash command exists, which is the whole problem with slash commands.
 		if ComfyRain_Minimap then pcall(ComfyRain_Minimap) end
+		-- And the client's own addon settings list, which is the first place
+		-- somebody looks for an addon they have just installed and cannot
+		-- find. pcall because whether this build hosts a panel at all is an
+		-- open question, and the answer must cost the entry, not the login.
+		if ComfyRain_Settings then pcall(ComfyRain_Settings) end
 
 		-- A weather watch has to survive a /reload. The event frame and the
 		-- calibOn flag are both upvalues and die with the Lua state, so before

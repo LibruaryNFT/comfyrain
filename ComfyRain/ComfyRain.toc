@@ -8,6 +8,9 @@
 ## X-License: MIT
 ## X-Category: Audio & Video
 ## SavedVariables: ComfyRainDB
+## AddonCompartmentFunc: ComfyRain_Compartment
+## AddonCompartmentFuncOnEnter: ComfyRain_CompartmentEnter
+## AddonCompartmentFuncOnLeave: ComfyRain_CompartmentLeave
 ## OptionalDeps: AlwaysRain, Duskfall
 
 ComfyRain.lua

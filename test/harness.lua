@@ -450,11 +450,17 @@ local EXPECTED_UNMOCKED = {
 	ComfyRainDB = true, DuskfallDB = true, AlwaysRainDB = true,
 	ComfyRainAPI = true, ComfyRain_Panel = true, ComfyRain_Probe = true,
 	ComfyRain_Refresh = true, ComfyRain_Minimap = true, ComfyRainPanel = true,
+	ComfyRain_Settings = true,
 	ComfyRainShare = true,
 	-- Deliberately absent so the "this client cannot do it" path is the one
 	-- under test. Screenshot is set by the mock only when the client allows
 	-- screenshots, which is the point of the screenshotBlocked option.
 	Screenshot = true,
+	-- Same shape: modelled by default, and removed on purpose in the one world
+	-- that asks what happens on a client with no options API. Whether Forever
+	-- has one is unverified and the client is gone, so the no-API path is the
+	-- one that must be proven harmless.
+	Settings = true,
 }
 
 -- Client globals the addon read that nothing modelled. Sorted, for a message.

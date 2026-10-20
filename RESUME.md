@@ -7,6 +7,80 @@ because the client cannot be told to actually change the weather.
 Stormwind. v2 switches all audio and the drop sprite to Blizzard's own assets and stops
 the rain indoors; needs `/reload` to pick up (no new files, so no client restart).
 
+## 2026-10-20 — Pre-launch review pass: the player's words, and three more ways in
+
+An external review of the window and the addon, run against a screenshot of the live
+settings panel. Three of its recommendations were already satisfied in the repo
+(cinematics are handled, both frames are already `BACKGROUND` strata, `DEFAULTS.channel`
+is already `Ambience` — the reviewer read `Master` off a screenshot where it had been
+changed by hand), and the rest are below. Two commits.
+
+**Commit 1 — labels, percentages, a live scene marker.**
+
+- **The word Weather appeared three times meaning three things.** Now: the heading is
+  Weather, the master checkbox is "Show rain & snow", the rain-or-snow selector is
+  "Type", and the per-section reset reads "Reset Weather" through a new `RESET_LABEL`
+  display-name map rather than by renaming the internal `look` section key.
+- Six other renames into what a player would say: Visibility → Drops, Zoom Response →
+  Follow camera zoom, Yield to Real Weather → Step aside for real weather, Channel →
+  Volume follows, Share → Share / Import, and the four `TIME_MODES` labels (Off → Server
+  time, My Clock → My PC clock, Shifted → Shift by hours, Held → Fixed hour). Keys and
+  commands are untouched, so no saved profile moves.
+- **`realm` → `server` in every user-facing string.** Forever is realmless.
+- **Multiplier sliders read as percentages.** `1.30` is a number out of a config file and
+  does not say what it is 1.30 *of*; `130%` does. `Pct`/`Shown` in `UI.lua`, and `fmt`
+  may now be a function. `0` reads as "Off", which is a state and not a quantity. Hour
+  keeps its own units.
+- **The active scene is marked with a 2px bar**, not a tint on the label: the two pill
+  flavours rest at different text colours and the native one rests at gold, which is this
+  window's reserved heading colour. The marker drops off on the first slider move, which
+  is the honest answer. Light and weather markers can both be lit at once, because the
+  two kinds compose.
+
+**Commit 2 — the "nothing happened" row, and three more ways in.**
+
+- **`FixNote(db)` puts the reason and the fix directly under the status line.** Two cases
+  where the addon is working exactly as designed and looks broken doing it:
+
+  | State | What the row says | Button |
+  |---|---|---|
+  | Standing aside from the game's own storm | "Real rain here, so the game's own is showing." | **Use mine** → `/comfy defer off` |
+  | Grade asking for the hour the server is already at | "The server is already at that light, so this adds nothing yet." | none — nothing to undo |
+
+  One button, reused, reading its command at press time so it can never fire the previous
+  note's fix. The status line's yielding phrase came down to "Real weather here, so this
+  stood aside" because that line does not wrap.
+- **`GradeShift()` / `GradeIsFlat()` extracted from `UpdateTimeOfDay`** so the window can
+  ask whether the grade is doing anything visible. `GRADE_FLAT = 0.02` lives with the
+  arithmetic, not in the window: the window asks the question and does not get a vote on
+  what "nothing" means. `State()` exposes `lightFlat`.
+- **Flatness is clock-driven, so the 20s `todTicker` notifies on it.** It is the only
+  window state that changes with nobody touching a control, so no control press is ever
+  coming along to correct it. A third of a minute late is fine for a sentence about the
+  hour; never is not.
+- **Addon compartment** (`## AddonCompartmentFunc` + Enter/Leave in the TOC,
+  `ComfyRain_Compartment` in `UI.lua`): left-click opens the window, right-click toggles
+  the weather, matching the minimap button. A client that passes no button argument gets
+  the harmless one.
+- **`Bindings.xml`**: "Weather on or off" and "Open the settings window", under a Comfy
+  Rain header. No default keys — a default on a weather addon takes a key away from
+  whatever the player had it on. Loaded by filename, so it is deliberately *not* listed
+  in the TOC.
+- **`ComfyRain_Settings()` registers a stub page** in the client's own addon list, with
+  one button through to the real window. A stub and not the real panel: this window is
+  movable, closes on Escape and is opened by a slash command, and a frame hosted in the
+  settings canvas is none of those. Whether this build hosts a panel at all is still
+  unverified (Phase 1 item 7) and cannot be asked any more, so the whole path is guarded
+  and pcalled end to end, registers once, and a client with no `Settings` table is a spec
+  (`noSettings` on the mock).
+
+286 specs green, api_audit clean at 123 client APIs.
+
+**Not taken from the review, with reasons:** "Hide in dungeons & raids" (a new saved key
+and a new failure mode three days from launch, and `/comfy off` already exists); the
+collapsed "More ▸" advanced fold (the scene rows already answer "where do I start", which
+was the actual complaint the fold was proposed for); the Sound section reorder.
+
 ## 2026-10-20 — Six scene presets, in two kinds
 
 "can we not have like quick preset buttons, this is riduclous and not user friendly at

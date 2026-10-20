@@ -1,0 +1,21 @@
+<Bindings>
+	<!--
+		Loaded by filename, not by a line in the .toc: the client picks up
+		Bindings.xml from the addon folder on its own, and listing it as a file
+		to load is how you get it parsed twice.
+
+		Neither binding is given a `default`. A default key on a weather addon
+		is a key taken away from whatever the player had it on, and there is no
+		key that is free on every keyboard.
+
+		The names here match the BINDING_NAME_* globals set in UI.lua, which is
+		what turns them into readable rows in the Key Bindings window instead
+		of COMFYRAIN_TOGGLE.
+	-->
+	<Binding name="COMFYRAIN_TOGGLE" header="COMFYRAIN" category="ADDONS">
+		ComfyRainAPI.Command("")
+	</Binding>
+	<Binding name="COMFYRAIN_PANEL" category="ADDONS">
+		ComfyRain_Panel()
+	</Binding>
+</Bindings>

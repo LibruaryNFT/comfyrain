@@ -1615,7 +1615,7 @@ it("says why nothing is drawn when it is standing aside, not just that nothing i
 	w:advance(3.0, 0.1)
 	eq(w:overlay():IsShown(), false, "their storm has stopped ours")
 	eq(w:db().enabled, true, "with the setting still on, which is the trap")
-	ok(w:says("standing aside"), "and the window says so, in words")
+	ok(w:says("stood aside"), "and the window says so, in words")
 
 	-- Positive control: it is the deference talking, not a hard-wired string.
 	w:slash("defer off")
@@ -1855,4 +1855,115 @@ it("reads its multipliers as percentages of the default", function()
 	w:slash("time 21")
 	eq(valueOf(w, "Hold at Hour")._text, "21",
 		"the one non-multiplier keeps its own units")
+end)
+
+it("offers the fix beside the reason when real weather has won", function()
+	-- The status line can only say what is happening. "Real rain here, so the
+	-- game's own is showing" is a complete explanation and still leaves the
+	-- player hunting nine controls down the window for the tickbox that
+	-- changes it, which is the half of the answer that actually helps.
+	local w = H.world()
+	w:open()
+	eq(w:button("Use mine") and w:button("Use mine"):IsVisible() or false, false,
+		"no fix offered while there is nothing to fix")
+
+	w.mock.state.weather = { type = 1, intensity = 0.7 }
+	w.mock.cvars.weatherDensity = "3"
+	w:advance(3.0, 0.1)
+
+	ok(w:says("Real rain here"), "the reason is spelled out under the status")
+	local use = w:button("Use mine")
+	ok(use and use:IsVisible(), "and the fix is right beside it")
+
+	use:Click()
+	w:advance(0.5)
+	eq(w:db().defer, false, "pressing it stops the deferring")
+	eq(w:overlay():IsShown(), true, "and ours is on screen")
+	eq(w:button("Use mine"):IsVisible(), false, "the fix goes with the problem")
+end)
+
+it("says when a light scene asks for the hour the server is already at",
+function()
+	-- The grade is a ratio against the server's own light, so holding 22:00 on
+	-- a server already at 22:00 is correctly nothing at all. Correct and
+	-- indistinguishable from broken: the button goes down and the screen does
+	-- not change. Naming it is the whole fix; there is nothing to press.
+	local w = H.world()
+	w.mock.state.gameHour, w.mock.state.gameMinute = 22, 0
+	w:open()
+	w:button("Night"):Click()
+	w:advance(0.5)
+
+	eq(w:db().timeFixed, 22, "asking for the hour it already is")
+	ok(w:says("already at that light"), "and the window says why nothing moved")
+	eq(w:button("Use mine") and w:button("Use mine"):IsVisible() or false, false,
+		"with no button, because there is nothing to undo")
+
+	-- Positive control: the same scene on a bright server does change things,
+	-- and then the note has no business being up.
+	-- The note has no control press coming to correct it, so the clock tick is
+	-- what has to take it down. That tick is a 20s one: game time moves slowly
+	-- and a sentence about the hour can afford to be a third of a minute late.
+	w.mock.state.gameHour = 12
+	w:advance(21, 0.5)
+	eq(w:says("already at that light"), nil, "and it goes when the hour moves")
+end)
+
+it("opens from the addon compartment without a slash command", function()
+	-- Somebody who installed this from CurseForge and read nothing has two
+	-- ways to find it: the minimap ring, which half of them have hidden behind
+	-- an icon manager, and the compartment, which is the one list that always
+	-- holds every addon. The slash command is for people who already know.
+	local w = H.world()
+	ok(w.env.ComfyRain_Compartment, "the TOC names a function and it exists")
+
+	w.env.ComfyRain_Compartment("ComfyRain", "LeftButton")
+	ok(w:panel() and w:panel():IsShown(), "left-click is the settings window")
+
+	local before = w:db().enabled
+	w.env.ComfyRain_Compartment("ComfyRain", "RightButton")
+	eq(w:db().enabled, not before, "right-click is the weather itself")
+
+	-- Older clients pass only the addon name. Anything that is not a stated
+	-- right-click has to be the harmless one.
+	w.env.ComfyRain_Panel("hide")
+	w.env.ComfyRain_Compartment("ComfyRain")
+	ok(w:panel():IsShown(), "and a client that passes no button still opens it")
+end)
+
+it("lists itself in the client's own addon settings, and points home", function()
+	-- The first place somebody looks for an addon they just installed. What is
+	-- registered is a STUB with one button: the real window is movable, closes
+	-- on Escape and is opened by a slash command, and a frame hosted inside
+	-- the settings canvas is none of those three.
+	local w = H.world()
+	w.env.ComfyRain_Settings()
+
+	local cat = w.mock.settingsRegistered
+	ok(cat, "a category is registered with the client")
+	eq(cat.name, "Comfy Rain", "under the name on the addon list")
+
+	local open = w:button("Open Comfy Rain")
+	ok(open, "with a way through to the real window")
+	open:Click()
+	ok(w:panel() and w:panel():IsShown(), "which opens it")
+
+	-- Registering twice would put a second Comfy Rain in the list.
+	w.env.ComfyRain_Settings()
+	eq(#w.mock.settingsCategories, 1, "and it only ever registers once")
+end)
+
+it("survives a client with no settings API at all", function()
+	-- Whether this build hosts an options panel is genuinely unknown, and the
+	-- client is gone before it can be asked. So the thing worth testing is
+	-- that the answer costs the entry and not the addon: no error, and every
+	-- other way in still working.
+	local w = H.world({ noSettings = true })
+
+	local fine, err = pcall(w.env.ComfyRain_Settings)
+	eq(fine, true, "registering is a no-op rather than an error: " .. tostring(err))
+	eq(w.mock.settingsRegistered, nil, "nothing half-registered is left behind")
+
+	w:open()
+	ok(w:says("^Drawing"), "and the real window is untouched")
 end)

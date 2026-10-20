@@ -932,9 +932,10 @@ local function WeatherPhrase(db)
 		if st.cinematic then return "Paused for the cutscene" end
 		-- Ahead of indoors, because the two can be true at once and this is
 		-- the one the player cannot see a reason for.
-		if st.yielding then
-			return "The game's own weather is falling, so this is standing aside"
-		end
+		-- Short, because the row below it carries the reason and the fix. The
+		-- status line does not wrap, so a sentence long enough to explain
+		-- itself here is a sentence that gets cut off here.
+		if st.yielding then return "Real weather here, so this stood aside" end
 		if st.indoors then
 			return st.hearing
 				and "Indoors: " .. db.weather .. " heard, not drawn"
@@ -943,6 +944,33 @@ local function WeatherPhrase(db)
 		return full .. ", not drawn"
 	end
 	return "Drawing " .. full
+end
+
+-- Why the last press appeared to do nothing, and the one button that makes it
+-- do something.
+--
+-- Both cases below are the addon working exactly as designed while looking
+-- broken: standing aside from the game's own storm is the right answer and
+-- leaves the screen with no rain of ours on it, and holding 22:00 on a server
+-- already at 22:00 is correctly no change at all. Somebody who just pressed
+-- Storm or Night sees the same nothing either way, and the status line alone
+-- only tells them the first half. The fix belongs in the row that is
+-- explaining the problem, not nine controls further down the window.
+local function FixNote(db)
+	local st = (ComfyRainAPI and ComfyRainAPI.State and ComfyRainAPI.State()) or {}
+	if st.yielding then
+		return "Real rain here, so the game's own is showing.", "Use mine",
+			"defer off",
+			"Draw ours over the top of the game's own weather instead of " ..
+			"standing aside for it. Same as unticking Step aside for real " ..
+			"weather, further down."
+	end
+	-- The addon owns what counts as "nothing", because it owns the arithmetic
+	-- that the nothing comes out of.
+	if st.lightFlat then
+		return "The server is already at that light, so this adds nothing yet."
+	end
+	return nil
 end
 
 local function StatusPhrase(db)
@@ -1075,6 +1103,26 @@ local function Refresh()
 		controls.status:SetWidth(controls.statusWide)
 	end
 
+	local note, fixLabel, fixCmd, fixNote = FixNote(db)
+	-- Cleared rather than just hidden. A hidden row still holds its last
+	-- sentence, and the next thing to go wrong would flash the previous
+	-- problem's text for one frame before this ran again.
+	controls.fixText:SetText(note or "")
+	if note then
+		if fixLabel then
+			controls.fix:SetLabel(fixLabel)
+			controls.fix:Show()
+			controls.fixText:SetWidth(controls.fixNarrow)
+			Teach(controls.fix, fixLabel, "/comfy " .. fixCmd, fixNote)
+		else
+			-- A note with no fix is still worth saying: "it is already that
+			-- hour on the server" has no button because there is nothing to
+			-- press, only something to understand.
+			controls.fix:Hide()
+			controls.fixText:SetWidth(controls.fixWide)
+		end
+	end
+
 	updating = false
 	Relayout()
 end
@@ -1191,6 +1239,31 @@ local function Build()
 	Teach(controls.stop, "Turn It All Off", "/comfy stop",
 		"Weather, sound and the light grading, all off in one press. " ..
 		"Your settings are kept; this is a switch, not a reset.")
+
+	-- Directly under the state line and above everything else, because it is
+	-- the answer to "I pressed that and nothing happened" and anybody with
+	-- that question has already stopped reading the rest of the window.
+	local FIX_W = 78
+	local fix = add(CreateFrame("Frame", nil, panel),
+		{ gap = 4, visible = function() return FixNote(DB()) ~= nil end })
+	fix:SetHeight(ROW - 4)
+	controls.fixText = Text(fix, "GameFontDisableSmall")
+	controls.fixText:SetPoint("LEFT", fix, "LEFT", 0, 0)
+	controls.fixText:SetWordWrap(false)
+	controls.fixText:SetText("")
+	controls.fixWide = WIDTH - PAD * 2
+	controls.fixNarrow = WIDTH - PAD * 2 - FIX_W - 8
+
+	-- One button reused by whichever note is up, rather than one per case: the
+	-- notes are mutually exclusive and a second hidden button is a second thing
+	-- that can be left showing. It runs the command the note names, read at
+	-- press time so the button can never fire the previous note's fix.
+	controls.fix = Pill(fix, "Use mine", function()
+		local _, _, cmd = FixNote(DB())
+		if cmd then Run(cmd) end
+	end)
+	controls.fix:SetPoint("TOPRIGHT", fix, "TOPRIGHT", 0, 0)
+	controls.fix:SetWidth(FIX_W)
 
 	-- Scenes, before any heading, because this row is the answer to the only
 	-- question most people open the window with. Fifteen controls is a mixing
@@ -1894,6 +1967,93 @@ function ComfyRain_Minimap(mode)
 	BuildMinimap()
 	if minimap then minimap:Show() MinimapPlace() PaintIcon() end
 end
+
+--------------------------------------------------------------------------------
+-- The other two ways in
+--
+-- A player who has never read the description does not know the slash command
+-- exists, and the minimap button is one of forty on a ring that half of them
+-- have hidden behind an icon manager. The addon compartment - the one list on
+-- the minimap that always holds every addon - and a keybind are where somebody
+-- looks when they are trying to find an addon they just installed rather than
+-- trying to use one they already know.
+--------------------------------------------------------------------------------
+
+-- The signature is (addonName, buttonName); older clients pass only the first,
+-- so the button is read defensively and anything that is not a right-click
+-- opens the window.
+function ComfyRain_Compartment(_, button)
+	if button == "RightButton" then
+		ComfyRainAPI.Command("")
+	else
+		ComfyRain_Panel()
+	end
+end
+
+function ComfyRain_CompartmentEnter(_, menuButton)
+	GameTooltip:SetOwner(menuButton or UIParent, "ANCHOR_LEFT")
+	GameTooltip:AddLine("Comfy Rain")
+	GameTooltip:AddLine("Left-click: settings", 1, 1, 1)
+	GameTooltip:AddLine("Right-click: weather on or off", 1, 1, 1)
+	GameTooltip:Show()
+end
+
+function ComfyRain_CompartmentLeave()
+	GameTooltip:Hide()
+end
+
+-- The client's own addon settings list. A STUB that points at the real window
+-- rather than the real window reparented into it: this one is movable, closes
+-- with Escape and is opened by a slash command, and a frame hosted inside the
+-- settings canvas is none of those things. Two copies of fifteen controls that
+-- have to agree with each other is also the exact drift this whole file is
+-- built to avoid.
+--
+-- Whether this build hosts a panel at all is unknown - the client's settings
+-- registration is known to be partly broken here, which is why none of the
+-- real UI depends on it. Guarded and pcalled end to end: if it does not
+-- register, the addon is exactly what it was before, with no error.
+local settingsCategory
+function ComfyRain_Settings()
+	if settingsCategory then return settingsCategory end
+	if not (Settings and Settings.RegisterCanvasLayoutCategory
+	        and Settings.RegisterAddOnCategory) then return end
+
+	local page = CreateFrame("Frame")
+	page.name = "Comfy Rain"
+
+	local title = page:CreateFontString(nil, "ARTWORK", "GameFontNormalLarge")
+	title:SetPoint("TOPLEFT", 16, -16)
+	title:SetText("Comfy Rain")
+
+	local blurb = page:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
+	blurb:SetPoint("TOPLEFT", title, "BOTTOMLEFT", 0, -8)
+	blurb:SetPoint("RIGHT", page, "RIGHT", -16, 0)
+	blurb:SetJustifyH("LEFT")
+	blurb:SetText("Comfy Rain keeps its settings in its own window, so it can " ..
+		"be left open while you look at the weather it is making.")
+
+	local open = Pill(page, "Open Comfy Rain", function() ComfyRain_Panel("show") end)
+	open:SetPoint("TOPLEFT", blurb, "BOTTOMLEFT", 0, -14)
+	open:SetWidth(150)
+
+	local cmd = page:CreateFontString(nil, "ARTWORK", "GameFontDisableSmall")
+	cmd:SetPoint("TOPLEFT", open, "BOTTOMLEFT", 0, -14)
+	cmd:SetText("Or type /comfyrain. /comfy on its own turns the weather on and off.")
+
+	local ok, category = pcall(Settings.RegisterCanvasLayoutCategory, page, "Comfy Rain")
+	if not ok or not category then return end
+	category.ID = "ComfyRain"
+	if not pcall(Settings.RegisterAddOnCategory, category) then return end
+	settingsCategory = category
+	return category
+end
+
+-- Bindings.xml names these. The binding header and both names are also in
+-- Bindings.xml; this file only has to answer to them.
+BINDING_HEADER_COMFYRAIN = "Comfy Rain"
+BINDING_NAME_COMFYRAIN_TOGGLE = "Weather on or off"
+BINDING_NAME_COMFYRAIN_PANEL = "Open the settings window"
 
 -- One place that answers "something changed". A typed command has to move the
 -- window too, or the two disagree in front of the player and the window is the

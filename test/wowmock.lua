@@ -363,6 +363,9 @@ function M.reset(opts)
 	-- name they want the client to be pretending to accept.
 	M.soundParamsKey         = pick(opts.soundParamsKey, "soundKitID")
 	M.screenshotBlocked      = pick(opts.screenshotBlocked, false)
+	-- Set noSettings to reproduce a client with no options API at all, which
+	-- is a real possibility on Forever and cannot be asked of it any more.
+	M.noSettings             = pick(opts.noSettings, false)
 	-- Whether CreateFrame(..., "BackdropTemplate") hands back a frame that can
 	-- actually take a backdrop. True on every current client; a spec sets it
 	-- false to prove the hand-drawn border still comes up on one that cannot.
@@ -1010,7 +1013,7 @@ function M.install(env)
 	-- Settings API. Present so a stub panel can be written, but registration is
 	-- recorded rather than honoured: whether Forever hosts a panel at all is
 	-- unverified, and AddSearchTags is already known to raise here.
-	env.Settings = {
+	env.Settings = (not M.noSettings) and {
 		RegisterCanvasLayoutCategory = function(frame, name)
 			local cat = {
 				frame = frame, name = name, ID = name,
@@ -1026,7 +1029,7 @@ function M.install(env)
 		end,
 		RegisterAddOnCategory = function(cat) M.settingsRegistered = cat end,
 		OpenToCategory = function(id) M.settingsOpened = id end,
-	}
+	} or nil
 
 	return env
 end

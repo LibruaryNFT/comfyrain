@@ -28,7 +28,7 @@ the way rain should, and where the real thing exists it is simply the better of 
 | **Time of day** | Hold the world at dusk, or run it on your clock instead of the realm's. Works on its own, with the rain switched off |
 | **Indoors** | Fades down under a roof instead of raining on the ceiling |
 | **One-press scenes** | Cozy, Storm, Snow, Overcast for the weather; Dusk and Night for the light alone, with nothing falling |
-| **A settings window** | `/comfyrain`. Every slider shows you the command it ran, so you learn them by using it |
+| **A settings window** | `/comfyrain`, the minimap button, the addon compartment, or a keybind of your own. Every slider shows you the command it ran, so you learn them by using it |
 
 ## Getting started
 
