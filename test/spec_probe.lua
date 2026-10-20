@@ -525,6 +525,35 @@ it("puts the client back the way it found it", function()
 	eq(w:db().weather, "snow", "the weather it was on is restored")
 	eq(w:db().intensity, "heavy", "including the intensity")
 	eq(w.mock.cvars.screenshotFormat, fmt, "and the screenshot format it changed")
+	eq(w.mock.uiHidden, false, "and the UI it hid to take the pictures")
+end)
+
+it("takes the pictures with the UI out of the way", function()
+	-- A shot of the weather with an action bar across the bottom answers the
+	-- question it was taken for and cannot be used for anything else. These
+	-- are the same shots the store gallery needs, so the sweep does Alt-Z
+	-- itself rather than leaving it to whoever remembers.
+	local w = H.world()
+	w:slash("probe shots")
+	w:advance(90)
+
+	local hidden = 0
+	for _, shot in ipairs(w.mock.screenshots) do
+		if shot.uiHidden then hidden = hidden + 1 end
+	end
+	eq(hidden, 10, "every shot in the sweep is a clean frame")
+	eq(w.mock.uiHidden, false, "and the UI comes back when it is done")
+end)
+
+it("gives the UI back even when the shots themselves fail", function()
+	-- Leaving somebody staring at an empty screen is the one failure here
+	-- they cannot undo without knowing the keybind this just replaced for
+	-- them, so the restore sits outside everything that can throw.
+	local w = H.world({ screenshotBlocked = true })
+	w:slash("probe shots")
+	w:advance(90)
+	eq(w.mock.uiHidden, false, "the UI is back")
+	eq(#w.mock.errors, 0, "with nothing thrown at the client")
 end)
 
 it("says so rather than lying when the client will not take a screenshot", function()

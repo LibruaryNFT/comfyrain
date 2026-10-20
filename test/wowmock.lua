@@ -387,6 +387,7 @@ function M.reset(opts)
 	-- written to survive the answer being no.
 	M.artPaths = opts.artPaths
 	M.screenshots = {}
+	M.uiHidden    = false
 	M.soundKits = {}
 	for _, id in ipairs(opts.soundKits or { 567 }) do M.soundKits[id] = true end
 
@@ -857,9 +858,16 @@ function M.install(env)
 			enabled   = env.ComfyRainDB and env.ComfyRainDB.enabled,
 			timeMode  = env.ComfyRainDB and env.ComfyRainDB.timeMode,
 			timeFixed = env.ComfyRainDB and env.ComfyRainDB.timeFixed,
+			uiHidden  = M.uiHidden or false,
 		}
 	end
 	end
+
+	-- Alt-Z from Lua. Recorded rather than simulated: what a spec needs to know
+	-- is whether the UI was away at the moment the shutter fired, which is the
+	-- difference between a usable gallery image and one with an action bar
+	-- across the bottom of it.
+	env.SetUIVisibility = function(show) M.uiHidden = not show end
 
 	-- Sound. Every call is logged with the channel, because which channel a bed
 	-- lands on decides whether a player who muted the music hears it at all, and

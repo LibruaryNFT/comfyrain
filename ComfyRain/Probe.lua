@@ -870,8 +870,16 @@ local function RunShots(done)
 	pcall(SetCVar, "screenshotFormat", "jpeg")
 	pcall(SetCVar, "screenshotQuality", "10")
 
+	-- The UI goes away for the whole sweep, which is what Alt-Z does by hand.
+	-- A shot of the weather with an action bar across the bottom of it answers
+	-- the question it was taken for and cannot be used for anything else, and
+	-- these are the same shots the store gallery needs. Restored in the same
+	-- block that puts the CVars back, which runs whatever the shots did.
+	local hid = type(SetUIVisibility) == "function" and pcall(SetUIVisibility, false)
+
 	P.shots = { startedAt = time and time() or 0, order = {}, taken = {} }
-	msg(string.format("taking %d screenshots, about %d seconds. Leave the camera alone.",
+	msg(string.format("taking %d screenshots, about %d seconds. Leave the camera alone." ..
+		(hid and " The UI goes away until it is done." or ""),
 		#SHOTS, #SHOTS * 5))
 
 	local at = 0
@@ -901,6 +909,10 @@ local function RunShots(done)
 	end
 
 	C_Timer.After(at + 2, function()
+		-- Ahead of everything else and outside the pcall below: leaving the
+		-- player staring at an empty screen is the one failure here they
+		-- cannot undo without knowing the keybind this just replaced.
+		if hid then pcall(SetUIVisibility, true) end
 		pcall(function()
 			-- Only put back what was actually there. Inventing "jpeg" for a
 			-- client that had no value set is a change, not a restore.

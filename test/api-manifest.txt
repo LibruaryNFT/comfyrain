@@ -110,6 +110,7 @@ PRESENT SetTextInsets
 PRESENT SetTexture
 PRESENT SetThumbTexture
 PRESENT SetToplevel
+PRESENT SetUIVisibility
 PRESENT SetValue
 PRESENT SetValueStep
 PRESENT SetVertexColor
