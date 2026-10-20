@@ -296,10 +296,10 @@ values, which cannot be done headlessly because the overlay is parented to `Worl
 
 ## 2026-10-20 — the repo is `comfyrain` now, and it was rebuilt to get a name out of it
 
-`LICENSE` line 3 read `Copyright (c) 2026 Justin Veerman` in a **public** repo that was
+`LICENSE` line 3 carried the author's **legal name** in a **public** repo that was
 days from a CurseForge listing. Everything else on the account is pseudonymous - commits
 use the `@users.noreply.github.com` address, there are no public SSH keys, the profile
-carries no real name, and all 118 "Veerman" hits across the account are in private repos -
+carries no real name, and all 118 hits for the surname across the account are in private repos -
 so the one line that was not pseudonymous was the one line that undid the rest.
 
 Fixing the working tree was not enough, and neither was rewriting history. A force-push
@@ -307,10 +307,19 @@ Fixing the working tree was not enough, and neither was rewriting history. A for
 anyone with the 40-character SHA. Verified anonymously, with no token:
 
     curl https://raw.githubusercontent.com/LibruaryNFT/duskfall/cfc6eb9.../LICENSE
-    -> Copyright (c) 2026 Justin Veerman
+    -> the legal name, still being served
 
 So the repo was deleted and recreated. That is the only self-serve way to destroy the
 orphans; GitHub Support can purge instead, but that is days and a message to a human.
+
+**It came back, in the write-up of its own fix (found 2026-10-20).** This section quoted
+the offending line verbatim, three times, which put the exact string the repo was deleted
+to destroy back into the public HEAD of the replacement repo. Introduced by `745e6f6` and
+carried by every commit since.
+
+**The rule, so it is not re-derived next time: never write the legal name down in a public
+repo, including when describing why it must not be there.** Say "the legal name". A
+redaction that quotes what it is redacting is not a redaction.
 
 | | |
 |---|---|
