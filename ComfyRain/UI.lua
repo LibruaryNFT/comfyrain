@@ -1187,7 +1187,9 @@ local function Build()
 		function(v) Run(string.format("alpha %.2f", v)) end,
 		Back("scale", "alpha")))
 	Teach(controls.alpha.slider, "Visibility", "/comfy alpha 0.75",
-		"How much weather you see through.")
+		"How much weather you see through. At 0 the drops stop drawing and " ..
+		"you keep the darkening and the sound, which is the overcast-day " ..
+		"setup.")
 
 	controls.speed = add(Slider(panel, "Fall Speed", 0.2, 3, 0.05, "%.2f",
 		function(v) Run(string.format("speed %.2f", v)) end,

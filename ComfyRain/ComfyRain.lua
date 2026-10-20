@@ -1885,6 +1885,15 @@ local function Status()
 		IndoorMode(),
 		db.channel,
 		indoorsNow and " |cff888888[indoors]|r" or ""))
+	-- alpha 0 is a legitimate setup - the darkening and the ambience with no
+	-- drops, which is an overcast day - but it is indistinguishable from the
+	-- addon being broken, because every other line of the status says "on".
+	-- An hour went into chasing invisible rain on 2026-10-20 before anyone
+	-- read the number. Say it in words.
+	if db.enabled and db.scale == 0 then
+		msg("the drops are |cffff9900off|r (alpha 0). The darkening and the sound"
+			.. " are still on - |cffffd100/comfy alpha 1|r brings the rain back")
+	end
 	local real, grade = RealWeather()
 	if real and real ~= "none" then
 		msg(string.format("the realm's own weather here is |cff66ff66%s|r at %.2f", real, grade))

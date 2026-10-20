@@ -69,6 +69,24 @@ it("tints gloom cool, and clamps it before it becomes a blackout", function()
 	gt(w:gloom().colour[1], 0.3, "and the floor is not a blackout")
 end)
 
+it("keeps the darkening when the drops are turned all the way off", function()
+	-- Darkness, sound and drops are three independent controls, so "overcast
+	-- and raining somewhere else" is a setup a player can build: Visibility at
+	-- 0, Darkness up, sound on. It already worked by composition rather than
+	-- by design, which is exactly the kind of thing a refactor removes without
+	-- anyone noticing. It is advertised in the Visibility tooltip now, so it
+	-- needs a test holding it there.
+	local w = H.world()
+	w:slash("rain")
+	w:slash("monsoon")
+	w:slash("alpha 0")
+	w:slash("dim 2")
+	eq(w:overlay():IsShown(), true, "the overlay still draws with no drops")
+	near(w:layers().far:GetAlpha(), 0, 1e-9, "the rain layers are off")
+	near(w:layers().near:GetAlpha(), 0, 1e-9, "both of them")
+	near(w:gloom().colour[1], 0.38, 1e-6, "and the darkening is at full")
+end)
+
 it("lets the top of the Darkness slider reach full dark at every intensity",
 function()
 	-- Until 2026-10-19 the slider simply multiplied the preset, so its maximum

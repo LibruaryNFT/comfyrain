@@ -29,6 +29,12 @@ moved. The golden file diff is two rows, both `darkness full`.
 Snow stops short of rain on purpose: lying snow is the brightest thing in a scene, and a
 dark snowstorm reads as a rendering bug.
 
+**Darkness without rain or sound already works**, by composition: Visibility 0, Darkness
+up, sound toggle off. Nothing new was needed, but nothing advertised it either, so the
+Visibility tooltip now says what 0 gives you and a spec pins the combination. `/comfy
+status` also calls out `alpha 0` in words, because every other line of it says "on" and
+the number alone reads as a broken addon.
+
 **Still true, and it is a limitation not a bug:** the gloom layer is a fullscreen MOD
 multiply, so it dims lamps and torches by the same factor as everything else. It cannot
 make a light source glow. Compositions whose whole appeal is warm lamps against cold
