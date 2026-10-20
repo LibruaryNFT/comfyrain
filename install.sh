@@ -17,7 +17,7 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 [ -d "${WOW}/${FLAVOR}" ] || { echo "no such flavor: ${FLAVOR}" >&2; exit 1; }
 
 mkdir -p "$DEST"
-cp "${HERE}/ComfyRain/ComfyRain.lua" "${HERE}/ComfyRain/Probe.lua" "${HERE}/ComfyRain/UI.lua" "${HERE}/ComfyRain/ComfyRain.toc" "$DEST/"
+cp "${HERE}/ComfyRain/ComfyRain.lua" "${HERE}/ComfyRain/Probe.lua" "${HERE}/ComfyRain/UI.lua" "${HERE}/ComfyRain/Bindings.xml" "${HERE}/ComfyRain/ComfyRain.toc" "$DEST/"
 
 # @project-version@ is a BigWigs-packager substitution and only gets replaced
 # when a release is built, so a local install would otherwise show the literal
