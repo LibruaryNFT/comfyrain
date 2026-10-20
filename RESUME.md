@@ -7,6 +7,33 @@ because the client cannot be told to actually change the weather.
 Stormwind. v2 switches all audio and the drop sprite to Blizzard's own assets and stops
 the rain indoors; needs `/reload` to pick up (no new files, so no client restart).
 
+## 2026-10-20 — Darkness now actually goes dark
+
+Shooting store screenshots at the Stormwind gates, the scene would not get dark enough
+and the only control that could do it was `/comfy time`. That is a different feature.
+Justin: *"to change the brightness we shouldnt be setting that with time and strength of
+time"*. He is right, and the reason was arithmetic:
+
+- The gloom layer lerps the frame towards the weather's `tint`, `0.55 / 0.62 / 0.78` for
+  rain. That tint is calibrated to what real weather does to **daylight**, so it is a
+  wash, not darkness.
+- Monsoon's preset already sits at `g = 0.95`, so `dim 1.2` and `dim 2.0` were four
+  percent apart. The right-hand half of the slider had travel and no effect.
+
+Fixed by giving each weather a `deepTint` (rain `0.38 / 0.44 / 0.62`, snow
+`0.46 / 0.52 / 0.70`) and having the slider's top half walk the tint itself down to it,
+in `GloomColor`. **At `dim <= 1` the arithmetic is byte-identical to before** — the
+2026-10-15 screenshot sweep calibrated the preset curve at the default and none of it
+moved. The golden file diff is two rows, both `darkness full`.
+
+Snow stops short of rain on purpose: lying snow is the brightest thing in a scene, and a
+dark snowstorm reads as a rendering bug.
+
+**Still true, and it is a limitation not a bug:** the gloom layer is a fullscreen MOD
+multiply, so it dims lamps and torches by the same factor as everything else. It cannot
+make a light source glow. Compositions whose whole appeal is warm lamps against cold
+rain are the ones this addon cannot win, and screenshots should not lead with them.
+
 ## 2026-10-20 — the CurseForge logo
 
 `docs/logo.png` is now three blue drops falling with trails behind them, cropped at 512

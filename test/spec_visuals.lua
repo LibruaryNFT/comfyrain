@@ -62,9 +62,11 @@ it("tints gloom cool, and clamps it before it becomes a blackout", function()
 
 	w:slash("monsoon")
 	w:slash("gloom 2")
-	-- The top of the slider is 1.0, which multiplies the world by the tint
-	-- itself and is dark without being a blackout.
-	near(w:gloom().colour[1], 1 - 1.0 * (1 - 0.55), 1e-6, "gloom tops out at 1.0")
+	-- The top of the slider walks the tint down to deepTint and stops there.
+	-- Dark enough to photograph as a storm, nowhere near a blackout: an
+	-- overlay that can hide a mob is an overlay that gets the addon deleted.
+	near(w:gloom().colour[1], 1 - 1.0 * (1 - 0.38), 1e-6, "gloom tops out at deepTint")
+	gt(w:gloom().colour[1], 0.3, "and the floor is not a blackout")
 end)
 
 it("lets the top of the Darkness slider reach full dark at every intensity",
@@ -80,8 +82,8 @@ function()
 			w:slash(weather)
 			w:slash(step)
 			w:slash("gloom 2")
-			local tint = (weather == "rain") and 0.55 or 0.62
-			near(w:gloom().colour[1], 1 - (1 - tint), 1e-6,
+			local deep = (weather == "rain") and 0.38 or 0.46
+			near(w:gloom().colour[1], 1 - (1 - deep), 1e-6,
 				weather .. " at " .. step .. " reaches full dark at the top")
 		end
 	end
@@ -123,7 +125,7 @@ it("keeps Darkness monotone across the whole slider", function()
 		end
 		last = red
 	end
-	near(last, 1 - (1 - 0.55), 1e-6, "the far end is full dark")
+	near(last, 1 - (1 - 0.38), 1e-6, "the far end is full dark")
 end)
 
 it("darkens monotonically as the weather gets worse", function()

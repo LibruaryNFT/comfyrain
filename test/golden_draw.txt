@@ -176,7 +176,7 @@ curtain.lift = 0.0000
 ### darkness full
 overlay.shown = true
 overlay.alpha = 1.0000
-gloom = 0.5500, 0.6200, 0.7800
+gloom = 0.3800, 0.4400, 0.6200
 mist = 0.1000  tex 396498  blend BLEND  at none  tint 0.5800, 0.6400, 0.7400
 far = 0.7000  tex Interface\AddOns\ComfyRain\rain-far.tga  blend BLEND  at none
 near = 0.6500  tex Interface\AddOns\ComfyRain\rain-near.tga  blend ADD  at none
@@ -189,7 +189,7 @@ curtain.lift = 0.0000
 ### darkness full, light rain
 overlay.shown = true
 overlay.alpha = 1.0000
-gloom = 0.5500, 0.6200, 0.7800
+gloom = 0.3800, 0.4400, 0.6200
 mist = 0.0500  tex 396498  blend BLEND  at none  tint 0.5800, 0.6400, 0.7400
 far = 0.4000  tex Interface\AddOns\ComfyRain\rain-far.tga  blend BLEND  at none
 near = 0.3500  tex Interface\AddOns\ComfyRain\rain-near.tga  blend ADD  at none
@@ -202,7 +202,7 @@ curtain.lift = 0.0000
 ### darkness full, monsoon
 overlay.shown = true
 overlay.alpha = 1.0000
-gloom = 0.5500, 0.6200, 0.7800
+gloom = 0.3800, 0.4400, 0.6200
 mist = 0.2600  tex 396498  blend BLEND  at none  tint 0.5800, 0.6400, 0.7400
 far = 1.0000  tex Interface\AddOns\ComfyRain\rain-far.tga  blend BLEND  at none
 near = 1.0000  tex Interface\AddOns\ComfyRain\rain-near.tga  blend ADD  at none
@@ -215,7 +215,7 @@ curtain.lift = 0.0000
 ### darkness full, light snow
 overlay.shown = true
 overlay.alpha = 1.0000
-gloom = 0.6200, 0.6900, 0.8400
+gloom = 0.4600, 0.5200, 0.7000
 mist = 0.0600  tex 186229  blend BLEND  at none  tint 0.8000, 0.8400, 0.9200
 far = 0.3400  tex Interface\AddOns\ComfyRain\snow-far.tga  blend BLEND  at none
 near = 0.3000  tex Interface\AddOns\ComfyRain\snow-near.tga  blend ADD  at none
@@ -228,7 +228,7 @@ curtain.lift = 0.0000
 ### darkness full, blizzard
 overlay.shown = true
 overlay.alpha = 1.0000
-gloom = 0.6200, 0.6900, 0.8400
+gloom = 0.4600, 0.5200, 0.7000
 mist = 0.3000  tex 186229  blend BLEND  at none  tint 0.8000, 0.8400, 0.9200
 far = 1.0000  tex Interface\AddOns\ComfyRain\snow-far.tga  blend BLEND  at none
 near = 1.0000  tex Interface\AddOns\ComfyRain\snow-gale.tga  blend ADD  at none
@@ -371,7 +371,7 @@ curtain.lift = 0.0000
 ### everything at once
 overlay.shown = true
 overlay.alpha = 1.0000
-gloom = 0.6200, 0.6900, 0.8400
+gloom = 0.4600, 0.5200, 0.7000
 mist = 0.4500  tex 186229  blend BLEND  at none  tint 0.8000, 0.8400, 0.9200
 far = 1.0000  tex Interface\AddOns\ComfyRain\snow-far.tga  blend BLEND  at none
 near = 1.0000  tex Interface\AddOns\ComfyRain\snow-gale.tga  blend ADD  at none

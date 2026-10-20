@@ -20,16 +20,19 @@
 local H = require("harness")
 local it, ok, eq, near, lt, gt = H.it, H.ok, H.eq, H.near, H.lt, H.gt
 
-local TINT = { rain = { 0.55, 0.62, 0.78 }, snow = { 0.62, 0.69, 0.84 } }
+-- Where the top of the Darkness slider lands, which is darker than the tint:
+-- the tint is what weather does to daylight, and the slider's top half carries
+-- on past it. Mirrors deepTint in ComfyRain.lua.
+local DEEP = { rain = { 0.38, 0.44, 0.62 }, snow = { 0.46, 0.52, 0.70 } }
 local TOP = { rain = "monsoon", snow = "blizzard" }
 
--- The lerp towards the tint, read back out of the MOD colour the addon set.
+-- How much of the darkening this addon is capable of is currently on screen,
+-- read back out of the MOD colour the addon set. 1 is the darkest it goes.
 -- Going through the drawn pixel rather than through the internal rather than
 -- through db is deliberate: it is the only number the player can actually see.
 local function GloomOf(w, weather)
 	local c = w:gloom().colour
-	local tint = TINT[weather][1]
-	return (1 - c[1]) / (1 - tint)
+	return (1 - c[1]) / (1 - DEEP[weather][1])
 end
 
 --------------------------------------------------------------------------------

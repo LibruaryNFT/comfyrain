@@ -97,6 +97,11 @@ local WEATHER = {
 		-- instead. It is the cheat that makes the overlay read as weather
 		-- rather than as drops stuck to the lens.
 		tint    = { 0.55, 0.62, 0.78 },
+		-- Where the top of the Darkness slider lands. See GloomColor: the tint
+		-- above is what weather does to daylight, which is not very dark, so
+		-- the slider's top half walks the tint itself down to here. Blue pulls
+		-- ahead of red on the way, because that is what losing the sun does.
+		deepTint = { 0.38, 0.44, 0.62 },
 		flash   = true,         -- lightning
 		oneShots = THUNDER,
 		fallbackOneShot = MEDIA .. "thunder.ogg",
@@ -122,6 +127,9 @@ local WEATHER = {
 		sway    = 0.22,
 		swayRate = 0.055,       -- Hz; one full drift every ~18 s
 		tint    = { 0.62, 0.69, 0.84 },
+		-- Snow stops short of where rain goes. Lying snow is the brightest
+		-- thing in a scene and a dark snowstorm reads as a bug, not as weather.
+		deepTint = { 0.46, 0.52, 0.70 },
 		flash   = false,        -- a snowstorm has no lightning
 		oneShots = GUSTS,
 		fallbackOneShot = nil,  -- nothing bundled; a missing gust costs nothing
@@ -693,6 +701,39 @@ local function GloomAmount(preset, slider)
 	return preset + (1 - preset) * (slider - 1)
 end
 
+-- The colour the MOD layer multiplies the finished frame by, from the amount
+-- above and the slider that produced it.
+--
+-- Two knobs, and they are not the same knob. `g` is how far the frame travels
+-- towards the weather's tint. `x` is the part of the Darkness slider past 1,
+-- and it moves the tint itself towards deepTint.
+--
+-- The second one exists because the first one runs out of road. The tint is
+-- calibrated to what real weather does to daylight, so it is only a wash:
+-- monsoon's preset already sits at g = 0.95, which means dim 1.2 and dim 2.0
+-- differ by four percent and the whole right-hand half of the slider does
+-- nothing a player can see. Asked for a darker scene for a store screenshot,
+-- the only control in the addon that could deliver one was the time-of-day
+-- grade, which is a different feature wearing the wrong hat - "to change the
+-- brightness we shouldnt be setting that with time", 2026-10-20.
+--
+-- At slider <= 1 this is exactly the old arithmetic. The 2026-10-15 screenshot
+-- sweep calibrated the preset curve at the default of 1 and nothing here may
+-- move it; the top half is the only thing that changed.
+local function GloomColor(g, w, slider)
+	local x = slider - 1
+	if x <= 0 then
+		return 1 - g * (1 - w.tint[1]),
+		       1 - g * (1 - w.tint[2]),
+		       1 - g * (1 - w.tint[3])
+	end
+	if x > 1 then x = 1 end
+	local t, d = w.tint, w.deepTint
+	return 1 - g * (1 - (t[1] + (d[1] - t[1]) * x)),
+	       1 - g * (1 - (t[2] + (d[2] - t[2]) * x)),
+	       1 - g * (1 - (t[3] + (d[3] - t[3]) * x))
+end
+
 local function ApplyAlphas()
 	ApplyTextures()
 	local w, p, s = W(), Preset(), db.scale * IndoorFactor()
@@ -707,10 +748,8 @@ local function ApplyAlphas()
 	-- itself: 1 is untouched, and we lerp towards the tint from there.
 	local g = math.min(GloomAmount(p.gloom, db.gloom) * IndoorFactor(), 1.0)
 	baseGloom = g
-	gloom:SetColorTexture(
-		1 - g * (1 - w.tint[1]),
-		1 - g * (1 - w.tint[2]),
-		1 - g * (1 - w.tint[3]), 1)
+	local gr, gg, gb = GloomColor(g, w, db.gloom)
+	gloom:SetColorTexture(gr, gg, gb, 1)
 
 	-- The whiteout is the opposite move and only a blizzard uses it: ADD is the
 	-- only way a 2D overlay can brighten anything. Capped well below the point
@@ -1310,10 +1349,8 @@ local function OnUpdate(self, elapsed)
 		if baseGloom > 0 then
 			local g = baseGloom * (1 + layerGust.mist * GUST_GLOOM_AMP * gustAmp)
 			if g < 0 then g = 0 elseif g > 1 then g = 1 end
-			gloom:SetColorTexture(
-				1 - g * (1 - weather.tint[1]),
-				1 - g * (1 - weather.tint[2]),
-				1 - g * (1 - weather.tint[3]), 1)
+			local cr, cg, cb = GloomColor(g, weather, db.gloom)
+			gloom:SetColorTexture(cr, cg, cb, 1)
 		end
 	end
 

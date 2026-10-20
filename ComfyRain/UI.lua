@@ -1200,8 +1200,8 @@ local function Build()
 		Back("gloom", "dim")))
 	Teach(controls.dim.slider, "Darkness", "/comfy dim 0.5",
 		"How much the storm dims the world. 0 leaves the light alone, 1 is " ..
-		"what this weather is meant to look like, and 2 is as dark as this " ..
-		"addon goes.")
+		"what this weather is meant to look like, and past that it keeps " ..
+		"going into proper storm dark. 2 is as dark as this addon goes.")
 
 	controls.gust = add(Slider(panel, "Wind", 0, 2, 0.05, "%.2f",
 		function(v) Run(string.format("gust %.2f", v)) end,
