@@ -7,6 +7,48 @@ because the client cannot be told to actually change the weather.
 Stormwind. v2 switches all audio and the drop sprite to Blizzard's own assets and stops
 the rain indoors; needs `/reload` to pick up (no new files, so no client restart).
 
+## 2026-10-20 — bug reports: what to ask users for, and how CurseForge handles it
+
+**CurseForge has no issue tracker.** A project page has a comments section and a set of
+link fields; bug tracking is whatever URL you put in the **Issues** field in project
+settings. So that field points at `https://github.com/LibruaryNFT/comfyrain/issues` and
+GitHub stays the single tracker. Comments on the project page will still happen and have
+to be watched, but they are not the system of record.
+
+**An in-addon reporter is allowed, and cannot submit anything.** There is no HTTP, no
+socket and no clipboard write in WoW's Lua — by design, and it is why every addon's
+"report a bug" is a box of text you copy. So the most a reporter can ever do is assemble
+the line and hand it over already selected.
+
+`/comfy bug` does that, reusing the existing share box. One line, because the box is a
+single-line EditBox and because one line is one Ctrl-C where a block is a drag:
+
+```
+ComfyRain 2.0.0 | wow 1.60.1.70450 iface 16001 | enUS | 1916x1080 @0.711 |
+ComfyRain1:enabled=1;weather=snow;... | at Elwynn Forest/Goldshire 48.2,63.2 |
+in0 out1 shel0 | draw1 hear1 yield0 | real=rain@0.67 dens3
+```
+
+| Field | Why it is in there |
+|---|---|
+| version, client build, interface | the first two questions of every triage |
+| locale | a mangled or missing string is usually this |
+| resolution and UIParent scale | the whole look is geometry; "it looks wrong" is unanswerable without it |
+| the full profile, in import format | whoever triages can paste it into their own client and be looking at the reporter's exact configuration in one step |
+| zone / subzone / coords | a bad doorway is findable; "somewhere in Stormwind" is not |
+| `in0 out1 shel0` | all three shelter reads, never the conclusion alone — every shelter bug so far has lived in the gap between the first two |
+| `draw/hear/yield` | what the addon believed it was doing at that moment |
+| `real=...  dens...` | the client's own weather and whether it was being drawn |
+
+No character name, no realm, no guild. Nothing leaves the client.
+
+**Also fixed in the same pass:** the window said "normal rain, not drawn" while standing
+aside for a real storm, which is the same "everything says on and nothing is drawing"
+report as the indoor one, with no visible cause at all. It now says *"The game's own
+weather is falling, so this is standing aside."* And `Enter` over the share box used to
+mean "import this as a profile", which fired on the diagnostic line too — the single most
+likely keystroke after a Ctrl-C. It is guarded now.
+
 ## 2026-10-20 — our rain fell through the Stormwind gate arch, and the fix is to stand aside
 
 Reported from live play under the arch at Stormwind's gate: our rain falls straight

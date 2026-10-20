@@ -1531,3 +1531,91 @@ function()
 	ok(not w:button("Weather off"), "there is no second label hiding anywhere")
 	ok(not w:button("Weather on"), "and no first one either")
 end)
+
+it("assembles a bug report nobody has to be asked follow-up questions about", function()
+	-- There is no HTTP in WoW's Lua at all, so an addon can never submit
+	-- anything anywhere. The most a reporter can do is assemble the line and
+	-- hand it over already selected; the player pastes it. The point is that
+	-- the triage questions - what version, what client, what settings, where
+	-- were you standing, what was it doing - are answered before they are
+	-- asked.
+	local w = H.world()
+	w:slash("snow")
+	w:slash("alpha 0.4")
+	w:slash("bug")
+
+	local box = w:editBox()
+	ok(box, "a box opened")
+	ok(box._highlighted, "with the line already selected, so copying is one key")
+	local t = box:GetText()
+
+	contains(t, "ComfyRain ", "the addon version")
+	contains(t, "wow ", "the client build")
+	contains(t, "enUS", "the locale, because a mangled string is usually this")
+	-- The reporter's exact configuration, in the format the addon reads back:
+	-- whoever triages it can paste this into their own client and be looking
+	-- at the same settings in one step, rather than asking for them one at a
+	-- time.
+	contains(t, "ComfyRain1:", "the whole profile, importable as-is")
+	contains(t, "weather=snow", "with the settings actually set")
+	contains(t, "scale=0.4", "including slider values")
+	-- All three shelter reads, never the conclusion alone. Every shelter bug
+	-- so far has lived in the gap between the first two, and a report carrying
+	-- only "it was indoors" cannot show which of them said so.
+	contains(t, "in0 out1 shel0", "both shelter APIs and what was concluded")
+	contains(t, "draw1 hear1 yield0", "and what the addon was actually doing")
+	contains(t, "real=", "plus the client's own weather and density")
+
+	-- One line. The box is single-line, and more to the point a block is a
+	-- drag where a line is a Ctrl-C.
+	eq(t:find("\n"), nil, "and it is a single line")
+end)
+
+it("does not try to import the bug line when Enter is pressed over it", function()
+	-- Enter is the reflex after Ctrl-C, and the box's Enter key means "apply
+	-- this profile". The bug line is not a profile, so that would fail loudly
+	-- on the single most likely keystroke.
+	local w = H.world()
+	w:slash("snow")
+	w:slash("bug")
+	local box = w:editBox()
+	-- Counted rather than matched on wording: a rejected import complains in
+	-- chat, and the point is that the player sees no complaint at all, not
+	-- that it says any particular thing.
+	local before = #w.mock.printed
+	box:Press("OnEnterPressed")
+	eq(w:db().weather, "snow", "settings untouched")
+	eq(#w.mock.printed, before, "and nothing was said about it either")
+	eq(#w.mock.errors, 0, "nor thrown")
+
+	-- Positive control: the same key over a real profile string still imports,
+	-- so the guard above is narrow rather than a dead Enter key.
+	local v = H.world()
+	v:slash("share")
+	local pbox = v:editBox()
+	pbox:SetText("ComfyRain1:weather=snow")
+	pbox:Press("OnEnterPressed")
+	eq(v:db().weather, "snow", "a profile still applies on Enter")
+end)
+
+it("says why nothing is drawn when it is standing aside, not just that nothing is", function()
+	-- "everything says on and nothing is drawing" was already reported once,
+	-- for the indoor case. Deference is the same failure with no visible cause
+	-- at all: the player is outdoors, in the open, with rain on screen that is
+	-- not ours, and the window used to say "normal rain, not drawn".
+	local w = H.world()
+	w:open()
+	ok(w:says("^Drawing normal rain"), "drawing to begin with")
+
+	w.mock.state.weather = { type = 1, intensity = 0.7 }
+	w.mock.cvars.weatherDensity = "3"
+	w:advance(3.0, 0.1)
+	eq(w:overlay():IsShown(), false, "their storm has stopped ours")
+	eq(w:db().enabled, true, "with the setting still on, which is the trap")
+	ok(w:says("standing aside"), "and the window says so, in words")
+
+	-- Positive control: it is the deference talking, not a hard-wired string.
+	w:slash("defer off")
+	w:advance(0.5)
+	ok(w:says("^Drawing normal rain"), "and it goes back to normal when told to")
+end)

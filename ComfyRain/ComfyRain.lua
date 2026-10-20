@@ -2134,6 +2134,62 @@ local function HandleSlash(input, source)
 			msg(text)
 		end
 		return
+	elseif cmd == "bug" or cmd == "report" then
+		-- What a bug report needs and almost never arrives with. An addon
+		-- cannot post anything anywhere - there is no HTTP in WoW's Lua at all,
+		-- by design - so the most this can ever do is assemble the text and
+		-- hand it over already selected. The player still pastes it.
+		--
+		-- One line, not a block. The share box is a single-line EditBox and a
+		-- multi-line report would need a second widget; more to the point, one
+		-- line is one Ctrl+C, where a block is a drag. It reads perfectly well
+		-- pasted into an issue.
+		local st = ComfyRainAPI.State()
+		local real, grade = RealWeather()
+		local _, px, py = MapPos()
+		local ver = "dev"
+		if C_AddOns and C_AddOns.GetAddOnMetadata then
+			local okv, v = pcall(C_AddOns.GetAddOnMetadata, ADDON, "Version")
+			if okv and v and v ~= "" and not v:find("project%-version") then ver = v end
+		end
+		local build, bnum = GetBuildInfo()
+		local w, h = 0, 0
+		if GetPhysicalScreenSize then
+			local okg, gw, gh = pcall(GetPhysicalScreenSize)
+			if okg then w, h = gw or 0, gh or 0 end
+		end
+		local text = table.concat({
+			"ComfyRain " .. ver,
+			"wow " .. tostring(build) .. "." .. tostring(bnum) ..
+				" iface " .. tostring(select(4, GetBuildInfo())),
+			tostring(GetLocale and GetLocale() or "?"),
+			string.format("%dx%d @%.3f", w, h,
+				UIParent and UIParent:GetEffectiveScale() or 0),
+			-- The settings, in the format the addon can read back. Anyone
+			-- triaging this can paste it into their own client and be looking
+			-- at the reporter's exact configuration in one step.
+			ExportProfile(),
+			string.format("at %s/%s%s", tostring(GetRealZoneText() or "?"),
+				tostring(GetSubZoneText() or ""),
+				px and string.format(" %.1f,%.1f", px * 100, py * 100) or ""),
+			-- All three, never the conclusion alone: the gap between the first
+			-- two is where every shelter bug has lived.
+			string.format("in%d out%d shel%d", IsIndoors() and 1 or 0,
+				IsOutdoors() and 1 or 0, Sheltered() and 1 or 0),
+			string.format("draw%d hear%d yield%d", st.drawing and 1 or 0,
+				st.hearing and 1 or 0, st.yielding and 1 or 0),
+			string.format("real=%s@%.2f dens%s", tostring(real or "?"), grade or 0,
+				tostring(GetCVar("weatherDensity") or "?")),
+		}, " | ")
+		local note = "Paste this whole line into the bug report. It carries your " ..
+			"settings, where you were standing and what the addon was doing. " ..
+			"No names, no realm, nothing is sent anywhere by the addon."
+		if not (ComfyRainAPI.share and pcall(ComfyRainAPI.share, text, note)) then
+			msg("copy this line into the bug report:")
+			msg(text)
+		end
+		msg("report bugs at |cffffd100" .. HOMEPAGE .. "/issues|r")
+		return
 	elseif cmd == "about" or cmd == "version" then
 		-- Read from the TOC rather than kept in a constant here, because
 		-- @project-version@ is substituted by the packager at release time and
@@ -2155,6 +2211,9 @@ local function HandleSlash(input, source)
 			(meta("Author") or "LibruaryNFT") .. "|r. " ..
 			(meta("X-License") or "MIT") .. " licensed.")
 		msg("Bugs, requests and the source: |cffffd100" .. HOMEPAGE .. "|r")
+		-- Named here because this is the screen somebody is already on when
+		-- they have decided to report something.
+		msg("|cffffd100/comfy bug|r writes the line to paste into the report.")
 		-- Same reason as share: a chat line cannot be copied out of the chat
 		-- frame without dragging across it, and the whole point of printing a
 		-- URL is that somebody can get it into a browser.
@@ -2247,6 +2306,11 @@ ComfyRainAPI = {
 			drawing = ShouldDraw(),
 			hearing = ShouldRain() and db.sound and true or false,
 			cinematic = cinematic,
+			-- The third reason nothing is drawn, and the only one with no
+			-- visible cause in the world: the client's own weather is falling
+			-- and we stood aside. Without this the window says "normal rain,
+			-- not drawn" in the middle of a storm and looks broken.
+			yielding = yieldNow and YieldMode() and true or false,
 		}
 	end,
 	-- So the per-slider resets can grey out a value already sitting on its

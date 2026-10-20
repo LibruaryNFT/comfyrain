@@ -901,6 +901,11 @@ local function WeatherPhrase(db)
 	-- assumption there, because that is what every build before today did.
 	if st.drawing == false then
 		if st.cinematic then return "Paused for the cutscene" end
+		-- Ahead of indoors, because the two can be true at once and this is
+		-- the one the player cannot see a reason for.
+		if st.yielding then
+			return "The game's own weather is falling, so this is standing aside"
+		end
 		if st.indoors then
 			return st.hearing
 				and "Indoors: " .. db.weather .. " heard, not drawn"
@@ -1474,7 +1479,9 @@ local function BuildShare()
 		-- Enter applies whatever is in the box, including the string we just
 		-- put there. Re-importing your own profile is a no-op, so one key does
 		-- the sensible thing in both directions and there is nothing to learn.
-		Run("import " .. (self:GetText() or ""))
+		if f.importable ~= false then
+			Run("import " .. (self:GetText() or ""))
+		end
 		self:ClearFocus()
 		f:Hide()
 	end)
@@ -1519,6 +1526,11 @@ function ShowShare(text, note)
 	-- Only when this is a profile of ours to hand out. /comfy about borrows the
 	-- box for a URL, and offering to import a GitHub link would be nonsense.
 	if text and not note then shareBox.paste:Show() else shareBox.paste:Hide() end
+	-- And the same for Enter. The box is borrowed by /comfy about for a URL and
+	-- by /comfy bug for a diagnostic line; importing either as a profile would
+	-- fail noisily on the one keystroke most likely to be pressed by reflex
+	-- after a Ctrl-C.
+	shareBox.importable = (note == nil)
 
 	-- A caption that wrapped to two lines used to be drawn underneath the text
 	-- well, which read as the sentence being cut off. The frame grows instead.

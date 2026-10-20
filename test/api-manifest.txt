@@ -42,6 +42,7 @@ PRESENT GetFontString
 PRESENT GetFrameLevel
 PRESENT GetGameTime
 PRESENT GetHeight
+PRESENT GetLocale
 PRESENT GetModelFileID
 PRESENT GetPhysicalScreenSize
 PRESENT GetPlayerFacing
@@ -51,7 +52,6 @@ PRESENT GetRealZoneText
 PRESENT GetScale
 PRESENT GetScript
 PRESENT GetStringHeight
-PRESENT GetStringWidth
 PRESENT GetSubZoneText
 PRESENT GetText
 PRESENT GetTime
@@ -101,7 +101,6 @@ PRESENT SetOrientation
 PRESENT SetOwner
 PRESENT SetParent
 PRESENT SetPoint
-PRESENT SetRotation
 PRESENT SetScript
 PRESENT SetSize
 PRESENT SetTexCoord
