@@ -7,6 +7,38 @@ because the client cannot be told to actually change the weather.
 Stormwind. v2 switches all audio and the drop sprite to Blizzard's own assets and stops
 the rain indoors; needs `/reload` to pick up (no new files, so no client restart).
 
+## 2026-10-20 — The presets no longer darken a world that is already dark
+
+Gallery shoot on the beta client, Goldshire at night. **Every preset came back at median
+luma 10-25 out of 255**; a readable CurseForge thumbnail wants 60-100. The cause was not
+the realm's hour, it was the addon stacking a daylight-calibrated darkening on top of it.
+
+- `SceneLuma()` — Rec.709 luma of `LightAt(RealmHour())` times the grade's multipliers.
+  What the frame actually looks like, not what the clock says.
+- `NightEase()` — maps that onto a gloom multiplier. **1.0 in full daylight**, easing to
+  `NIGHT_FLOOR = 0.35` at the curve's darkest (`NIGHT_LUMA = 0.37`, the 03:00 keyframe).
+- Applied at the one place the gloom amount is computed, so the gust modulation and the
+  indoor factor both inherit it.
+- The 20s `todTicker` now calls `ApplyAlphas()`. Nothing presses a button between dusk and
+  midnight; that tick is the only thing that can notice.
+
+**Daylight is the identity case on purpose.** The 2026-10-15 sweep calibrated the preset
+curve at noon and this may not disturb it. Exactly one golden line moved — the "held at
+midnight" case, `gloom 0.8290,0.8556,0.9164` → `0.9402,0.9495,0.9707`. A new spec asserts
+all four weather presets are flat across the lit hours so the next tweak cannot move them.
+
+The floor is a fraction rather than zero because a storm that stops darkening after dusk
+is its own kind of wrong.
+
+**Rejected:** `/console gamma 1.6` + `brightness 60`. Outside the addon, and it washed the
+frame out rather than fixing it — "thats weird and too bright not sure why u dont just
+make the presets or whatever nicer". Correct. Client brightness is not a substitute for a
+preset that behaves at night, and a CurseForge screenshot taken at non-default gamma is a
+screenshot of something the player will not get.
+
+**Still open on brightness:** `NIGHT_FLOOR = 0.35` is one calibration pass, not a measured
+optimum. Re-shoot the Goldshire snow frame and measure before locking it.
+
 ## 2026-10-20 — Pre-launch review pass: the player's words, and three more ways in
 
 An external review of the window and the addon, run against a screenshot of the live
