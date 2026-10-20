@@ -77,6 +77,41 @@ Two still outside the route: #4 needs a full exit and relaunch with the flavour 
 staged into `_forever_`, and #5 is eyeballing the quads at several `UIParent:GetScale()`
 values, which cannot be done headlessly because the overlay is parented to `WorldFrame`.
 
+## 2026-10-20 — the repo is `comfyrain` now, and it was rebuilt to get a name out of it
+
+`LICENSE` line 3 read `Copyright (c) 2026 Justin Veerman` in a **public** repo that was
+days from a CurseForge listing. Everything else on the account is pseudonymous - commits
+use the `@users.noreply.github.com` address, there are no public SSH keys, the profile
+carries no real name, and all 118 "Veerman" hits across the account are in private repos -
+so the one line that was not pseudonymous was the one line that undid the rest.
+
+Fixing the working tree was not enough, and neither was rewriting history. A force-push
+**orphans** old objects rather than deleting them, and GitHub goes on serving them to
+anyone with the 40-character SHA. Verified anonymously, with no token:
+
+    curl https://raw.githubusercontent.com/LibruaryNFT/duskfall/cfc6eb9.../LICENSE
+    -> Copyright (c) 2026 Justin Veerman
+
+So the repo was deleted and recreated. That is the only self-serve way to destroy the
+orphans; GitHub Support can purge instead, but that is days and a message to a human.
+
+| | |
+|---|---|
+| Old | `LibruaryNFT/duskfall`, created 2026-10-19, 0 stars, 0 forks |
+| New | `LibruaryNFT/comfyrain`, 93 commits, both tags, both branches |
+| Carried over | all 10 issues with labels and numbers intact |
+| Backup | `~/backup-duskfall-2026-10-20/` - full pre-rewrite mirror + `issues.json` |
+
+Those three orphan SHAs now return 404 anonymously and a fresh clone has zero hits, with
+"rain" at 168 as the positive control that the scan finds things when they are there.
+
+This closed **#7** as a side effect: `HOMEPAGE` and `## X-Website` already said
+`comfyrain`, so the URL in the addon's own About box works for the first time.
+
+**The standing rule this leaves:** the copyright holder on anything published under
+`LibruaryNFT` is `LibruaryNFT`. MIT does not care whether the holder is a legal name or a
+handle, and a pseudonymous account is only as pseudonymous as its least careful file.
+
 ## 2026-10-19 — the indoor rain was playing all along, at 12%
 
 **"if we go indoors shouldnt we still hear the rain though - its not doing that now."**
