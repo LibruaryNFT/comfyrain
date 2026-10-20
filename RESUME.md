@@ -7,6 +7,30 @@ because the client cannot be told to actually change the weather.
 Stormwind. v2 switches all audio and the drop sprite to Blizzard's own assets and stops
 the rain indoors; needs `/reload` to pick up (no new files, so no client restart).
 
+## 2026-10-20 — the TOC flavour question was already answered, on disk
+
+**#4 needed no restart. It had already run, twice.** The flavour probe staged in
+`_classic_beta_` wrote its answer on 2026-10-19 and nobody read it.
+
+```
+_classic_beta_/WTF/Account/916451#1/SavedVariables/DuskfallFlavour.lua
+  loaded = "_Forever"   build = "70374"   interface = 16001
+  written 2026-10-19 06:23, and again in the .bak at 05:34
+```
+
+**The suffix this client prefers is `_Forever`.** The probe shipped ten competing TOCs
+(bare, `_Forever`, `_Vanilla`, `_Classic`, `_Mainline`, `_Standard`, `_Cata`, `_Mists`,
+`_TBC`, `_Wrath`); exactly one writes `loaded`, so the method could have returned any of
+ten values and returned the same one across two separate client sessions. That is the
+positive control, and it settles the R1-vs-R2/R3 contradiction recorded at line 1418 in
+favour of a filename suffix.
+
+**It does not change what we ship.** `ComfyRain.toc` is bare, with `## Interface: 16001`,
+and it loads on this client every day - which is its own positive control that a bare TOC
+is not refused. The suffix only matters for a single zip covering several flavours, and
+this addon is Forever-only. Keep the bare TOC; the suffix is now a known-good fallback
+rather than an open risk.
+
 ## 2026-10-20 — it rains inside Ironforge, because the client says Ironforge is outdoors
 
 **Reported:** "its weird how it rains inside ironforge though."
