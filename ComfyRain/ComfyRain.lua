@@ -1952,7 +1952,7 @@ local Refresh = ComfyRain_Refresh
 local function Status()
 	if db.timeMode ~= "off" then
 		local realm, want = RealmHour(), ApparentHour()
-		msg(string.format("time: |cff66ff66%s|r - realm reads %s, showing it as %s"
+		msg(string.format("time: |cff66ff66%s|r - server reads %s, showing it as %s"
 			.. (db.timeStrength < 1 and (", strength %.2f"):format(db.timeStrength) or ""),
 			db.timeMode == "offset" and ("offset %+g h"):format(db.timeOffset) or db.timeMode,
 			realm and ("%02d:%02d"):format(realm, (realm % 1) * 60) or "?",
@@ -1980,7 +1980,7 @@ local function Status()
 	end
 	local real, grade = RealWeather()
 	if real and real ~= "none" then
-		msg(string.format("the realm's own weather here is |cff66ff66%s|r at %.2f", real, grade))
+		msg(string.format("the server's own weather here is |cff66ff66%s|r at %.2f", real, grade))
 	end
 end
 
@@ -1994,18 +1994,18 @@ local function Help()
 	print("  |cffffd100/comfy light||normal||heavy|r - intensity")
 	print("  |cffffd100/comfy monsoon|r, |cffffd100/comfy blizzard|r - the top of each, weather included")
 	print("  |cffffd100/comfy cycle|r - step up through the intensities, for a keybind")
-	print("  |cffffd100/comfy auto|r - match whatever the realm says the weather is here")
+	print("  |cffffd100/comfy auto|r - match whatever the server says the weather is here")
 	print("  |cffffd100/comfy alpha <0-1.5>|r - how visible it is")
 	print("  |cffffd100/comfy speed <0.2-3>|r - how fast it falls")
 	print("  |cffffd100/comfy dim <0-2>|r - how much it darkens the world (0 = off, 2 = as dark as it goes)")
 	print("  |cffffd100/comfy gust <0-2>|r - how much the wind comes and goes (0 = dead calm)")
 	print("  |cffffd100/comfy volume <0-1>|r - how loud, on top of the game's own slider")
-	print("  |cffffd100/comfy time local|r - make it look like YOUR clock, not the realm's")
+	print("  |cffffd100/comfy time local|r - make it look like YOUR clock, not the server's")
 	print("  |cffffd100/comfy time +9|r, |cffffd100/comfy time 21|r, |cffffd100/comfy time off|r")
 	print("  |cffffd100/comfy indoors on||off|r - draw it inside buildings too")
 	print("  |cffffd100/comfy sound on||off|r, |cffffd100/comfy thunder on||off|r (gusts, in snow)")
 	print("  |cffffd100/comfy channel Ambience||SFX||Master|r - which volume slider owns it")
-	print("  |cffffd100/comfy suppress on|r - mute the realm's OWN weather loop so only ours plays")
+	print("  |cffffd100/comfy suppress on|r - mute the server's OWN weather loop so only ours plays")
 	print("  |cffffd100/comfy zoom on||off|r - make the drops grow as the camera comes in")
 	print("  |cffffd100/comfy minimap on||off|r - the minimap button")
 	print("  |cffffd100/comfy stop|r - everything off, including the light, in one go")
@@ -2073,7 +2073,7 @@ local function HandleSlash(input, source)
 		-- to arrive without naming its own off switch.
 		msg("|cff66ff66" .. p.label .. "|r - " .. p.blurb ..
 		    (p.kind == "light"
-		     and ". |cffffd100/comfy time off|r for the realm's own light again."
+		     and ". |cffffd100/comfy time off|r for the server's own light again."
 		     or ". Every slider below it still works."))
 	elseif cmd == "auto" then
 		-- Follow the realm's own weather if it is telling us anything. This is
@@ -2081,18 +2081,18 @@ local function HandleSlash(input, source)
 		-- a ticker on it would cost more than it is worth.
 		local real = RealWeather()
 		if not real or real == "none" then
-			msg("the realm reports no weather here, so there is nothing to match.")
+			msg("the server reports no weather here, so there is nothing to match.")
 			return
 		end
 		if not WEATHER[real] then
-			msg("the realm reports |cffffd100" .. real .. "|r, which this addon cannot draw.")
+			msg("the server reports |cffffd100" .. real .. "|r, which this addon cannot draw.")
 			return
 		end
 		db.weather, db.enabled = real, true
 		NormaliseIntensity()
 		StartBed()
 		ScheduleLightning()
-		msg("matched the realm: |cff66ff66" .. real .. "|r")
+		msg("matched the server: |cff66ff66" .. real .. "|r")
 	elseif cmd == "on" or cmd == "off" then
 		db.enabled = (cmd == "on")
 		-- Name the second thing it draws. The light grading is the part a
@@ -2102,13 +2102,13 @@ local function HandleSlash(input, source)
 		-- separate thing, still running, with its own switch.
 		if db.timeMode ~= "off" then
 			local at = (db.timeMode == "fixed" and ("%02d:00"):format(db.timeFixed))
-				or (db.timeMode == "offset" and ("%+g h from realm time"):format(db.timeOffset))
+				or (db.timeMode == "offset" and ("%+g h from server time"):format(db.timeOffset))
 				or "your own clock"
 			msg(db.enabled
 				and ("the light is held at " .. at ..
-				     " - |cffffd100/comfy time off|r for the realm's own")
+				     " - |cffffd100/comfy time off|r for the server's own")
 				or ("the rain is off. The light is still held at " .. at ..
-				    " - |cffffd100/comfy time off|r for the realm's own, or " ..
+				    " - |cffffd100/comfy time off|r for the server's own, or " ..
 				    "|cffffd100/comfy stop|r for all of it"))
 		end
 	elseif cmd == "alpha" then
@@ -2159,8 +2159,8 @@ local function HandleSlash(input, source)
 		db.suppress = (arg == "on")
 		StartBed()
 		msg(db.suppress
-			and "suppressing the realm's own weather loops while ComfyRain is on."
-			or  "the realm's own weather loops are audible again.")
+			and "suppressing the server's own weather loops while ComfyRain is on."
+			or  "the server's own weather loops are audible again.")
 	elseif cmd == "volume" or cmd == "vol" then
 		local v = Num(arg)
 		if not v then msg("usage: /comfy volume 0.5  (0 is silent)") return end
@@ -2248,7 +2248,7 @@ local function HandleSlash(input, source)
 		-- and raising them turns on Blizzard's real weather everywhere, not ours.
 		if arg == "" then
 			DensityReport()
-			msg("|cffffd100/comfy density on|r raises both so the realm's own weather renders")
+			msg("|cffffd100/comfy density on|r raises both so the server's own weather renders")
 			return
 		end
 		for cvar, want in pairs(DENSITY_CVARS) do
@@ -2362,7 +2362,7 @@ local function HandleSlash(input, source)
 		-- has been bitten once needs a switch they can believe in rather than a
 		-- promise that the other one is fixed now.
 		db.enabled, db.timeMode = false, "off"
-		msg("everything off: no weather, no sound, the realm's own light.")
+		msg("everything off: no weather, no sound, the server's own light.")
 	elseif cmd == "export" or cmd == "share" then
 		-- The window, if it loaded, puts the string in a box that is already
 		-- selected, because a chat line cannot be copied out of the chat frame
@@ -2428,7 +2428,7 @@ local function HandleSlash(input, source)
 		}, " | ")
 		local note = "Paste this whole line into the bug report. It carries your " ..
 			"settings, where you were standing and what the addon was doing. " ..
-			"No names, no realm, nothing is sent anywhere by the addon."
+			"No names, no server, nothing is sent anywhere by the addon."
 		if not (ComfyRainAPI.share and pcall(ComfyRainAPI.share, text, note)) then
 			msg("copy this line into the bug report:")
 			msg(text)

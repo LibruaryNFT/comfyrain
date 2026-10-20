@@ -371,6 +371,12 @@ local function Title(s)
 	return (tostring(s):gsub("^%l", string.upper))
 end
 
+-- The player's word for each section, which is not always the code's. The
+-- Weather section is `look` internally because it owns every visual setting,
+-- and a button reading "Reset Look" under a heading reading "Weather" is the
+-- window talking to itself.
+local RESET_LABEL = { look = "Weather" }
+
 --------------------------------------------------------------------------------
 -- The control column
 --------------------------------------------------------------------------------
@@ -611,6 +617,24 @@ end
 -- second job for free: the number is GOLD when the setting is off its default
 -- and grey when it is on it, so "what have I actually changed here" is
 -- answerable at a glance without pressing anything.
+-- Every multiplier in this window reads as a percentage of what the setting
+-- does at its default. "1.30" is a number out of a config file: it does not
+-- say what it is 1.30 OF, and a player who has never seen the default cannot
+-- tell whether it is a lot. "130%" answers both in four characters, and 0
+-- becomes the word Off, which is the one value worth reading as a state
+-- rather than as a quantity.
+local function Pct(v)
+	if v <= 0 then return "Off" end
+	return string.format("%d%%", math.floor(v * 100 + 0.5))
+end
+
+-- fmt is either a format string or a function of the value. The Hour slider
+-- is the only one that is not a multiplier and keeps a plain string.
+local function Shown(fmt, v)
+	if type(fmt) == "function" then return fmt(v) end
+	return string.format(fmt, v)
+end
+
 local function Slider(parent, label, lo, hi, step, fmt, apply, reset)
 	local row = CreateFrame("Frame", nil, parent)
 	row:SetHeight(ROW)
@@ -669,7 +693,7 @@ local function Slider(parent, label, lo, hi, step, fmt, apply, reset)
 	s:SetThumbTexture(thumb)
 
 	s:SetScript("OnValueChanged", function(self, v)
-		row.value:SetText(string.format(fmt, v))
+		row.value:SetText(Shown(fmt, v))
 		-- Refresh() sets every widget from the database; without this guard that
 		-- write would bounce straight back out as a command.
 		if updating then return end
@@ -702,7 +726,7 @@ local function Slider(parent, label, lo, hi, step, fmt, apply, reset)
 	function row:Set(v)
 		s:SetValue(v)
 		local shown = s:GetValue()
-		row.value:SetText(string.format(fmt, shown))
+		row.value:SetText(Shown(fmt, shown))
 		if not reset then return end
 		local default, cmd = reset()
 		row.value.command = cmd
@@ -756,7 +780,10 @@ local function Heading(parent, label, section)
 	line:SetPoint("BOTTOMRIGHT", row, "BOTTOMRIGHT", 0, 0)
 
 	if section then
-		local label = "Reset " .. Title(section)
+		-- Named for the heading the player is reading, not for the internal
+		-- section key. "look" is what the code calls it; "Reset Look" beside a
+		-- heading that says Weather is the window using its own vocabulary.
+		local label = "Reset " .. (RESET_LABEL[section] or Title(section))
 		local b = CreateFrame("Button", nil, row)
 		b:SetHeight(16)
 		b:SetWidth(90)
@@ -857,14 +884,15 @@ end
 -- The sentence that used to be the label is now the tooltip's first line, so
 -- nothing was lost: the panel scans, and the explanation is one hover away.
 local TIME_MODES = {
-	{ key = "off",    label = "Off",      cmd = "time off",
-	  note = "Leave the realm's own day and night alone." },
-	{ key = "local",  label = "My Clock", cmd = "time local",
-	  note = "Light the world by your clock instead of the realm's. " ..
-	         "For playing a long way from your realm. Works with the rain off." },
-	{ key = "offset", label = "Shifted",  cmd = "time +9",
-	  note = "Move the realm's clock by a set number of hours." },
-	{ key = "fixed",  label = "Held",     cmd = "time 21",
+	{ key = "off",    label = "Server time", cmd = "time off",
+	  note = "Leave the server's own day and night alone." },
+	{ key = "local",  label = "My PC clock", cmd = "time local",
+	  note = "Light the world by your clock instead of the server's. " ..
+	         "For playing in a different timezone from the server. Works with the "
+	         .. "rain off." },
+	{ key = "offset", label = "Shift by hours", cmd = "time +9",
+	  note = "Move the server's clock by a set number of hours." },
+	{ key = "fixed",  label = "Fixed hour", cmd = "time 21",
 	  note = "Hold one hour, all session. Permanent dusk." },
 }
 
@@ -949,8 +977,28 @@ local function Refresh()
 	-- 2026-10-19.
 	controls.power:SetOn(db.enabled)
 
+	-- Light up the scene the settings currently ARE, and only while they are
+	-- exactly it. Without this, pressing Night and then Cozy looks like Cozy
+	-- replaced Night rather than combining with it, because the two kinds
+	-- write disjoint settings and both stay true. The highlight drops off on
+	-- the first slider move, which is also the honest answer: a scene plus one
+	-- edit is not that scene any more.
+	for _, entry in ipairs(controls.presets or {}) do
+		local on = true
+		for k, v in pairs(entry.set) do
+			if db[k] ~= v then on = false break end
+		end
+		-- A bar under the button rather than a tint on its label. The two
+		-- pill flavours rest at different text colours, so a tint has to know
+		-- which one it is putting back, and the one the client's own template
+		-- uses is gold - which is this window's heading colour and reserved.
+		-- A bar is also the thing that still reads on a client with no button
+		-- art at all.
+		if on then entry.button.mark:Show() else entry.button.mark:Hide() end
+	end
+
 	controls.weather:SetValue(Title(db.weather), ICON[db.weather])
-	Teach(controls.weather.well, "Weather", "/comfy " .. db.weather,
+	Teach(controls.weather.well, "Type", "/comfy " .. db.weather,
 		"Rain or snow. The arrows step between them; so do /comfy rain and " ..
 		"/comfy snow.")
 
@@ -1002,7 +1050,7 @@ local function Refresh()
 		controls.hour:Set(db.timeOffset)
 		controls.hour.slider.tipTitle = "Shift by Hours"
 		controls.hour.slider.tipNote =
-			"Move the light forward or back from the realm's own clock."
+			"Move the light forward or back from the server's own clock."
 		controls.hour.slider.command = "/comfy time +9"
 	elseif db.timeMode == "fixed" then
 		controls.hour.label:SetText("Hold at Hour")
@@ -1089,7 +1137,7 @@ local function Build()
 
 	local title = Text(panel, "GameFontNormal", "CENTER")
 	title:SetPoint("TOP", header, "TOP", 0, -15)
-	title:SetText("ComfyRain")
+	title:SetText("Comfy Rain")
 	title:SetTextColor(GOLD[1], GOLD[2], GOLD[3])
 
 	-- The client's own round close button if the template is there, and our
@@ -1164,13 +1212,39 @@ local function Build()
 		if not rows[kind] then rows[kind] = {} order[#order + 1] = kind end
 		table.insert(rows[kind], p)
 	end
+	-- A caption per row, because the second row behaves differently from the
+	-- first in a way the labels cannot carry: Dusk and Night switch the
+	-- weather OFF. Not "Weather" and "Light", which would put a third thing
+	-- called Weather on screen above a heading that is already called that.
+	local CAPTION = { weather = "Scenes", light = "Light only" }
+	controls.presets = {}
 	for ri, kind in ipairs(order) do
-		local row = add(CreateFrame("Frame", nil, panel), { gap = ri == 1 and 6 or 3 })
+		local cap = add(CreateFrame("Frame", nil, panel), { gap = ri == 1 and 6 or 5 })
+		cap:SetHeight(13)
+		local capText = Text(cap, "GameFontDisableSmall")
+		capText:SetPoint("TOPLEFT", cap, "TOPLEFT", 2, 0)
+		capText:SetText(CAPTION[kind] or Title(kind))
+
+		local row = add(CreateFrame("Frame", nil, panel), { gap = 1 })
 		row:SetHeight(ROW)
 		for i, p in ipairs(rows[kind]) do
 			local b = Pill(row, p.label, function() Run("preset " .. p.key) end)
 			b:SetPoint("TOPLEFT", row, "TOPLEFT", slot * (i - 1), 0)
 			b:SetWidth(slot - 3)
+			b.mark = Fill(b, { 0.45, 1.00, 0.45, 0.85 }, "OVERLAY")
+			b.mark:SetHeight(2)
+			b.mark:SetPoint("BOTTOMLEFT", b, "BOTTOMLEFT", 3, 2)
+			b.mark:SetPoint("BOTTOMRIGHT", b, "BOTTOMRIGHT", -3, 2)
+			b.mark:Hide()
+			-- What the marker compares against, which is not always the whole
+			-- preset. `enabled` is the one key both kinds write, and a light
+			-- scene is still the light scene after a weather scene switches
+			-- the rain back on - that composition is the point of the split.
+			local match = {}
+			for k, v in pairs(p.set) do
+				if not (p.kind == "light" and k == "enabled") then match[k] = v end
+			end
+			controls.presets[#controls.presets + 1] = { button = b, set = match }
 			Teach(b, p.label, "/comfy preset " .. p.key,
 				(kind == "light"
 				 and ("Changes the light and nothing else, with the weather " ..
@@ -1180,6 +1254,18 @@ local function Build()
 				     "speed, the darkness, the wind and the thunder in one " ..
 				     "press: " .. p.blurb ..
 				     ". Everything below stays adjustable afterwards.")))
+		end
+		-- The light row's own undo, in the slot the two buttons leave empty.
+		-- Without it the only way back from Night is the Mode selector at the
+		-- very bottom of the window, which is a long way to go to put the sun
+		-- back and is not where anybody looks.
+		if kind == "light" then
+			local back = Pill(row, "Server Light", function() Run("time off") end)
+			back:SetPoint("TOPLEFT", row, "TOPLEFT", slot * #rows[kind], 0)
+			back:SetWidth(slot * 2 - 3)
+			Teach(back, "Server Light", "/comfy time off",
+				"Hand the light back to the server's own day and night. " ..
+				"Leaves the weather exactly as it is.")
 		end
 	end
 
@@ -1192,7 +1278,7 @@ local function Build()
 	-- Not plain "Weather": the heading above it and the rain/snow selector
 	-- below it are both already called that, and three things with one name in
 	-- 330 pixels is worse than a slightly longer label.
-	controls.power = add(Check(panel, "Weather effects", "/comfy", function()
+	controls.power = add(Check(panel, "Show rain & snow", "/comfy", function()
 		Run(DB().enabled and "off" or "on")
 	end))
 
@@ -1213,7 +1299,7 @@ local function Build()
 	offText:SetText("Weather and Sound below do nothing while this is off. " ..
 		"Time of Day still works on its own.")
 
-	controls.weather = add(Select(panel, "Weather", function(d)
+	controls.weather = add(Select(panel, "Type", function(d)
 		local order, db2 = WEATHERS, DB()
 		local at = 1
 		for i, n in ipairs(order) do if n == db2.weather then at = i end end
@@ -1240,21 +1326,21 @@ local function Build()
 		end
 	end
 
-	controls.alpha = add(Slider(panel, "Visibility", 0, 1.5, 0.05, "%.2f",
+	controls.alpha = add(Slider(panel, "Drops", 0, 1.5, 0.05, Pct,
 		function(v) Run(string.format("alpha %.2f", v)) end,
 		Back("scale", "alpha")))
-	Teach(controls.alpha.slider, "Visibility", "/comfy alpha 0.75",
+	Teach(controls.alpha.slider, "Drops", "/comfy alpha 0.75",
 		"How much weather you see through. At 0 the drops stop drawing and " ..
 		"you keep the darkening and the sound, which is the overcast-day " ..
 		"setup.")
 
-	controls.speed = add(Slider(panel, "Fall Speed", 0.2, 3, 0.05, "%.2f",
+	controls.speed = add(Slider(panel, "Fall Speed", 0.2, 3, 0.05, Pct,
 		function(v) Run(string.format("speed %.2f", v)) end,
 		Back("speed", "speed")))
 	Teach(controls.speed.slider, "Fall Speed", "/comfy speed 1.4",
 		"How fast it comes down.")
 
-	controls.dim = add(Slider(panel, "Darkness", 0, 2, 0.05, "%.2f",
+	controls.dim = add(Slider(panel, "Darkness", 0, 2, 0.05, Pct,
 		function(v) Run(string.format("dim %.2f", v)) end,
 		Back("gloom", "dim")))
 	Teach(controls.dim.slider, "Darkness", "/comfy dim 0.5",
@@ -1262,7 +1348,7 @@ local function Build()
 		"what this weather is meant to look like, and past that it keeps " ..
 		"going into proper storm dark. 2 is as dark as this addon goes.")
 
-	controls.gust = add(Slider(panel, "Wind", 0, 2, 0.05, "%.2f",
+	controls.gust = add(Slider(panel, "Wind", 0, 2, 0.05, Pct,
 		function(v) Run(string.format("gust %.2f", v)) end,
 		Back("gust", "gust")))
 	Teach(controls.gust.slider, "Wind", "/comfy gust 0.5",
@@ -1271,25 +1357,25 @@ local function Build()
 	-- Camera distance is the only part of the world camera an addon can read,
 	-- and it is a judgement call rather than a correctness fix, so it gets a
 	-- switch. Full width: it has no natural partner on a row.
-	controls.zoom = add(Check(panel, "Zoom Response", "/comfy zoom off",
+	controls.zoom = add(Check(panel, "Follow camera zoom", "/comfy zoom off",
 		function() Run(DB().zoom and "zoom off" or "zoom on") end))
-	Teach(controls.zoom, "Zoom Response", "/comfy zoom off",
+	Teach(controls.zoom, "Follow camera zoom", "/comfy zoom off",
 		"Drops get bigger and faster the closer the camera is, finer and " ..
 		"denser when you pull back.")
 
 	-- Sits with the look rather than with the switches, because what it changes
 	-- is what you see when the real thing is already on screen. On by default,
 	-- which is the one default that argues with the addon's own name.
-	controls.defer = add(Check(panel, "Yield to Real Weather", "/comfy defer off",
+	controls.defer = add(Check(panel, "Step aside for real weather", "/comfy defer off",
 		function() Run(DB().defer ~= false and "defer off" or "defer on") end))
-	Teach(controls.defer, "Yield to Real Weather", "/comfy defer off",
+	Teach(controls.defer, "Step aside for real weather", "/comfy defer off",
 		"Stand aside while the game's own rain or snow is falling. Theirs is " ..
 		"3D and stops under an arch or a bridge; ours is drawn in front of " ..
 		"the camera and cannot. Where the real thing exists, it wins.")
 
 	add(Heading(panel, "Sound", "sound"), { gap = 4 })
 
-	controls.volume = add(Slider(panel, "Volume", 0, 1, 0.05, "%.2f",
+	controls.volume = add(Slider(panel, "Volume", 0, 1, 0.05, Pct,
 		function(v) Run(string.format("volume %.2f", v)) end,
 		Back("volume", "volume")))
 	Teach(controls.volume.slider, "Volume", "/comfy volume 0.5",
@@ -1323,12 +1409,12 @@ local function Build()
 		"indoors even where the game says otherwise. If one is missed, stand " ..
 		"in it and type /comfy indoorhere.")
 
-	controls.channel = add(Select(panel, "Channel", function(d)
+	controls.channel = add(Select(panel, "Volume follows", function(d)
 		local db2, at = DB(), 1
 		for i, c in ipairs(CHANNELS) do if c == db2.channel then at = i end end
 		Run("channel " .. CHANNELS[((at - 1 + d) % #CHANNELS) + 1]:lower())
 	end))
-	Teach(controls.channel.well, "Channel", "/comfy channel Ambience",
+	Teach(controls.channel.well, "Volume follows", "/comfy channel Ambience",
 		"Which of the game's volume sliders owns the weather. Ambience keeps " ..
 		"it out of the way of music.")
 
@@ -1364,9 +1450,9 @@ local function Build()
 	-- Title, note and command are all replaced by Refresh, which knows which of
 	-- the two settings this row is currently standing in for.
 	Teach(controls.hour.slider, "Hour", "/comfy time +9",
-		"Move the light away from the realm's own clock.")
+		"Move the light away from the server's own clock.")
 
-	controls.strength = add(Slider(panel, "Strength", 0, 1, 0.05, "%.2f",
+	controls.strength = add(Slider(panel, "Strength", 0, 1, 0.05, Pct,
 		function(v) Run(string.format("time strength %.2f", v)) end,
 		Back("timeStrength", "time strength")),
 		{ visible = function() return DB().timeMode ~= "off" end })
@@ -1384,10 +1470,10 @@ local function Build()
 	-- Share is one button for both directions. Sending somebody your weather and
 	-- pasting theirs are the same box with the text selected or empty, and two
 	-- buttons for one box is how a 330px window stops being readable.
-	local share = Pill(foot, "Share", function() Run("share") end)
+	local share = Pill(foot, "Share / Import", function() Run("share") end)
 	share:SetPoint("TOPLEFT", foot, "TOPLEFT", third, 0)
 	share:SetWidth(third - 3)
-	Teach(share, "Share", "/comfy share",
+	Teach(share, "Share / Import", "/comfy share",
 		"A short line of text holding every setting. Send it to someone, or " ..
 		"paste theirs in to use it.")
 

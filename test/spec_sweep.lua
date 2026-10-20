@@ -191,7 +191,7 @@ local SLIDERS = {
 		offAt = 0,
 	},
 	{
-		label = "Visibility", cmd = "alpha", floor = 0, ceiling = 1.5, kind = "relative",
+		label = "Drops", cmd = "alpha", floor = 0, ceiling = 1.5, kind = "relative",
 		read = function(w) return w:layers().far:GetAlpha() end,
 		offAt = 0,
 	},
