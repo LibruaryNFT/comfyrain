@@ -29,10 +29,18 @@ ignore:
     - probe-results
     - install.sh
     - RESUME.md
+    # Research artifacts and brand deliberation. docs/ and the name prompt both
+    # shipped in v0.9.0-alpha, 194KB of API dumps and an internal argument about
+    # what to call this, sitting in a player's AddOns folder. Found by unzipping
+    # the published artifact, which is the only place it is visible: the
+    # directory having the files is not the question, what a player unzips is.
+    # The release workflow now fails on any .md that is not README or CHANGELOG.
+    - docs
     - consult-prompt-visual-quality.md
     - dr-prompt.md
     - dr-prompt-product.md
     - dr-prompt-name-and-scope.md
+    - dr-prompt-name-final.md
     - dr-prompt-is-this-worth-building.md
     - ComfyRain/Probe.lua
 

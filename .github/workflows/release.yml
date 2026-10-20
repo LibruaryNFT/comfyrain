@@ -108,6 +108,24 @@ jobs:
             echo "::error::Probe.lua leaked into the release zip"
             missing=1
           fi
+          # Named files in .pkgmeta are not enough: the ignore list is
+          # hand-maintained and every new research note is a new chance to
+          # forget it. v0.9.0-alpha shipped docs/ and dr-prompt-name-final.md,
+          # 194KB of API dumps and an internal argument about what to call this
+          # addon, into players' AddOns folders. This asserts the shape of the
+          # zip instead of a list of filenames, so the next note that gets
+          # added to the repo is caught without anyone remembering to.
+          stray=$(find /tmp/verify/ComfyRain -name '*.md' \
+                  ! -name README.md ! -name CHANGELOG.md)
+          if [ -n "$stray" ]; then
+            echo "::error::markdown that is not README or CHANGELOG is in the zip:"
+            echo "$stray"
+            missing=1
+          fi
+          if [ -d /tmp/verify/ComfyRain/docs ]; then
+            echo "::error::docs/ leaked into the release zip"
+            missing=1
+          fi
           # An unsubstituted token here means the packager did not see a tag,
           # and the addon list would show a literal @project-version@.
           if grep -q '@project-version@' /tmp/verify/ComfyRain/ComfyRain.toc; then

@@ -7,6 +7,35 @@ because the client cannot be told to actually change the weather.
 Stormwind. v2 switches all audio and the drop sprite to Blizzard's own assets and stops
 the rain indoors; needs `/reload` to pick up (no new files, so no client restart).
 
+## 2026-10-20 — the CurseForge submission, and what the first real zip was carrying
+
+**Two LLMs consulted** (Gemini 2.5 Pro and GPT-5; Groq 403'd, so this is two of three
+and not a consensus of three). Both independently said the same three things:
+
+| Question | Verdict |
+|---|---|
+| Publish the CurseForge page today? | **Yes, today.** Moderation is a human queue and a first-time author may wait longer than the 15 days left. Placeholder art does not get a project rejected; an unapproved page on 4 Nov is fatal |
+| Last hours of client access | Both ranked the TOC flavour test **#1**. It turned out to be already answered on disk, see the section above |
+| The 4 Nov / 11 Nov split | Everything already live-tested ships 4 Nov. They differed only on blackout code: Gemini said collapse the split, GPT-5 said hold blind-written code for 1.1.0. **Taking GPT-5's**, which is also the house rule already in this file |
+
+GPT-5 added the point neither the 13 Oct consult nor I had: **attach a real file**, because
+a project with no downloadable file sits in the moderation queue longer and reads as
+abandoned to whoever approves it. Hence `v0.9.1-alpha`, marked Alpha, not Release.
+
+**Unzipping the published artifact found a leak that the repo could not show.** The first
+alpha, `v0.9.0-alpha`, shipped `docs/` and `dr-prompt-name-final.md` to players: 194KB of
+API dumps, a 3D-feasibility note and an internal argument about what to call this addon,
+all landing in an AddOns folder. `.pkgmeta`'s ignore list is hand-maintained and never had
+them. Deleted that release and shipped `v0.9.1-alpha`.
+
+**The guard is now shape-based, not a list of names.** The release workflow fails on any
+`.md` in the zip that is not README or CHANGELOG, and on a `docs/` directory. A list of
+filenames only catches the notes that already existed when somebody last remembered to
+update it; this catches the next one.
+
+**Page copy is written and paste-ready:** `docs/curseforge-page.md`, one fenced block per
+CurseForge field.
+
 ## 2026-10-20 — the TOC flavour question was already answered, on disk
 
 **#4 needed no restart. It had already run, twice.** The flavour probe staged in

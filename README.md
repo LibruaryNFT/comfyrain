@@ -7,8 +7,9 @@ zone, and a lot of zones never get any. Comfy Rain is the switch the game does n
 type `/comfy` and it is raining, in Durotar, in Elwynn, at the top of a mountain, on the
 deck of the boat. Type it again and it stops.
 
-It runs on top of the game's own weather rather than fighting it. If the server sends a
-real storm, you get both.
+It knows when to get out of the way. If the server sends a real storm, Comfy Rain stands
+aside and lets it fall: the game's own rain is 3D, so it stops under an arch or a bridge
+the way rain should, and where the real thing exists it is simply the better of the two.
 
 ![Comfy Rain, heavy rain over Stormwind](https://raw.githubusercontent.com/LibruaryNFT/comfyrain/main/docs/preview.jpg)
 
