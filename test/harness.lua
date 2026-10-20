@@ -284,6 +284,27 @@ function H.world(opts)
 		return found
 	end
 
+	-- Every word the window is currently showing, as one string. Walks up to
+	-- the panel the same way hoverables() does, so a line inside a row that
+	-- Relayout has hidden does not count as being on screen.
+	function w:panelText()
+		local panel, out = self:panel(), {}
+		for _, f in ipairs(mock.frames) do
+			local at, hidden = f, false
+			while at do
+				if at._shown == false then hidden = true end
+				if at == panel then break end
+				at = at._parent
+			end
+			if at == panel and not hidden then
+				for _, fs in ipairs(f._fontStrings or {}) do
+					if fs.text then out[#out + 1] = fs.text end
+				end
+			end
+		end
+		return table.concat(out, "\n")
+	end
+
 	function w:flash()
 		local o = self:overlay()
 		for _, t in ipairs(o._textures) do

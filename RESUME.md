@@ -49,6 +49,18 @@ every refresh (`LightPhrase`), and `/comfy stop` kills everything including the 
 `/comfy off` now prints that the light is still held and points at both switches. Two
 specs pin it, one for the curtain surviving `off` and one for `stop` taking it down.
 
+**In the window, with no slash commands:** untick **Weather effects**, then set
+**Time of Day > Mode** to **My Clock**. Two clicks. The Time of Day section stays on
+screen and keeps working when the master switch is off, which is the point.
+
+Decoupling the light created a new way to be confused, so the window now says it: with
+the weather off, a line under the master switch reads *"Weather and Sound below do
+nothing while this is off. Time of Day still works on its own."* It appears only in that
+state. Darkness sits under Weather and goes inert; Time of Day sits below it and does
+not, and a player moving the wrong one of those concludes the addon is broken.
+`harness.lua` grew `panelText()` for this — every word the window is currently showing,
+with hidden rows excluded — because there was no way to assert on panel copy before.
+
 **Still true, and it is a limitation not a bug:** the gloom layer is a fullscreen MOD
 multiply, so it dims lamps and torches by the same factor as everything else. It cannot
 make a light source glow. Compositions whose whole appeal is warm lamps against cold

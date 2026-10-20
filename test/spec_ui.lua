@@ -1619,3 +1619,29 @@ it("says why nothing is drawn when it is standing aside, not just that nothing i
 	w:advance(0.5)
 	ok(w:says("^Drawing normal rain"), "and it goes back to normal when told to")
 end)
+
+it("tells the window which controls are dead while the weather is off",
+function()
+	-- Two sections of the window go inert when the master switch is off, and a
+	-- third does not. Nothing on screen said which was which: Darkness sits
+	-- under Weather and stops working, Time of Day sits below it and keeps
+	-- working, and a player moving the wrong one of those concludes the addon
+	-- is broken. "does the ui menus allow it to be used easily as well, im
+	-- confused", 2026-10-20.
+	local w = H.world()
+	w:open()
+
+	w:slash("off")
+	local off = w:panelText()
+	contains(off, "Weather and Sound below do nothing",
+		"the window says the weather controls are dead")
+	contains(off, "Time of Day still works on its own",
+		"and points at the section that is not")
+	contains(off, "Time of Day", "which is still on screen to be pointed at")
+
+	-- Only when it is true. Carrying a permanent warning about a state the
+	-- player is not in is how a window teaches people to stop reading it.
+	w:slash("on")
+	eq(w:panelText():find("Weather and Sound below") ~= nil, false,
+		"and the line is gone once the weather is on")
+end)

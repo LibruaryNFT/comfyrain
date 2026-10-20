@@ -1157,6 +1157,23 @@ local function Build()
 		Run(DB().enabled and "off" or "on")
 	end))
 
+	-- Everything in Weather and Sound is inert while that box is unticked, and
+	-- a slider that moves and does nothing is the most confusing control a
+	-- window can have. Time of Day is the exception and is the whole reason
+	-- this line exists: it draws on its own, so a player who wants their own
+	-- clock and no rain has somewhere to go instead of concluding the addon is
+	-- broken. Appears only when it is true, so the window is unchanged for
+	-- anyone actually using the weather.
+	local offNote = add(CreateFrame("Frame", nil, panel),
+		{ gap = 2, visible = function() return not DB().enabled end })
+	offNote:SetHeight(26)
+	local offText = Text(offNote, "GameFontDisableSmall")
+	offText:SetPoint("TOPLEFT", offNote, "TOPLEFT", 0, 0)
+	offText:SetPoint("TOPRIGHT", offNote, "TOPRIGHT", 0, 0)
+	offText:SetJustifyV("TOP")
+	offText:SetText("Weather and Sound below do nothing while this is off. " ..
+		"Time of Day still works on its own.")
+
 	controls.weather = add(Select(panel, "Weather", function(d)
 		local order, db2 = WEATHERS, DB()
 		local at = 1
