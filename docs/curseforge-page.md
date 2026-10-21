@@ -81,6 +81,7 @@ Comfy Rain draws a screen-space overlay: scrolling layers of rain in front of th
 
 - It looks right when you are looking at the world.
 - It cannot put rain outside a window while you stand indoors. There is one overlay and no way to ask the client which pixels are sky, so indoors it fades to a faint wash instead.
+- Indoor detection is a guess, and it is sometimes wrong. The client answers for the whole zone object you are standing in, not for the patch of ground above your head, so open courtyards, awnings, bridges and cave mouths are where it gets it backwards. `/comfy indoors off` makes it stop caring, and `/comfy bug` captures the coordinates if you find a spot that reads wrong.
 - It cannot change the sky, the clouds or the fog.
 - It does not make puddles, wet the ground, or stop you drowning.
 
@@ -204,8 +205,18 @@ master copy; convert it to `<h2>`, `<p>`, `<ul>/<li>`, `<hr>`, `<strong>`, `<cod
 | Item | Status |
 |---|---|
 | Project avatar / icon | Done at creation: `docs/logo.png` |
-| Gallery image | `docs/preview.jpg`, a real in-game frame |
-| Moderation approval | Waiting, out of our hands |
-| `## X-Curse-Project-ID` + `CF_API_KEY` secret | Blocked on approval. Until both exist every upload here is manual |
-| Launch GIF | Not captured. Issue #10. Blocked until the client returns 4 November, and a still undersells a moving effect |
+| Gallery images | Done: `docs/preview1.jpg`, `preview2.jpg`, `preview3.jpg` |
+| Moderation approval | Approved 2026-10-20 |
+| `## X-Curse-Project-ID` | Done, `1756622`, in the TOC |
+| `CF_API_KEY` secret | Outstanding. Until it exists every upload here is manual |
+| Launch GIF | Done: `docs/preview.gif` |
 | v1.0.0 as Release | 4 November |
+
+### The 2MB image ceiling
+
+CurseForge rejects a gallery image over 2MB, and rain is close to worst case for GIF:
+every pixel changes every frame, so there is almost no inter-frame delta to remove and
+size tracks width x height x frames nearly linearly. A 640x358 12fps 4.2s loop came out
+at 6.0MB. Shipping size is 480x270, 10fps, 3.2s, 64 colours: 1,910,182 bytes, under both
+readings of "2MB". Measured alternatives that did not fit: 512w/3.0s 2,016,756 bytes,
+520w/3.0s 2,072,441, 560w/48c 2,194,160.

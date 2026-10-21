@@ -86,6 +86,12 @@ In practice that means:
 - It cannot put rain *outside* a window while you stand indoors. There is one overlay and
   no way to ask the client which pixels are sky, so indoors it fades to a faint wash
   instead. `/comfy indoors off` turns it off entirely.
+- **Indoor detection is a guess, and it is sometimes wrong.** The addon asks the client
+  whether you are under a roof, and the client answers for the whole zone object you are
+  standing in, not for the patch of ground above your head. Open courtyards, awnings,
+  bridges and cave mouths are the places it gets it backwards. When that happens the rain
+  fades in the open, or keeps falling under a roof. `/comfy indoors off` makes it stop
+  caring. If you find a spot that reads wrong, `/comfy bug` captures the coordinates.
 - It cannot change the sky, the clouds or the fog. Nothing an addon draws can go behind
   the world.
 - It does not make puddles, wet the ground, or stop you drowning.
