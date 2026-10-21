@@ -35,13 +35,9 @@ ignore:
     # the published artifact, which is the only place it is visible: the
     # directory having the files is not the question, what a player unzips is.
     # The release workflow now fails on any .md that is not README or CHANGELOG.
+    # The six dr-prompt/consult-prompt files these lines used to name were
+    # deleted from the repo on 2026-10-21, so there is nothing left to ignore.
     - docs
-    - consult-prompt-visual-quality.md
-    - dr-prompt.md
-    - dr-prompt-product.md
-    - dr-prompt-name-and-scope.md
-    - dr-prompt-name-final.md
-    - dr-prompt-is-this-worth-building.md
     - ComfyRain/Probe.lua
 
 manual-changelog:
