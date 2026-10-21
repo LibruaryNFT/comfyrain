@@ -7,6 +7,7 @@
 ## X-Website: https://github.com/LibruaryNFT/comfyrain
 ## X-License: MIT
 ## X-Category: Audio & Video
+## X-Curse-Project-ID: 1756622
 ## SavedVariables: ComfyRainDB
 ## AddonCompartmentFunc: ComfyRain_Compartment
 ## AddonCompartmentFuncOnEnter: ComfyRain_CompartmentEnter
