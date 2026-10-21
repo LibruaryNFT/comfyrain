@@ -11,7 +11,7 @@ It knows when to get out of the way. If the server sends a real storm, Comfy Rai
 aside and lets it fall: the game's own rain is 3D, so it stops under an arch or a bridge
 the way rain should, and where the real thing exists it is simply the better of the two.
 
-![Comfy Rain, heavy rain over Stormwind](https://raw.githubusercontent.com/LibruaryNFT/comfyrain/main/docs/preview.jpg)
+![Comfy Rain, snow falling over Goldshire at night](https://raw.githubusercontent.com/LibruaryNFT/comfyrain/main/docs/preview.jpg)
 
 <!-- Swap this line for docs/preview.gif once the loop is captured. The still
      is a real in-game frame, not a mock-up, so it is an honest placeholder -
