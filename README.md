@@ -11,11 +11,11 @@ It knows when to get out of the way. If the server sends a real storm, Comfy Rai
 aside and lets it fall: the game's own rain is 3D, so it stops under an arch or a bridge
 the way rain should, and where the real thing exists it is simply the better of the two.
 
-![Comfy Rain, rain over the Stormwind Trade District](https://raw.githubusercontent.com/LibruaryNFT/comfyrain/main/docs/preview.jpg)
+![Comfy Rain, rain over the Stormwind Trade District](https://raw.githubusercontent.com/LibruaryNFT/comfyrain/main/docs/preview.gif)
 
-<!-- Swap this line for docs/preview.gif once the loop is captured. The still
-     is a real in-game frame, not a mock-up, so it is an honest placeholder -
-     but rain is motion and a still undersells it. -->
+<!-- A real 4-second loop from the beta client, Storm preset, Stormwind Trade
+     District. docs/preview.jpg is the same scene as a still and stays in the
+     repo as the fallback if the GIF ever has to come out. -->
 
 
 ## What you get
