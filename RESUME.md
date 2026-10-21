@@ -170,7 +170,7 @@ scenes in two kinds, each kind writing a fixed set of keys: `weather` presets wr
 
 Shooting store screenshots at the Stormwind gates, the scene would not get dark enough
 and the only control that could do it was `/comfy time`. That is a different feature.
-Justin: *"to change the brightness we shouldnt be setting that with time and strength of
+The author: *"to change the brightness we shouldnt be setting that with time and strength of
 time"*. He is right, and the reason was arithmetic:
 
 - The gloom layer lerps the frame towards the weather's `tint`, `0.55 / 0.62 / 0.78` for
@@ -232,7 +232,7 @@ from an image-model contact sheet and committed. It replaces the
 rendered-from-`make_icon_tga.py` version.
 
 **Drop proportions are a hard constraint, not a style note.** The first pick was a
-diagonal cell whose drops had a long tapered neck over a bulbous base. Justin, instantly:
+diagonal cell whose drops had a long tapered neck over a bulbous base. The author, instantly:
 *"its too close to a penis rather than a rain drop"*. He is right and it cannot be
 unseen. Any future drop art keeps classic teardrop proportions — wide round bottom,
 short point on top, neck no longer than the bulb is wide — and gets looked at by a human
@@ -248,7 +248,7 @@ then cropped and resampled to a true 64x64 and judged *there*, not on the 1536 s
 - Splashes, crowns and columns of small drops also die. What survives is one bold mass,
   two colours, and no thin wiry detail.
 - **Clever metaphors are worse than the literal thing.** A flame inside a raindrop
-  ("comfy" + "rain") reads in a WoW icon vocabulary as a Fire or Frost spell. Justin:
+  ("comfy" + "rain") reads in a WoW icon vocabulary as a Fire or Frost spell. The author:
   *"why would it be a flame drop, thats stupid"*. He was right. The addon draws rain, so
   the icon is rain.
 - A single large droplet is the most legible cell on the sheet and was still rejected: it

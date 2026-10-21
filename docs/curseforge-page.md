@@ -34,7 +34,7 @@ Makes it rain or snow anywhere in the game, with weather sounds, wind and thunde
 Required. 512x512, rendered rather than upscaled from the 64px in-game icon:
 
 ```
-/home/mycomputer/code/wow-alwaysrain/docs/logo.png
+docs/logo.png
 ```
 
 ## Class
