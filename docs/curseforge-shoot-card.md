@@ -48,6 +48,17 @@ UI for it:
 ```
 /console screenshotFormat png
 /console screenshotQuality 10
+/console chatBubbles 0
+/console chatBubblesParty 0
+```
+
+`Alt+Z` does **not** hide chat bubbles - they are drawn in the world, not in the UI - and
+the Stormwind gates are full of people talking. Both CVars are confirmed present in
+`WowB.exe 1.60.1.70425`. Put them back after the shoot with:
+
+```
+/console chatBubbles 1
+/console chatBubblesParty 1
 ```
 
 **Shoot in daylight.** If the realm is dark, come back when it is not. The gloom layer is
