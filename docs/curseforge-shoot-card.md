@@ -1,23 +1,31 @@
 # The shoot card
 
-One pass, two cities, one tram ride. Everything after the capture is mine: cropping, the
-before/after split, webm to GIF under the 2MB ceiling, and the assembly.
+9 captures: **6 PHOTO, 3 VIDEO.** Three spots, one tram ride. Everything after the
+capture is mine - cropping, the before/after split, webm to GIF under 2MB, assembly.
 
-**Two keys and that is all:**
+## The two keys
 
-| Key | Does | Lands in |
+| Key | What | Lands in |
 |---|---|---|
-| `PrintScreen` | still | `_forever_/Screenshots/` |
-| `Ctrl+Shift+Alt+R` | start / stop a clip | `~/Videos/Screencasts/` |
+| `PrintScreen` | **PHOTO** | `_classic_beta_/Screenshots/` |
+| `Ctrl+Shift+Alt+R` | **VIDEO** - press once to start, again to stop | `~/Videos/Screencasts/` |
+| `Alt+Z` | toggles the UI | - |
 
-`Alt+Z` hides the UI. **Hide it for every frame except the menu shot.**
+## The settings: don't touch any slider
 
-## Before you start
+**Use the preset buttons and nothing else.** No Darkness, no Sound, no Speed, no scale.
+Every frame has to be something a player gets by clicking one button on a fresh install,
+otherwise the page is advertising a config they do not have. The only typed commands are
+the ones on this card.
 
-The client must be **fully restarted**, not `/reload` - the new rain and snow TGAs are new
-files and WoW reads the addon file list once at launch.
+Default gamma too. Do not touch `/console gamma`.
 
-Then paste this into chat once:
+## Step 0 - restart the client
+
+Required. New rain and snow TGAs are new files and WoW reads the addon file list once at
+launch. You are on `_classic_beta_`; the new build is installed there as of 11:47.
+
+Log back in, then paste once:
 
 ```
 /console screenshotFormat png
@@ -25,52 +33,55 @@ Then paste this into chat once:
 /comfy time 15
 ```
 
-`time 15` pins mid-afternoon so every frame is lit the same way and the shoot does
-not change character as the realm clock moves. The dusk frame undoes it at the end.
+`time 15` pins mid-afternoon so all nine frames are lit the same way. Step 9 puts it back.
 
 ---
 
-## Spot 1 - Valley of Heroes, facing the Stormwind gates
+# SPOT 1 - Valley of Heroes, facing the Stormwind gates
 
-Stand where the two statues frame the road in. This composition is already proven.
-Four frames here.
+Stand where the statues frame the road. Four captures here, same camera for all of them.
+**Do not move the mouse between steps 2 and 3.**
 
-**1a. Storm, the hero GIF.** `Alt+Z`, then:
+### 1 - VIDEO - storm, 90 seconds
 
-```
-/comfy preset storm
-```
-
-`Ctrl+Shift+Alt+R`, **wait 90 seconds**, `Ctrl+Shift+Alt+R`. Ninety, not ten: monsoon
-fires lightning about every 48 s and I need a strike in the footage to cut the loop
-around. Stand still, do not move the camera.
-
-**1b. Before / after.** Same camera, do not touch the mouse:
+`Alt+Z` to hide the UI, then:
 
 ```
 /comfy preset storm
 ```
 
-`PrintScreen`, then
+`Ctrl+Shift+Alt+R` → **wait 90 seconds** → `Ctrl+Shift+Alt+R`.
+
+Stand still, don't move the camera. 90 and not 10: lightning fires about every 48 s and
+I need a strike in the footage to cut the loop around.
+
+### 2 - PHOTO - storm, "after"
+
+UI still hidden, same camera. `PrintScreen`.
+
+### 3 - PHOTO - "before"
 
 ```
 /comfy off
 ```
 
-`PrintScreen`. Two files, I split-screen them.
+`PrintScreen`. That is the pair I split-screen. **Don't move the camera.**
 
-**1c. The menu, over live rain.** `Alt+Z` to bring the UI *back*, then:
+### 4 - PHOTO - the menu over live rain
+
+`Alt+Z` to bring the UI **back**, then:
 
 ```
 /comfy on
-/comfy preset storm
 /comfy ui
 ```
 
-Drag the window to the left third so the rain and the gates are visible behind it.
+Drag the window to the left third so the rain and the gates show behind it.
 `PrintScreen`.
 
-**1d. Cozy.** Close the window, `Alt+Z` to hide the UI:
+### 5 - PHOTO - cozy
+
+Close the window, `Alt+Z` to hide the UI again:
 
 ```
 /comfy preset cozy
@@ -80,30 +91,35 @@ Drag the window to the left third so the rain and the gates are visible behind i
 
 ---
 
-## Spot 2 - the Gilded Rose, Trade District
+# SPOT 2 - the Gilded Rose, Trade District
 
-The inn on the right as you come into the Trade District.
+The inn on the right as you come in from the gates.
 
-**2a. Indoors, the rain stopping at the door.** UI hidden, stand outside facing the door:
+### 6 - VIDEO - walking in out of the rain, ~15 seconds
+
+UI hidden, stand **outside** facing the door:
 
 ```
 /comfy preset storm
 ```
 
-`Ctrl+Shift+Alt+R`, walk in, turn around, walk out, `Ctrl+Shift+Alt+R`. About 15 seconds.
+`Ctrl+Shift+Alt+R` → walk in, turn around, walk back out → `Ctrl+Shift+Alt+R`.
+
 This is the frame that proves it is not a screen filter.
 
-**2b. Minimap button.** UI visible, any spot:
+### 7 - PHOTO - minimap button
 
-`PrintScreen`. I crop the corner.
+`Alt+Z` to show the UI. `PrintScreen`. Anywhere, I crop the corner.
 
 ---
 
-## Spot 3 - Deeprun Tram to Ironforge, then out the front gates
+# SPOT 3 - Ironforge, out the front gates
 
-Stand on the ramp outside the gates looking down at Dun Morogh.
+Deeprun Tram from the Trade District. Stand on the ramp looking down at Dun Morogh.
 
-**3a. Snow.** UI hidden:
+### 8 - PHOTO - snow
+
+`Alt+Z` to hide the UI:
 
 ```
 /comfy preset snow
@@ -111,28 +127,29 @@ Stand on the ramp outside the gates looking down at Dun Morogh.
 
 `PrintScreen`.
 
-**3b. Blizzard, the second GIF.**
+### 9 - VIDEO - blizzard, 20 seconds
 
 ```
 /comfy blizzard
 ```
 
-`Ctrl+Shift+Alt+R`, **20 seconds**, `Ctrl+Shift+Alt+R`. No lightning in a blizzard, so
-this one does not need the long take.
+`Ctrl+Shift+Alt+R` → **20 seconds** → `Ctrl+Shift+Alt+R`.
+
+No lightning in a blizzard, so this one doesn't need the long take.
 
 ---
 
-## Spot 4 - anywhere outdoors with a view
+# Step 10 - dusk, then put the clock back
 
-**4a. Dusk.** UI hidden:
+UI hidden, anywhere outdoors with a view:
 
 ```
 /comfy preset dusk
 ```
 
-`PrintScreen`.
+`PrintScreen`. That is a 10th frame and the only one that is optional.
 
-Then put the clock back:
+Then:
 
 ```
 /comfy time local
@@ -140,30 +157,28 @@ Then put the clock back:
 
 ---
 
-## What comes back
+## Checklist
 
-Nine captures: six stills, three clips. Tell me when they are down and I will take it
-from there - nothing else needs your hands.
+| # | Type | Spot | What |
+|---|---|---|---|
+| 1 | **VIDEO** 90s | SW gates | storm, catch a lightning strike |
+| 2 | PHOTO | SW gates | storm, "after" |
+| 3 | PHOTO | SW gates | addon off, "before" |
+| 4 | PHOTO | SW gates | the menu over live rain |
+| 5 | PHOTO | SW gates | cozy |
+| 6 | **VIDEO** 15s | Gilded Rose | walking in out of the rain |
+| 7 | PHOTO | anywhere | minimap button |
+| 8 | PHOTO | IF gates | snow |
+| 9 | **VIDEO** 20s | IF gates | blizzard |
+| 10 | PHOTO | anywhere | dusk (optional) |
 
-| # | Spot | Capture |
-|---|---|---|
-| 1a | SW gates | clip, 90s, storm |
-| 1b | SW gates | 2 stills, on and off |
-| 1c | SW gates | still, menu over rain |
-| 1d | SW gates | still, cozy |
-| 2a | Gilded Rose | clip, 15s, walking in |
-| 2b | anywhere | still, minimap button |
-| 3a | IF gates | still, snow |
-| 3b | IF gates | clip, 20s, blizzard |
-| 4a | anywhere | still, dusk |
+Tell me when they are down. Nothing else needs your hands.
 
-## Why these spots and not others
+## Why these spots
 
-- **Do not shoot warm lamps against cold rain.** The gloom layer is a fullscreen MOD
-  multiply: it dims torches by the same factor as everything else and cannot make a
-  light source glow. That composition is the one this addon loses, and the Stormwind
-  braziers at night are exactly it. Mid-afternoon is why the clock is pinned.
-- **Default gamma.** A frame shot at `/console gamma 1.6` is a frame of something the
-  player will not get.
-- The gates, the inn and the Ironforge ramp are three spots inside one tram ride. Most of
-  the cost of this shoot is travel, not capture.
+- **Never shoot warm lamps against cold rain.** The gloom is a fullscreen MOD multiply:
+  it dims torches by the same factor as everything else and cannot make a light source
+  glow. Stormwind braziers at night are exactly that composition, and it is the one this
+  addon loses. Pinning the clock to 15 is what avoids it.
+- The gates, the inn and the Ironforge ramp are three spots inside one tram ride. Most
+  of the cost here is travel, not capture.
