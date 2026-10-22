@@ -1,10 +1,14 @@
 # The shoot card
 
-9 captures: **6 PHOTO, 3 VIDEO.** Three spots, one tram ride.
+10 captures: **7 PHOTO, 3 VIDEO.** Three spots, one tram ride.
+
+**No video is published.** CurseForge takes images only. Each clip is raw footage I cut a
+2-4 second looping GIF out of - that is the deliverable. There is no YouTube video.
 
 **Everything is a button in the Comfy Rain window.** No slash commands - the shots are
 supposed to show off the presets, so every frame is something a player gets by clicking
-one button on a fresh install. Open the window with the minimap drop.
+one button on a fresh install. Open the window with the minimap drop. The one exception
+is the strike macro in step 0, which is a recording trigger, not a setting.
 
 ## Keys
 
@@ -18,7 +22,7 @@ one button on a fresh install. Open the window with the minimap drop.
 
 | # | Type | Spot | **Set this** | What you do |
 |---|---|---|---|---|
-| 1 | **VIDEO** 90s | SW gates | **Storm** | hide UI, record, stand still 90s, stop |
+| 1 | **VIDEO** 15s | SW gates | **Storm** | hide UI, record, press strike key x2, stop |
 | 2 | PHOTO | SW gates | **Storm** | same camera, shoot |
 | 3 | PHOTO | SW gates | **master switch OFF** | don't move the camera, shoot |
 | 4 | PHOTO | SW gates | **Storm**, master back ON | UI **visible**, window dragged left, shoot |
@@ -40,7 +44,7 @@ hand-tuned config advertises something a fresh install does not give.
 ## Step 0 - restart the client
 
 Required. The new rain and snow TGAs are new files, and WoW reads the addon file list
-once at launch. You are on `_classic_beta_`; the new build went in there at 11:47.
+once at launch. You are on `_classic_beta_`; the new build went in there at 12:32.
 
 Log back in and paste this once. It is the only typing in the whole shoot - there is no
 UI for it:
@@ -51,6 +55,11 @@ UI for it:
 /console chatBubbles 0
 /console chatBubblesParty 0
 ```
+
+Then make the **strike macro**, once: `/macro` -> New -> name it `strike` -> body
+`/comfy strike` -> drag it to an empty action bar slot. That slot's key fires one
+thunderclap on demand, and keybinds work with the UI hidden. Without it, capture 1 is a
+90-second stand-still waiting for lightning that averages one every 48 seconds.
 
 `Alt+Z` does **not** hide chat bubbles - they are drawn in the world, not in the UI - and
 the Stormwind gates are full of people talking. Both CVars are confirmed present in
@@ -72,9 +81,10 @@ this addon loses - and Stormwind at night is exactly that.
 
 Stand where the statues frame the road. Captures 1-5, **same camera for all five**.
 
-- **1 VIDEO.** Click **Storm**. `Alt+Z`. `Ctrl+Shift+Alt+R`, wait **90 seconds**,
-  `Ctrl+Shift+Alt+R`. Stand still, do not move the camera. 90 and not 10 because
-  lightning fires about every 48 s and I need a strike to cut the loop around.
+- **1 VIDEO.** Click **Storm**. `Alt+Z`. `Ctrl+Shift+Alt+R`. Press the **strike macro
+  key** (step 0), wait ~5 s, press it again, `Ctrl+Shift+Alt+R`. About **15 seconds**,
+  two flashes on cue, and I cut the GIF around whichever is cleaner. Stand still, do
+  not move the camera. Keybinds still fire with the UI hidden, so nothing shows.
 - **2 PHOTO.** Still on Storm, UI still hidden. `PrintScreen`.
 - **3 PHOTO.** `Alt+Z`, flip the **master switch off**, `Alt+Z`. `PrintScreen`.
   **Do not move the camera** - 2 and 3 are the before/after pair I split-screen.
