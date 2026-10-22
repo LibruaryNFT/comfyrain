@@ -130,21 +130,37 @@ def to_tga(alpha, path, tint):
 def main():
     out = sys.argv[1].rstrip("/")
 
+    # Sheet pixels are not screen pixels, and sigma is not the flake either: a
+    # flake's visible diameter is about 3*sigma, and the Lua then magnifies the
+    # whole sheet by H/(tilesY*density*512). At the heavy preset that is x1.71,
+    # so a sigma of 6.2 arrives on screen as a 32px ball of light. Every number
+    # below has to be read through both factors before it means anything.
+    #
+    # These used to be far 900 @ 1.1-2.3, near 210 @ 2.6-6.2, gale 300 @
+    # 1.5-3.2 elong 7.0. Because density is inverted (light 1.20, blizzard
+    # 0.66), that made the flakes grow as the snow got heavier: heavy snow was
+    # 565 fat blobs where light snow was 1210 small ones. Heavier weather has
+    # to mean more flakes, not bigger ones, so the sheets are now finer and far
+    # more populous and the magnification has something to magnify.
+
     # far: a haze of tiny out-of-focus flakes, the depth of the fall
-    far = scatter(900, 1.1, 2.3, 0.05, 0.16, seed=101,
+    far = scatter(1500, 0.9, 1.9, 0.05, 0.15, seed=101,
                   elong=1.15, elong_jitter=0.2, angle=0.0, angle_jitter=0.35)
 
-    # near: fewer, larger, resolved enough to show an edge
-    near = scatter(210, 2.6, 6.2, 0.14, 0.38, seed=207,
+    # near: larger and resolved enough to show an edge, but still a flake and
+    # not a snowball - about 7-20px on screen across the intensity range.
+    near = scatter(800, 1.3, 3.0, 0.12, 0.32, seed=207,
                    elong=1.3, elong_jitter=0.35, angle=0.0, angle_jitter=0.45,
                    hex_strength=0.07)
 
     # blizzard: the wind beats gravity, so the streaks lie close to flat. 78
     # degrees off vertical, not 90, because a perfectly horizontal field looks
-    # like a screen wipe rather than weather.
+    # like a screen wipe rather than weather. Elongation is 5.0, not 7.0: at
+    # 7.0 the longest streak reached 205px on a 1080p screen, 19% of the frame
+    # height, and read as scratches on glass rather than as driven snow.
     gale = math.radians(78)
-    bliz = scatter(300, 1.5, 3.2, 0.09, 0.30, seed=313,
-                   elong=7.0, elong_jitter=3.0, angle=gale, angle_jitter=0.12)
+    bliz = scatter(900, 0.9, 1.9, 0.07, 0.24, seed=313,
+                   elong=5.0, elong_jitter=2.0, angle=gale, angle_jitter=0.12)
 
     to_tga(far, f"{out}/snow-far.tga", (0.92, 0.95, 1.00))
     to_tga(near, f"{out}/snow-near.tga", (0.97, 0.98, 1.00))
