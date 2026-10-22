@@ -7,6 +7,56 @@ because the client cannot be told to actually change the weather.
 Stormwind. v2 switches all audio and the drop sprite to Blizzard's own assets and stops
 the rain indoors; needs `/reload` to pick up (no new files, so no client restart).
 
+## 2026-10-22 — The fall speeds are derived now, not tuned by eye
+
+"It feels our rain falls too quickly" turned out to be two separate errors, and the second
+one needed research we had never done. The art was researched (drop shape, streak-length
+distribution, snow morphology); the **motion** never was. Per-intensity speeds and layer
+speeds were all tuned by eye.
+
+Two deep research reports came back against
+[docs/motion-realism-research-prompt.md](motion-realism-research-prompt.md). Both are saved
+verbatim: [report 1](motion-research-report-1.md),
+[report 2](motion-research-report-2.md). **Read
+[docs/motion-research-reconciliation.md](motion-research-reconciliation.md) first** — it
+records which report won each disputed point, the four places report 2 is checkably wrong,
+the full before/after speed table, and what is deferred.
+
+Shipped in this pass:
+
+- **Rain now spans 2.37x light to monsoon, not 4.7x.** Monsoon's near layer came down 53%.
+  Normal rain is the anchor and did not move. Terminal velocity goes as roughly the square
+  root of drop diameter, and the median-volume diameter only runs 0.8 mm to 2.5 mm across
+  everything rain does.
+- **Snow spans 1.35x, not 2.9x.** Heavy snow came down 59%.
+- **Blizzard falls at the same vertical rate as light snow**, which is the physical truth.
+  Its speed is sideways: slant 78 to 85 degrees, and `make_snow_tga.py` bakes the gale
+  streaks at 85 to match. Along-streak travel is 1.86 H/s.
+- **Scene preset speed multipliers are all 1.0.** Cozy and Storm were 0.9, Snow 0.8. Those
+  were taste corrections on top of numbers that were wrong by a factor. Cozy lands within
+  3% of where it was, so the preset most people sit in is unchanged.
+- **Camera yaw no longer has parallax on it.** Rotation is depth-independent — a yaw of
+  omega moves every ray by omega — while we were scaling it 0.25 / 0.9 / 1.0 per layer and
+  shearing the three layers against each other on every turn. `PARALLAX` is gone.
+
+Still open, both art-coupled and both their own pass:
+
+- **Rain slant is 7.5 degrees for every intensity and should be 22 to 56.** Needs
+  `make_rain_tga.py` re-baked at the new angle, or sheared UVs via the 8-argument
+  `SetTexCoord`. A sheet whose streaks point one way and whose travel points another reads
+  as a filter over the screen; that is the bug the blizzard sheet had at 62 degrees.
+- **Running should tilt the field, not speed it up.** `(1 + runSpeed * 0.3)` is the wrong
+  vector treatment: 7 m/s through 9 m/s rain is a 38 degree tilt and only +26% speed.
+
+Lower priority, no art dependency: `GUST_FOLLOW` should be ~0.7 s for rain and ~0.1 s for
+snow rather than 6.0 / 2.2 / 1.0 per layer; near and far both loop at ~0.94 s and one
+should be detuned; `ZOOM_RATE`'s 20% first-person speed boost has no physical basis.
+
+**The gallery shoot has to happen after the remaining motion work**, or the GIFs ship the
+old motion.
+
+The gale TGA changed bytes, so this one needs a **full client restart**, not a `/reload`.
+
 ## 2026-10-22 — The rain and snow stopped being a pattern
 
 Storm's streaks, the snow and the blizzard all read as fake. Cozy did not, and Cozy is

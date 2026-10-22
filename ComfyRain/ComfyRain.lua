@@ -127,11 +127,22 @@ local WEATHER = {
 		oneShots = THUNDER,
 		fallbackOneShot = MEDIA .. "thunder.ogg",
 		fallbackBed = { file = MEDIA .. "rain.ogg", len = 24.0 },
+		-- The four speeds used to span 4.7x, light to monsoon. They now span
+		-- 2.37x, which is what the drop-size literature actually supports.
+		-- Terminal velocity goes as roughly the square root of diameter over
+		-- the sizes rain actually contains, and the median-volume diameter only
+		-- grows from about 0.8 mm at drizzle to 2.5 mm in a tropical downpour.
+		-- So an area-weighted fall speed moves 3.4 -> 6.2 -> 7.5 -> 8.1 m/s
+		-- across the four, and that is all the speed a downpour has over a
+		-- shower. What the eye reads as "heavier" is count, streak thickness,
+		-- gloom and slant, every one of which we already scale harder than
+		-- speed. Anchored on normal = 1.00, which is unchanged and was the one
+		-- that always looked right.
 		presets = {
-			light   = { mist = 0.05, far = 0.40, near = 0.35, speed = 0.59, gloom = 0.18, strikeEvery = 70, bed = { id = 538983, len = 20.0 }, under = { id = 538981, len = 30.0, volume = 0.35 } },
+			light   = { mist = 0.05, far = 0.40, near = 0.35, speed = 0.547, gloom = 0.18, strikeEvery = 70, bed = { id = 538983, len = 20.0 }, under = { id = 538981, len = 30.0, volume = 0.35 } },
 			normal  = { mist = 0.10, far = 0.70, near = 0.65, speed = 1.00, gloom = 0.38, strikeEvery = 64, bed = { id = 538981, len = 30.0 }, under = { id = 538983, len = 20.0, volume = 0.40 } },
-			heavy   = { mist = 0.17, far = 0.95, near = 0.90, speed = 1.60, gloom = 0.75, strikeEvery = 57, bed = { id = 538982, len = 25.0 }, under = { id = 538981, len = 30.0, volume = 0.45 } },
-			monsoon = { mist = 0.26, far = 1.00, near = 1.00, speed = 2.76, gloom = 0.95, strikeEvery = 48, bed = { id = 538982, len = 25.0 }, under = { id = 538983, len = 20.0, volume = 0.55 } },
+			heavy   = { mist = 0.17, far = 0.95, near = 0.90, speed = 1.204, gloom = 0.75, strikeEvery = 57, bed = { id = 538982, len = 25.0 }, under = { id = 538981, len = 30.0, volume = 0.45 } },
+			monsoon = { mist = 0.26, far = 1.00, near = 1.00, speed = 1.295, gloom = 0.95, strikeEvery = 48, bed = { id = 538982, len = 25.0 }, under = { id = 538983, len = 20.0, volume = 0.55 } },
 		},
 	},
 	snow = {
@@ -160,21 +171,25 @@ local WEATHER = {
 		oneShots = GUSTS,
 		fallbackOneShot = nil,  -- nothing bundled; a missing gust costs nothing
 		fallbackBed = { file = MEDIA .. "rain.ogg", len = 24.0 },
+		-- Snow settles between 0.85 and 1.15 m/s across essentially everything
+		-- that is not graupel: a dry dendrite and a 3 mm unrimed aggregate fall
+		-- at nearly the same speed, because the aggregate gains drag as fast as
+		-- it gains mass. That is a 1.35x span, not the 2.9x we had. Blizzard
+		-- falls no faster than light snow at all - all of its speed is sideways
+		-- transport, which the slant below supplies.
 		presets = {
-			light    = { mist = 0.06, far = 0.34, near = 0.30, speed = 0.22, gloom = 0.26, strikeEvery = 85, bed = { id = 538985, len = 29.951 }, under = { id = 538989, len = 50.0, volume = 0.30 } },
-			normal   = { mist = 0.12, far = 0.62, near = 0.58, speed = 0.36, gloom = 0.54, strikeEvery = 82, bed = { id = 538989, len = 50.0 }, under = { id = 538985, len = 29.951, volume = 0.35 } },
-			heavy    = { mist = 0.20, far = 0.88, near = 0.84, speed = 0.63, gloom = 0.78, strikeEvery = 78, bed = { id = 538984, len = 40.0 }, under = { id = 538989, len = 50.0, volume = 0.40 } },
+			light    = { mist = 0.06, far = 0.34, near = 0.30, speed = 0.193, gloom = 0.26, strikeEvery = 85, bed = { id = 538985, len = 29.951 }, under = { id = 538989, len = 50.0, volume = 0.30 } },
+			normal   = { mist = 0.12, far = 0.62, near = 0.58, speed = 0.227, gloom = 0.54, strikeEvery = 82, bed = { id = 538989, len = 50.0 }, under = { id = 538985, len = 29.951, volume = 0.35 } },
+			heavy    = { mist = 0.20, far = 0.88, near = 0.84, speed = 0.261, gloom = 0.78, strikeEvery = 78, bed = { id = 538984, len = 40.0 }, under = { id = 538989, len = 50.0, volume = 0.40 } },
 			blizzard = {
-				-- speed 1.15, down from 2.58, and that is not a slowdown. The
-				-- field travels along its slant, so its screen speed is the
-				-- vertical rate times sqrt(1 + slant^2). Steepening the slant
-				-- below from 1.9 to 4.70 multiplies that by 4.81/2.15 = 2.24
-				-- on its own, so the rate comes down by the same factor and
-				-- the snow crosses the screen at exactly the pace it did. The
-				-- sheet's streaks are a fixed length; moving them faster than
-				-- their own blur suggests is what makes a scroll look like a
-				-- scroll.
-				mist = 0.30, far = 1.00, near = 1.00, speed = 1.15, gloom = 0.55,
+				-- speed is the VERTICAL rate, and a blizzard's flakes settle no
+				-- faster than light snow's - so this is the same 0.227 the other
+				-- three use. Everything that makes a blizzard a blizzard lives in
+				-- the slant below: the field travels along it, at the vertical
+				-- rate times sqrt(1 + slant^2), which at 85 degrees is 11.5x.
+				-- Driving it from speed instead is how we ended up with flakes
+				-- falling four times faster than snow can fall.
+				mist = 0.30, far = 1.00, near = 1.00, speed = 0.227, gloom = 0.55,
 				bed = { id = 538984, len = 40.0 },
 				under = { id = 538989, len = 50.0, volume = 0.35 },
 				-- The gale sheet replaces the near layer: wind-driven snow is
@@ -189,16 +204,20 @@ local WEATHER = {
 				-- is a large part of why this read as a motion-blur filter
 				-- rather than as wind.
 				--
-				-- 4.7046 is tan(78), so the travel now runs along the streaks.
-				-- 62 degrees was never a gale anyway: a flake settling at
-				-- 0.8 m/s needs only 1.5 m/s of sideways air to fall at 62,
-				-- where a real blizzard is 80 to 86 degrees off vertical.
+				-- 11.4301 is tan(85), and make_snow_tga.py bakes the gale
+				-- streaks at 85 to match, so the travel runs along the streaks.
+				-- 62 degrees was never a gale anyway, and 78 was still shy: the
+				-- apparent angle is atan(wind / fall speed), so a flake settling
+				-- at 0.9 m/s in the 10 m/s that defines a blizzard is already at
+				-- 85. Below about 80 the eye reads it as a squall, not a storm.
 				--
-				-- sway 2.0 rather than 0.5, because sway is added to slant and
-				-- the same absolute step buys far less angle up here. It gives
-				-- a wobble of about +-4 degrees, in the range turbulence puts
-				-- on blowing snow, rather than the +-5 the old number gave.
-				slant = 4.7046, sway = 2.0, swayRate = 0.12,
+				-- sway 4.6, because sway is added to slant and the same absolute
+				-- step buys far less angle this steep: d(angle)/d(tan) is
+				-- 1/(1+tan^2), so 4.6 here is a wobble of +-2 degrees. That is
+				-- the spread blowing snow actually holds - the direction is
+				-- pinned by a wind far stronger than the settling speed, so it
+				-- varies much LESS than a calm flurry's does, not more.
+				slant = 11.4301, sway = 4.6, swayRate = 0.12,
 				-- 0.22, up from 0.05. The old number was tuned against an ADD
 				-- quad, where it was the only thing stopping the frame being
 				-- washed pale. This is a BLEND now, so it removes 22% of the
@@ -214,12 +233,19 @@ local WEATHER = {
 	},
 }
 
--- Yaw parallax. Turning the camera should sweep the curtain sideways; without it
--- the sheet slides at one fixed rate no matter what the camera does, which is the
+-- Yaw. Turning the camera should sweep the curtain sideways; without it the
+-- sheet slides at one fixed rate no matter what the camera does, which is the
 -- single biggest tell that this is a 2D overlay. Approximated from player facing
 -- (no camera-yaw API is exposed) over roughly the horizontal field of view.
+--
+-- There is deliberately no parallax on it. Translation falls off as 1/depth, so
+-- a near drop sweeps past faster than a far one when you STRAFE - but rotation
+-- does not. A yaw of omega moves every ray by omega, so a flake at 1 m and a
+-- flake at 30 m slide across the screen by the same angle. This used to scale
+-- the yaw by { mist 0.25, far 0.9, near 1.0 }, which sheared the three layers
+-- against each other on every turn: the depth cue said one thing, the motion
+-- said another, and the eye reads that mismatch as a texture, not as weather.
 local FOV_H = math.pi * 0.52
-local PARALLAX = { mist = 0.25, far = 0.9, near = 1.0 }
 
 -- Gusts. A constant scroll rate reads as a conveyor belt inside a minute: the
 -- eye finds the loop and the illusion is over. Real weather arrives in gusts,
@@ -548,23 +574,23 @@ local PRESETS = {
 	{ key = "cozy", label = "Cozy", kind = "weather",
 	  blurb = "a light rain with the sound up and no thunder",
 	  set = { enabled = true, weather = "rain", intensity = "light",
-	          scale = 0.85, speed = 0.9, gloom = 0.8, gust = 0.6,
+	          scale = 0.85, speed = 1.0, gloom = 0.8, gust = 0.6,
 	          sound = true, thunder = false } },
-	-- speed 0.9, not the 1.3 this shipped with for an hour. monsoon's own
-	-- calibrated fall speed is 2.76, the highest in the table, and a multiplier
-	-- on top of it put the sheets at 3.59: past a certain rate a 2D sheet stops
-	-- reading as rain and starts reading as a scrolling texture, which is
-	-- exactly what it is. Heavy rain sells itself with density and dark, not
-	-- with pace. Same for the wind, down from 1.6.
+	-- speed 1.0, not the 0.9 that sat here, and not the 1.3 this shipped with
+	-- for an hour. Both of those were taste corrections applied on top of a
+	-- monsoon fall speed that was itself wrong by a factor of two. The
+	-- intensity table is derived now, so a preset that scales it is a preset
+	-- that un-derives it: every one of these is 1.0 and the physics stands.
+	-- Heavy rain still sells itself with density, dark and slant, not pace.
 	{ key = "storm", label = "Storm", kind = "weather",
 	  blurb = "a monsoon, dark, with the wind and the thunder in it",
 	  set = { enabled = true, weather = "rain", intensity = "monsoon",
-	          scale = 1.0, speed = 0.9, gloom = 1.5, gust = 1.2,
+	          scale = 1.0, speed = 1.0, gloom = 1.5, gust = 1.2,
 	          sound = true, thunder = true } },
 	{ key = "snow", label = "Snow", kind = "weather",
 	  blurb = "snow coming down steadily",
 	  set = { enabled = true, weather = "snow", intensity = "normal",
-	          scale = 1.0, speed = 0.8, gloom = 1.0, gust = 0.8,
+	          scale = 1.0, speed = 1.0, gloom = 1.0, gust = 0.8,
 	          sound = true, thunder = false } },
 	-- The one nobody finds on their own. scale 0 stops the drops drawing while
 	-- the darkening and the ambience carry on, so it is a heavy grey sky with
@@ -1619,7 +1645,7 @@ local function OnUpdate(self, elapsed)
 		o.y = (o.y - dy) % 1
 		-- Slant drift, plus the camera swing scaled into this layer's tiling so
 		-- every layer sweeps the same distance across the screen.
-		o.x = (o.x - dy * slant + swing * PARALLAX[l.key] * tilesX) % 1
+		o.x = (o.x - dy * slant + swing * tilesX) % 1
 		textures[l.key]:SetTexCoord(o.x, o.x + tilesX, o.y, o.y + tilesY)
 	end
 end

@@ -202,19 +202,20 @@ def main():
                    elong=1.3, elong_sig=0.30, angle=0.0, angle_sd=0.24,
                    hex_strength=0.07)
 
-    # gale: the wind beats gravity, so the streaks lie close to flat. 78
+    # gale: the wind beats gravity, so the streaks lie close to flat. 85
     # degrees off vertical, which is what ComfyRain.lua's blizzard slant of
-    # 4.7046 = tan(78) now scrolls at: the sheet and its travel have to point
-    # the same way or it reads as a filter applied to the screen. A flake
-    # settling at 0.8 m/s reaches 78 degrees in about 3.8 m/s of wind, and a
-    # real blizzard runs 80 to 86, so this is if anything conservative - but a
-    # perfectly horizontal field looks like a screen wipe rather than weather.
+    # 11.4301 = tan(85) scrolls at: the sheet and its travel have to point
+    # the same way or it reads as a filter applied to the screen. The angle is
+    # atan(wind / fall speed), and a flake settling at 0.9 m/s is already at 85
+    # in the 10 m/s that defines a blizzard; 78 needs only 4.2 m/s, which is a
+    # breezy flurry. Stopping short of 90 still matters - a perfectly
+    # horizontal field looks like a screen wipe rather than weather.
     #
     # The gust field is what makes this a blizzard rather than a hatch
     # pattern: blowing snow is suspended by turbulence and measured
     # concentrations vary strongly from place to place, so the density here
     # varies smoothly, stretched 150px along the wind against 55px across it.
-    gale = math.radians(78)
+    gale = math.radians(85)
     bliz = scatter(1600, 0.55, 2.30, a_med=0.118, a_sig=0.68,
                    a_lo=0.010, a_hi=0.32, seed=313,
                    elong=4.2, elong_sig=0.50, angle=gale, angle_sd=0.13,
