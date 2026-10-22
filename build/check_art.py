@@ -46,11 +46,15 @@ SIZE = 512
 # key -> tilesY, straight out of LAYERS in ComfyRain.lua
 TILES_Y = {"far": 3.0, "near": 1.5}
 
-# weather -> intensity -> density, straight out of the preset tables
-DENSITY = {
-    "rain": {"light": 1.35, "normal": 1.00, "heavy": 0.78, "monsoon": 0.58},
-    "snow": {"light": 1.20, "normal": 1.00, "heavy": 0.82, "blizzard": 0.66},
-}
+# weather -> tiling, straight out of the WEATHER table. One number each: it is
+# no longer per-intensity, because intensity used to magnify the sheet and that
+# was issue #11. Intensity is carried by alpha and speed now.
+TILING = {"rain": 1.35, "snow": 1.20}
+
+# Zoom still moves the tiling, and first person is the magnifying end of it:
+# ZOOM_PIVOT 0.65 and ZOOM_RANGE 0.55 in the Lua, at zoomNorm 0. This is the
+# largest the sheet is ever drawn, so it is the case the ceiling has to hold at.
+ZOOM_WORST = 1 + (0.0 - 0.65) * 0.55
 
 # A single element may not exceed this share of the frame along its own axis -
 # height for a falling streak, width for a wind-driven one. Above it the eye
@@ -198,36 +202,33 @@ def measure_largest(name, a):
 
 
 def check_on_screen(name, a):
-    """Largest element, in screen pixels, at every preset that uses the sheet.
+    """Largest element, in screen pixels, at the scale that magnifies the most.
 
-    The sheet is scaled by H/(tilesY*density*512), and density is inverted, so
-    the preset with the SMALLEST density magnifies the most. Each axis is
-    judged against its own screen dimension: a wind-driven streak lying nearly
-    flat crosses the 1920px width, not the 1080px height, and calling it 16% of
-    the frame because the vertical number was the only one measured would
-    condemn art that looks right.
+    The sheet is scaled by H/(tilesY*tiling*512), so the SMALLER the tiling the
+    bigger the element. Intensity no longer touches tiling, so the only thing
+    left that does is zoom, and first person is its magnifying end.
+
+    Each axis is judged against its own screen dimension: a wind-driven streak
+    lying nearly flat crosses the 1920px width, not the 1080px height, and
+    calling it 16% of the frame because the vertical number was the only one
+    measured would condemn art that looks right.
     """
     vert, horz = measure_largest(name, a)
     weather = "rain" if name.startswith("rain") else "snow"
     key = "far" if "far" in name else "near"        # the gale sheet is a near
+    scale = SCREEN_H / (TILES_Y[key] * TILING[weather] * ZOOM_WORST * SIZE)
     worst = (0.0, None)
-    for intensity, dens in DENSITY[weather].items():
-        if name == "snow-gale.tga" and intensity != "blizzard":
-            continue
-        if name == "snow-near.tga" and intensity == "blizzard":
-            continue                                 # gale replaces near there
-        scale = SCREEN_H / (TILES_Y[key] * dens * SIZE)
-        for ext, screen, axis in ((vert, SCREEN_H, "tall"),
-                                  (horz, SCREEN_W, "wide")):
-            px = ext * scale
-            if px / screen > worst[0]:
-                worst = (px / screen, (intensity, px, axis))
-    share, (intensity, px, axis) = worst
+    for ext, screen, axis in ((vert, SCREEN_H, "tall"),
+                              (horz, SCREEN_W, "wide")):
+        px = ext * scale
+        if px / screen > worst[0]:
+            worst = (px / screen, (px, axis))
+    share, (px, axis) = worst
     if share > MAX_FRAME_SHARE:
-        fail(name, f"largest element is {px:.0f}px {axis} at {intensity} = "
+        fail(name, f"largest element is {px:.0f}px {axis} in first person = "
                    f"{100*share:.0f}% of the frame, over the "
                    f"{100*MAX_FRAME_SHARE:.0f}% ceiling")
-    return intensity, px, share, axis
+    return px, share, axis
 
 
 def check_icon(path):
@@ -268,9 +269,9 @@ def main():
         a, cov = check_channels(name, img)
         check_seam(name, a)
         check_uniformity(name, a, cov)
-        intensity, px, share, axis = check_on_screen(name, a)
+        px, share, axis = check_on_screen(name, a)
         print(f"  {name:16s} {hd['w']}x{hd['h']} {hd['bpp']}-bit  "
-              f"{100*cov:5.1f}%  {px:5.0f}px {axis:4s} at {intensity:<9s} "
+              f"{100*cov:5.1f}%  {px:5.0f}px {axis:4s} "
               f"= {100*share:4.1f}% of the frame")
     check_icon(f"{d}/icon.tga")
 

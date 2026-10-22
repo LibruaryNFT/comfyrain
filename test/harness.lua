@@ -186,11 +186,18 @@ function H.world(opts)
 		return out
 	end
 
-	-- The blizzard whiteout: the only ADD colour quad in the ARTWORK layer. The
-	-- near snow layer also adds, but it is a texture, not a colour.
+	-- The blizzard whiteout: the only colour quad in the ARTWORK layer. The
+	-- precipitation layers live there too, but they are textures, not colours.
+	--
+	-- Matched on colour alone, not on the blend mode. It used to be found as
+	-- "the ADD colour quad", which quietly made the test a test of the blend
+	-- mode: switching it to BLEND, which is what a whiteout actually is, made
+	-- this return nil and three specs fail with an index-of-nil rather than
+	-- with anything about whiteouts. A locator should find the thing, not
+	-- assert about it.
 	function w:whiteout()
 		for _, t in ipairs(self:overlay()._textures) do
-			if t.layer == "ARTWORK" and t.blend == "ADD" and t.colour then return t end
+			if t.layer == "ARTWORK" and t.colour then return t end
 		end
 	end
 

@@ -170,16 +170,21 @@ end)
 it("derives horizontal tiling from the real aspect ratio", function()
 	-- The author plays on 21:9. A sheet tiled by a fixed count would stretch
 	-- every drop sideways on his monitor and look correct on nobody else's.
+	--
+	-- Stated as a ratio rather than against a literal tile count: the claim is
+	-- that tilesX is tilesY times the aspect, and pinning the absolute number
+	-- here only made this spec fail every time the tiling was retuned for
+	-- reasons that had nothing to do with aspect.
 	local wide = H.world({ width = 3440, height = 1440 })
 	wide:advance(0.1)
 	local c = wide:layers().far.texCoord
-	near(c[2] - c[1], 3.0 * (3440 / 1440), 1e-6, "far tilesX at 21:9")
-	near(c[4] - c[3], 3.0, 1e-9, "far tilesY is fixed")
+	near((c[2] - c[1]) / (c[4] - c[3]), 3440 / 1440, 1e-6, "far tilesX at 21:9")
 
 	local narrow = H.world({ width = 1920, height = 1080 })
 	narrow:advance(0.1)
 	local n = narrow:layers().far.texCoord
-	near(n[2] - n[1], 3.0 * (1920 / 1080), 1e-6, "far tilesX at 16:9")
+	near((n[2] - n[1]) / (n[4] - n[3]), 1920 / 1080, 1e-6, "far tilesX at 16:9")
+	near(n[4] - n[3], c[4] - c[3], 1e-9, "and tilesY does not move with the monitor")
 end)
 
 it("keeps drops the same shape from 4:3 to 32:9", function()

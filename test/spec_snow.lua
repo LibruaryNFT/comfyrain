@@ -175,7 +175,13 @@ it("whites out in a blizzard, and only in a blizzard", function()
 	local w = H.world()
 	local q = w:whiteout()
 	ok(q, "the whiteout quad exists")
-	eq(q.blend, "ADD", "ADD, because MOD can only darken and a whiteout brightens")
+	-- BLEND, not ADD. A whiteout is contrast collapsing towards the sky, and
+	-- only BLEND does that: it scales every difference in the frame by (1-a),
+	-- where ADD shifts the whole frame by a constant and leaves every
+	-- difference exactly where it was. The old ADD quad could brighten but
+	-- could not actually obscure anything, which is why it read as a gamma
+	-- slider rather than as weather.
+	eq(q.blend, "BLEND", "BLEND, because a whiteout destroys contrast, not darkness")
 	near(q:GetAlpha(), 0, 1e-9, "off in rain")
 
 	w:slash("snow")
@@ -184,10 +190,10 @@ it("whites out in a blizzard, and only in a blizzard", function()
 	w:slash("blizzard")
 	gt(q:GetAlpha(), 0, "on in a blizzard")
 	-- An addon that hides a mob is an addon that gets uninstalled.
-	lt(q:GetAlpha(), 0.23, "and capped well short of hiding the world")
+	lt(q:GetAlpha(), 0.31, "and capped well short of hiding the world")
 
 	w:slash("alpha 1.5")
-	lt(q:GetAlpha(), 0.23, "still capped when the player cranks the alpha")
+	lt(q:GetAlpha(), 0.31, "still capped when the player cranks the alpha")
 end)
 
 it("snow tints cooler than rain but still darkens", function()

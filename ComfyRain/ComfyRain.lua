@@ -77,12 +77,33 @@ local SNOWMIST_TEXTURE = 186229   -- Textures/WEATHER/SNOWMIST01.BLP
 -- 9 m/s and smears into streaks; snow falls at about 1, tumbles, and drifts
 -- sideways on any breeze at all, so it needs a sway term rain does not have.
 -- Rain darkens the scene. Heavy snow does too, but a blizzard does the
--- opposite: it is a whiteout, and the only way a 2D overlay can brighten the
--- world is an ADD quad, so blizzard is the one preset that uses one.
+-- opposite: it is a whiteout. A whiteout is not "the frame got brighter", it
+-- is contrast collapsing towards the sky, so the quad that does it is BLEND,
+-- not ADD. See the whiteout texture in BuildOverlay for the algebra.
 local WEATHER = {
 	rain = {
 		label   = "rain",
 		order   = { "light", "normal", "heavy", "monsoon" },
+		-- How many copies of the 512px sheet the screen gets, as a multiplier
+		-- on each layer's own tilesY. ONE number for the whole weather, and
+		-- deliberately not a per-intensity one.
+		--
+		-- It used to be per-intensity, and inverted: monsoon sat at 0.58 and
+		-- light at 1.35, so the heavier the rain the FEWER and LARGER the
+		-- streaks. Copies on screen go as tilesY squared, so monsoon drew 511
+		-- near streaks where light rain drew 2770, each of them nearly twice
+		-- as long. That is backwards. Marshall-Palmer puts about 32 visible
+		-- drops per cubic metre at 1 mm/h against 477 at 25 mm/h: heavy rain
+		-- is a far more crowded field of ordinary drops, not a few big ones.
+		-- It is also the whole reason storm read as bars drawn on the screen.
+		--
+		-- Pinned at light rain's old value so the Cozy preset is unchanged,
+		-- which is the one that already looked right. Intensity is now carried
+		-- by alpha, fall speed and gloom alone. Alpha is a real count control
+		-- rather than a brightness knob, because the sheet's drops span a wide
+		-- range of faintness: raising it brings the faint tail over the
+		-- visibility threshold, which is more drops, not brighter ones.
+		tiling  = 1.35,
 		mist    = MIST_TEXTURE,
 		mistTint = { 0.58, 0.64, 0.74 },
 		far     = MEDIA .. "rain-far.tga",
@@ -107,15 +128,20 @@ local WEATHER = {
 		fallbackOneShot = MEDIA .. "thunder.ogg",
 		fallbackBed = { file = MEDIA .. "rain.ogg", len = 24.0 },
 		presets = {
-			light   = { mist = 0.05, far = 0.40, near = 0.35, density = 1.35, speed = 0.59, gloom = 0.18, strikeEvery = 70, bed = { id = 538983, len = 20.0 }, under = { id = 538981, len = 30.0, volume = 0.35 } },
-			normal  = { mist = 0.10, far = 0.70, near = 0.65, density = 1.00, speed = 1.00, gloom = 0.38, strikeEvery = 64, bed = { id = 538981, len = 30.0 }, under = { id = 538983, len = 20.0, volume = 0.40 } },
-			heavy   = { mist = 0.17, far = 0.95, near = 0.90, density = 0.78, speed = 1.60, gloom = 0.75, strikeEvery = 57, bed = { id = 538982, len = 25.0 }, under = { id = 538981, len = 30.0, volume = 0.45 } },
-			monsoon = { mist = 0.26, far = 1.00, near = 1.00, density = 0.58, speed = 2.76, gloom = 0.95, strikeEvery = 48, bed = { id = 538982, len = 25.0 }, under = { id = 538983, len = 20.0, volume = 0.55 } },
+			light   = { mist = 0.05, far = 0.40, near = 0.35, speed = 0.59, gloom = 0.18, strikeEvery = 70, bed = { id = 538983, len = 20.0 }, under = { id = 538981, len = 30.0, volume = 0.35 } },
+			normal  = { mist = 0.10, far = 0.70, near = 0.65, speed = 1.00, gloom = 0.38, strikeEvery = 64, bed = { id = 538981, len = 30.0 }, under = { id = 538983, len = 20.0, volume = 0.40 } },
+			heavy   = { mist = 0.17, far = 0.95, near = 0.90, speed = 1.60, gloom = 0.75, strikeEvery = 57, bed = { id = 538982, len = 25.0 }, under = { id = 538981, len = 30.0, volume = 0.45 } },
+			monsoon = { mist = 0.26, far = 1.00, near = 1.00, speed = 2.76, gloom = 0.95, strikeEvery = 48, bed = { id = 538982, len = 25.0 }, under = { id = 538983, len = 20.0, volume = 0.55 } },
 		},
 	},
 	snow = {
 		label   = "snow",
 		order   = { "light", "normal", "heavy", "blizzard" },
+		-- Same fix as rain's tiling, same reason. Pinned at light snow's old
+		-- 1.20, the finest the snow sheets ever drew: normal snow gets 1.44x
+		-- the flakes at 1.2x smaller, and blizzard 3.3x the streaks at 1.8x
+		-- shorter, which is the direction a real snowfall goes.
+		tiling  = 1.20,
 		mist    = SNOWMIST_TEXTURE,
 		mistTint = { 0.80, 0.84, 0.92 },
 		far     = MEDIA .. "snow-far.tga",
@@ -135,22 +161,50 @@ local WEATHER = {
 		fallbackOneShot = nil,  -- nothing bundled; a missing gust costs nothing
 		fallbackBed = { file = MEDIA .. "rain.ogg", len = 24.0 },
 		presets = {
-			light    = { mist = 0.06, far = 0.34, near = 0.30, density = 1.20, speed = 0.22, gloom = 0.26, strikeEvery = 85, bed = { id = 538985, len = 29.951 }, under = { id = 538989, len = 50.0, volume = 0.30 } },
-			normal   = { mist = 0.12, far = 0.62, near = 0.58, density = 1.00, speed = 0.36, gloom = 0.54, strikeEvery = 82, bed = { id = 538989, len = 50.0 }, under = { id = 538985, len = 29.951, volume = 0.35 } },
-			heavy    = { mist = 0.20, far = 0.88, near = 0.84, density = 0.82, speed = 0.63, gloom = 0.78, strikeEvery = 78, bed = { id = 538984, len = 40.0 }, under = { id = 538989, len = 50.0, volume = 0.40 } },
+			light    = { mist = 0.06, far = 0.34, near = 0.30, speed = 0.22, gloom = 0.26, strikeEvery = 85, bed = { id = 538985, len = 29.951 }, under = { id = 538989, len = 50.0, volume = 0.30 } },
+			normal   = { mist = 0.12, far = 0.62, near = 0.58, speed = 0.36, gloom = 0.54, strikeEvery = 82, bed = { id = 538989, len = 50.0 }, under = { id = 538985, len = 29.951, volume = 0.35 } },
+			heavy    = { mist = 0.20, far = 0.88, near = 0.84, speed = 0.63, gloom = 0.78, strikeEvery = 78, bed = { id = 538984, len = 40.0 }, under = { id = 538989, len = 50.0, volume = 0.40 } },
 			blizzard = {
-				mist = 0.30, far = 1.00, near = 1.00, density = 0.66, speed = 2.58, gloom = 0.55,
+				-- speed 1.15, down from 2.58, and that is not a slowdown. The
+				-- field travels along its slant, so its screen speed is the
+				-- vertical rate times sqrt(1 + slant^2). Steepening the slant
+				-- below from 1.9 to 4.70 multiplies that by 4.81/2.15 = 2.24
+				-- on its own, so the rate comes down by the same factor and
+				-- the snow crosses the screen at exactly the pace it did. The
+				-- sheet's streaks are a fixed length; moving them faster than
+				-- their own blur suggests is what makes a scroll look like a
+				-- scroll.
+				mist = 0.30, far = 1.00, near = 1.00, speed = 1.15, gloom = 0.55,
 				bed = { id = 538984, len = 40.0 },
 				under = { id = 538989, len = 50.0, volume = 0.35 },
 				-- The gale sheet replaces the near layer: wind-driven snow is
 				-- near-horizontal streaks, which is a different sprite, not a
 				-- faster scroll of the same one.
 				near_texture = MEDIA .. "snow-gale.tga",
-				slant = 1.9, sway = 0.5, swayRate = 0.12,
-				-- A whiteout brightens. Capped hard: this is the one effect in
-				-- the addon that can make the world harder to play in, and an
-				-- addon that hides a mob is an addon that gets uninstalled.
-				whiteout = 0.05,
+				-- slant is tan(angle off vertical) on screen, exactly: the
+				-- tilesX/tilesY ratio cancels the aspect out of it. 1.9 was
+				-- therefore atan(1.9) = 62 degrees, while make_snow_tga.py
+				-- bakes the gale streaks at 78. The sheet's streaks pointed one
+				-- way and the whole sheet slid another, 16 degrees off, which
+				-- is a large part of why this read as a motion-blur filter
+				-- rather than as wind.
+				--
+				-- 4.7046 is tan(78), so the travel now runs along the streaks.
+				-- 62 degrees was never a gale anyway: a flake settling at
+				-- 0.8 m/s needs only 1.5 m/s of sideways air to fall at 62,
+				-- where a real blizzard is 80 to 86 degrees off vertical.
+				--
+				-- sway 2.0 rather than 0.5, because sway is added to slant and
+				-- the same absolute step buys far less angle up here. It gives
+				-- a wobble of about +-4 degrees, in the range turbulence puts
+				-- on blowing snow, rather than the +-5 the old number gave.
+				slant = 4.7046, sway = 2.0, swayRate = 0.12,
+				-- 0.22, up from 0.05. The old number was tuned against an ADD
+				-- quad, where it was the only thing stopping the frame being
+				-- washed pale. This is a BLEND now, so it removes 22% of the
+				-- scene's contrast instead of adding brightness, and 0.05 of
+				-- that does nothing a player would notice.
+				whiteout = 0.22,
 				-- Wind over the snow bed. Two loops at once, which nothing else
 				-- in the addon needs, because this is what a blizzard sounds like.
 				wind = { id = 918050, len = 110.713 },
@@ -898,11 +952,13 @@ local function ApplyAlphas()
 	local gr, gg, gb = GloomColor(g, w, db.gloom)
 	gloom:SetColorTexture(gr, gg, gb, 1)
 
-	-- The whiteout is the opposite move and only a blizzard uses it: ADD is the
-	-- only way a 2D overlay can brighten anything. Capped well below the point
-	-- where it could hide a mob, because an addon that does that gets deleted.
+	-- The whiteout is the opposite move and only a blizzard uses it: a BLEND
+	-- towards sky luminance, which takes contrast out of the frame rather than
+	-- brightness into it. See BuildOverlay for why that distinction decides the
+	-- blend mode. Capped at 0.30, a third of the scene's contrast, which is
+	-- well short of hiding anything.
 	if whiteout then
-		whiteout:SetAlpha(math.min((p.whiteout or 0) * s, 0.10))
+		whiteout:SetAlpha(math.min((p.whiteout or 0) * s, 0.30))
 	end
 end
 
@@ -1465,9 +1521,17 @@ local function OnUpdate(self, elapsed)
 	local aspect = w / h
 	local weather, p = W(), Preset()
 	local rate = p.speed * db.speed * (1 + runSpeed * 0.3)
-	local density = p.density
+	-- One value for the whole weather now, not one per intensity; see the note
+	-- on tiling in WEATHER. Zoom still moves it, and should: pulling the camera
+	-- back really does put more, finer rain between you and the world. That is
+	-- perspective. Intensity is not, and no longer touches it.
+	-- Named for what it is. It was called `density` for years while being a
+	-- tiling multiplier, and a number whose name says "more rain" while its
+	-- effect is "smaller rain, quadratically less of it" is how issue #11
+	-- survived as long as it did.
+	local sheetTiling = weather.tiling
 	if db.zoom then
-		density = density * (1 + (zoomNorm - ZOOM_PIVOT) * ZOOM_RANGE)
+		sheetTiling = sheetTiling * (1 + (zoomNorm - ZOOM_PIVOT) * ZOOM_RANGE)
 		rate = rate * (1 + (1 - zoomNorm) * ZOOM_RATE)
 	end
 	local slant = p.slant or weather.slant
@@ -1512,7 +1576,7 @@ local function OnUpdate(self, elapsed)
 	end
 
 	for _, l in ipairs(LAYERS) do
-		local tiling = (l.key == "mist") and 1 or density
+		local tiling = (l.key == "mist") and 1 or sheetTiling
 		local tilesY = l.tilesY * tiling
 		local tilesX = tilesY * aspect
 		local o = offsets[l.key]
@@ -1591,10 +1655,27 @@ local function BuildOverlay()
 
 	-- Above the curtain, below the lightning: a blizzard washes out what is
 	-- behind it, including its own snow.
+	--
+	-- BLEND, not ADD, and the algebra is the whole argument. Koschmieder says a
+	-- whiteout is extinction plus airlight - the scene fades towards the sky's
+	-- own luminance and CONTRAST is what dies. For two samples in the frame:
+	--
+	--   BLEND  I' = (1-a)I + aL   ->   I1'-I2' = (1-a)(I1-I2)   contrast x(1-a)
+	--   ADD    I' = I + k         ->   I1'-I2' =       I1-I2    contrast x1
+	--
+	-- ADD cannot reduce contrast at all until it starts clipping highlights,
+	-- which is exactly why the old 0.05 white quad read as "someone turned the
+	-- brightness up" rather than "I cannot see through this". BLEND at 0.22
+	-- takes 22% of the contrast out of the frame, which is the effect.
+	--
+	-- Safer than the ADD it replaces, too: ADD destroys highlight detail by
+	-- clipping it, BLEND scales every level and keeps all of it. A mob at 22%
+	-- reduced contrast is dimmer against the snow but still plainly there, and
+	-- an addon that hides a mob is an addon that gets deleted.
 	whiteout = overlay:CreateTexture(nil, "ARTWORK", nil, #LAYERS + 1)
 	whiteout:SetAllPoints(overlay)
 	whiteout:SetColorTexture(0.95, 0.97, 1, 1)
-	whiteout:SetBlendMode("ADD")
+	whiteout:SetBlendMode("BLEND")
 	whiteout:SetAlpha(0)
 
 	flash = overlay:CreateTexture(nil, "OVERLAY")
