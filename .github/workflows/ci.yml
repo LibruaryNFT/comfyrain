@@ -61,3 +61,10 @@ jobs:
             [ -s "/tmp/assets/$f" ] || { echo "::error::$f not produced"; exit 1; }
           done
           ls -la /tmp/assets
+
+      # Non-empty is not the same as loadable, let alone good. This checks the
+      # TGAs the step above just wrote: the format WoW silently refuses to
+      # draw, the seam that repeats across the screen, and the on-screen size
+      # of the largest element at every preset.
+      - name: Check the art assets
+        run: python build/check_art.py /tmp/assets
