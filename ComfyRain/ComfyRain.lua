@@ -2170,6 +2170,7 @@ local function Help()
 	print("  |cffffd100/comfy time +9|r, |cffffd100/comfy time 21|r, |cffffd100/comfy time off|r")
 	print("  |cffffd100/comfy indoors on||off|r - draw it inside buildings too")
 	print("  |cffffd100/comfy sound on||off|r, |cffffd100/comfy thunder on||off|r (gusts, in snow)")
+	print("  |cffffd100/comfy strike|r - one thunderclap now, instead of waiting for it")
 	print("  |cffffd100/comfy channel Ambience||SFX||Master|r - which volume slider owns it")
 	print("  |cffffd100/comfy suppress on|r - mute the server's OWN weather loop so only ours plays")
 	print("  |cffffd100/comfy zoom on||off|r - make the drops grow as the camera comes in")
@@ -2356,6 +2357,19 @@ local function HandleSlash(input, source)
 	elseif cmd == "thunder" then
 		db.thunder = (arg ~= "off")
 		ScheduleLightning()
+	elseif cmd == "strike" then
+		-- For recording, and for anyone who wants to show a friend. A monsoon
+		-- thunders once every 48 seconds on average, which is a long time to
+		-- stand still holding a capture. Restarts the clock as well, so the
+		-- next natural one does not land right on top of this one.
+		if not db.thunder then
+			msg("thunder is off - |cffffd100/comfy thunder on|r first")
+		elseif not ShouldRain() then
+			msg("nothing is falling right now, so there is nothing to strike")
+		else
+			Strike()
+			ScheduleLightning()
+		end
 	elseif cmd == "indoors" then
 		if arg == "on" or arg == "off" or arg == "dim" then
 			db.indoors = arg
