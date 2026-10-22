@@ -1528,7 +1528,15 @@ Assets are not checked in; they are deterministic output of the build scripts.
   not uniform random: at a few hundred flakes, uniform random leaves bald patches and clumps, and
   a 512 px sheet repeats any such blotch four or five times across the screen. Elongation comes
   from wind, not gravity, which is why only the gale sheet has it (7× at 78° off vertical).
-  Measured coverage: far 4.6%, near 14.8%, gale 24.3%, against rain's 2.7% and 6.6%.
+  Measured coverage: far 8.5%, near 17.2%, gale 24.2%, against rain's 7.3% and 5.0%.
+  **Retuned 2026-10-22**, same defect the rain sheets had. `sigma` is not the flake: visible
+  diameter is about `3*sigma`, and the Lua then magnifies by `H/(tilesY*density*512)`, x1.71 at
+  snow heavy. Snow's `density` is inverted too (light 1.20, normal 1.00, heavy 0.82, blizzard
+  0.66), so **flakes grew as the snow got heavier** — heavy snow was 565 fat blobs up to 32 px
+  across where light snow was 1210 small ones. Gale was worse: the longest blizzard streak was
+  **205 px, 19% of frame height**, reading as scratches on glass. Now far `1500 @ 0.9-1.9`, near
+  `800 @ 1.3-3.0`, gale `900 @ 0.9-1.9 elong 5.0` (was 900/210/300 at 1.1-2.3, 2.6-6.2,
+  1.5-3.2 elong 7.0). Near flakes land at 7-20 px on screen across the whole ladder.
 - `build/make_rain_audio.py` — the fallback bed only. Noise is shaped in the frequency domain over
   exactly one loop length, so the result is periodic and the join is sample-exact; that removed
   the end fades v1 needed, which were what made two clips audibly swell over each other.
