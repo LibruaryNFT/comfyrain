@@ -7,6 +7,93 @@ because the client cannot be told to actually change the weather.
 Stormwind. v2 switches all audio and the drop sprite to Blizzard's own assets and stops
 the rain indoors; needs `/reload` to pick up (no new files, so no client restart).
 
+## 2026-10-22 — The rain and snow stopped being a pattern
+
+Storm's streaks, the snow and the blizzard all read as fake. Cozy did not, and Cozy is
+the lightest preset, which was the clue. Two independent deep-research passes over the
+overlay reached the same diagnosis from different directions: **the elements were drawn
+well and the population they were drawn from was wrong.** Done in two commits.
+
+### Phase 1, no new art: three structural fixes
+
+Full reasoning is in the commit message for `eb51056`. In short:
+
+| Was | Now | Why |
+|---|---|---|
+| `density` per intensity, 0.58 monsoon to 1.35 light, multiplying tilesY | one `tiling` per weather (rain 1.35, snow 1.20) | it was **inverted** — heavier weather drew fewer, larger streaks. Marshall-Palmer: 32 visible drops/m³ at 1 mm/h against 477 at 25. Closes #11 |
+| whiteout = white quad, ADD, cap 0.10 | BLEND at 0.22, cap 0.30 | ADD cannot reduce contrast until it clips. Koschmieder's whiteout is contrast collapse towards sky luminance |
+| blizzard `slant` 1.9 (62°), sheet baked at 78° | `slant` 4.7046 = tan(78°), `speed` 2.58 → 1.15 | the streaks pointed one way and the sheet slid 16° off it. 62° is 1.5 m/s of wind, not a gale |
+
+Cozy is byte-identical by design: the new `tiling` is pinned at the old light values, so
+everything moves *towards* the preset he already likes.
+
+### Phase 2, the generators: `build/precip.py`
+
+The sheets drew a few hundred near-identical elements on a jittered grid, with a caste of
+deliberately bright ones. All four of those are wrong, and the new shared module is the
+four fixes. Its docstring carries the derivations.
+
+- **Placement is independent uniform, not a jittered grid.** A grid gives every element
+  its own cell and so deletes exactly the close pairs and holes a Poisson field is made
+  of. *That lattice was the starfield*, not the flake drawing. The old docstring defended
+  the grid because uniform placement "reliably leaves bald patches and clumps" — it does,
+  and that is the point.
+- **Sizes are a power law, not a uniform range.** Projection gives p(s) ∝ s⁻⁴ for one
+  physical size; real size variation flattens it to ~3.0-3.2. Overwhelmingly tiny
+  elements, a thin tail of large close ones. A uniform range makes them all the same size.
+- **Brightness is lognormal and there is no bright caste.** One element in ten at ×1.9 is
+  precisely the landmark the eye re-identifies when the sheet tiles, so the caste was
+  buying the repeat it was meant to disguise. At σ 0.6 the 95th percentile is already
+  2.7× the median with nothing being special.
+- **Blowing snow is spatially intermittent**, via a log-Gaussian Cox field (FFT-built, so
+  strictly periodic and the sheet still tiles). The gale gets patches, stretched 150px
+  along the wind against 55px across.
+
+Per-drop and per-flake variety followed: every streak now gets its own longitudinal
+profile from 2-4 random lobes (Garg-Nayar found **no** universal streak profile), width
+correlated with length because both are the same 1/z, and the hex modulation is confined
+to the largest 10% of near flakes where it can actually be seen.
+
+**Mean alpha is held within 2% per sheet on purpose** — counts went up and `a_med` was
+solved back against the old means, so this is a change of distribution, not of density.
+
+### Two art checks, and the control that mattered
+
+`check_art.py` is now eight checks. The new ones are **landmarks** (brightest pixel
+against the 99th percentile of lit ones) and a rewritten **uniformity**.
+
+Uniformity's control is now the sheet's own blobs, lifted off it by connected-component
+labelling and re-scattered at uniform random: identical elements, known-random placement.
+Two earlier controls were wrong and both are recorded in the docstring, because each
+looked right:
+
+- a **binomial over pixels** assumed pixels were independent. They arrive in elements tens
+  of pixels across. It survived only while placement was a grid, and failed snow-near at
+  12.1× for doing the right thing once placement went Poisson.
+- a **32px block shuffle** was worse: it is *inert*. Shuffling preserves the distribution
+  of block densities, so a sheet with a quarter wiped out shuffles into a sheet with a
+  quarter of its blocks empty. It passed a deliberately bald quadrant, which is the one
+  defect the check exists to catch.
+
+The statistic matters as much as the control. Overall coverage spread is dominated by
+where the few largest elements landed, so the hole test is one-sided on the **emptiest
+128px cell**; at 64px cells a wiped quadrant does not separate from clean art at all.
+
+Positive controls, all three passing: old art fails landmarks 1.94-2.18× against a 1.5
+threshold (new art ~1.15-1.25); a wiped quadrant fails the hole test on all five sheets,
+as does a hole of a single 128px cell; the shipping sheets are clean. 292 tests pass,
+worst element 9.9% of the frame against the 12% ceiling.
+
+### Open
+
+- **Not yet seen in-client.** New TGAs need a **full client restart**, not `/reload` — WoW
+  reads the addon file list once at startup.
+- Near snow is still `ADD`. One report wants it BLEND; left alone until the above is
+  judged on screen.
+- A **fourth precipitation layer** at irrational tile-period and wrap-rate ratios
+  (1:√2:√3:φ²) pushes the near-recurrence to ~8,200 base wraps, a sixfold gain over three
+  layers. Only if the 4 Nov date holds.
+
 ## 2026-10-20 — The presets no longer darken a world that is already dark
 
 Gallery shoot on the beta client, Goldshire at night. **Every preset came back at median

@@ -5,7 +5,7 @@ This tests the TGA files themselves, not the generators that wrote them - the
 file on disk is what the client loads, and a generator that runs clean can
 still emit something WoW silently refuses to draw.
 
-Seven checks, each with a stated failure mode that has either bitten this addon
+Eight checks, each with a stated failure mode that has either bitten this addon
 or would be invisible until a player saw it:
 
 1. TGA format      WoW needs power-of-two, 32-bit, UNCOMPRESSED. An RLE TGA
@@ -18,16 +18,22 @@ or would be invisible until a player saw it:
                    the wrap is repeated that many times and is impossible to
                    unsee. Compared against an interior line as a control: the
                    wrap must be no worse than an arbitrary row/column.
-5. Uniformity      A bald patch or a clump is likewise repeated across the
-                   screen. Measured as the spread of coverage over an 8x8 grid,
-                   against a Poisson expectation as a control.
-6. On-screen size  Sheet pixels are not screen pixels. tilesY is multiplied by
-                   the per-intensity density, so every preset magnifies the
-                   sheet differently. The largest element is measured off the
-                   sheet's own alpha and put through every preset's scale. This
-                   is the check that was missing when the rain streaks shipped
-                   at 51% of the frame height.
-7. Icon            64x64, and still legible once the addon list shrinks it.
+5. Uniformity      A bald patch or a blotch is likewise repeated across the
+                   screen. Measured two ways - the emptiest cell, and the
+                   overall spread of coverage - each against this sheet's own
+                   elements re-scattered at random as the control.
+6. Landmarks       One element far brighter than the rest is what the eye
+                   re-identifies when the sheet tiles, so it is the thing that
+                   gives the repeat away. Measured as the brightest pixel
+                   against the 99th percentile of lit ones.
+7. On-screen size  Sheet pixels are not screen pixels. tilesY is multiplied by
+                   the weather's tiling and by the zoom, so the same sheet is
+                   magnified differently in different views. The largest
+                   element is measured off the sheet's own alpha and put
+                   through the worst of those. This is the check that was
+                   missing when the rain streaks shipped at 51% of the frame
+                   height.
+8. Icon            64x64, and still legible once the addon list shrinks it.
 
 Usage: check_art.py <dir>        (defaults to the installed _forever_ addon)
 Exit status is non-zero if any check fails.
@@ -146,26 +152,152 @@ def check_seam(name, a):
                        f"{lim:.5f} - sheet does not tile")
 
 
-def check_uniformity(name, a, cov):
-    """Coverage per cell over an 8x8 grid, against a Poisson control.
-
-    Placement is random, so some spread is expected and an absolute threshold
-    would be arbitrary. The control is the spread random placement would give
-    at the same coverage.
-    """
-    g = 8
+def grid_sd(a, g=8):
+    """Spread of coverage over a g*g grid of cells."""
     cells = a.reshape(g, a.shape[0] // g, g, a.shape[1] // g)
     per = (cells > 0.01).mean(axis=(1, 3))
-    npx = (a.shape[0] // g) * (a.shape[1] // g)
-    expect = math.sqrt(max(cov, 1e-9) * (1 - cov) / npx)   # Poisson/binomial sd
-    got = float(per.std())
+    return float(per.std()), per
+
+
+def blobs(a, thresh=0.01):
+    """Connected lit regions, as (patch, height, width), wrapping both axes.
+
+    Label propagation rather than a library call: the only dependencies this
+    build has are numpy and Pillow, and pulling in scipy for one ndimage.label
+    is not worth it. Every lit pixel starts as its own label and then takes the
+    maximum of its four neighbours until nothing changes, which merges each
+    connected region onto a single id in as many passes as the region is long.
+    Rolls rather than slices, so a blob crossing the sheet edge stays one blob
+    - the sheet tiles, so on screen it is one.
+    """
+    mask = a > thresh
+    lab = np.where(mask, np.arange(a.size).reshape(a.shape), -1)
+    while True:
+        nxt = lab
+        for sh, ax in ((1, 0), (-1, 0), (1, 1), (-1, 1)):
+            nxt = np.maximum(nxt, np.roll(lab, sh, axis=ax))
+        nxt = np.where(mask, nxt, -1)
+        if np.array_equal(nxt, lab):
+            break
+        lab = nxt
+
+    out = []
+    for v in np.unique(lab[mask]):
+        ys, xs = np.nonzero(lab == v)
+        # Un-wrap: if the blob spans the seam it will have pixels at both
+        # edges, so shift it until it is contiguous before cutting the patch.
+        for arr, n in ((ys, a.shape[0]), (xs, a.shape[1])):
+            if arr.max() - arr.min() > n // 2:
+                arr[arr > n // 2] -= n
+        y0, x0 = ys.min(), xs.min()
+        h, w = ys.max() - y0 + 1, xs.max() - x0 + 1
+        patch = np.zeros((h, w), dtype=np.float32)
+        patch[ys - y0, xs - x0] = a[(ys) % a.shape[0], (xs) % a.shape[1]]
+        out.append(patch)
+    return out
+
+
+def check_uniformity(name, a):
+    """Is this sheet blotchier than its own elements, scattered at random?
+
+    The control is the sheet's own blobs, lifted off it and re-scattered at
+    uniform random positions. That is a true null: identical elements, known
+    random placement, so whatever spread it produces is the spread that random
+    placement of THIS population produces, and anything much worse is real
+    structure - a bald patch, or a blotch - which the sheet then repeats
+    across the screen. Two statistics come off it, because one did not catch
+    both defects; see each below.
+
+    Two controls were tried and rejected before this one, both recorded here
+    because each looked right:
+
+    A binomial sd over PIXELS assumed pixels were placed independently. They
+    are not; they arrive in elements tens of pixels across, so it overstated
+    the expected evenness by roughly the square root of the pixels per element.
+    That was survivable while placement was a jittered grid, which is much more
+    even than random. Once placement became genuinely Poisson, the close pairs
+    and holes that are the whole point of the change tripped it - snow-near
+    scored 12.1x and failed for doing the right thing.
+
+    A block shuffle, cutting the sheet into 32px tiles and permuting them, was
+    worse: it is INERT. Shuffling preserves the distribution of block
+    densities, so a sheet with a quarter of it wiped shuffles into a sheet
+    with a quarter of its blocks empty, scattered about, and the measured
+    spread barely moves. It passed a deliberately bald quadrant, which is the
+    one defect this check exists to catch.
+    """
+    parts = blobs(a)
+    rng = np.random.default_rng(7)
+    n = a.shape[0]
+    coarse, fine = [], []
+    for _ in range(32):
+        s = np.zeros_like(a)
+        for p in parts:
+            ph, pw = p.shape
+            ys = (rng.integers(0, n) + np.arange(ph)) % n
+            xs = (rng.integers(0, n) + np.arange(pw)) % n
+            idx = np.ix_(ys, xs)
+            s[idx] = np.maximum(s[idx], p)
+        coarse.append(grid_sd(s, 4)[1])
+        fine.append(grid_sd(s, 8)[1])
+
+    # Holes, on a 4x4 grid. One-sided and on the emptiest cell only, because a
+    # bald patch is a hole and nothing else: the overall spread below is
+    # dominated by where the few largest elements happened to land, which swamps
+    # it. 128px cells rather than 64, because averaging over the larger cell is
+    # what suppresses that same large-element noise - measured on a deliberately
+    # wiped quadrant, 4x4 separates by 4 sigma and 8x8 does not separate at all.
+    emptiest = grid_sd(a, 4)[1].min()
+    nulls = np.array([c.min() for c in coarse])
+    z = (emptiest - nulls.mean()) / max(nulls.std(), 1e-9)
+    if z < -4.0:
+        fail(name, f"bald patch: emptiest 128px cell is {100*emptiest:.1f}% "
+                   f"covered against {100*nulls.mean():.1f}% for these same "
+                   f"elements re-scattered ({z:.1f} sigma) - that hole tiles "
+                   f"across the screen")
+    elif z < -3.0:
+        warn(name, f"emptiest 128px cell is {z:.1f} sigma below the same "
+                   f"elements re-scattered")
+
+    # Blotchiness: overall spread on the 8x8 grid, two-sided, for structure
+    # that is not a single hole - a density gradient, or banding.
+    got, per = grid_sd(a)
+    expect = float(np.mean([c.std() for c in fine]))
     ratio = got / max(expect, 1e-9)
-    if ratio > 12.0:
-        fail(name, f"clumpy: cell coverage sd is {ratio:.1f}x the random "
-                   f"expectation (min cell {100*per.min():.1f}%, max "
-                   f"{100*per.max():.1f}%)")
-    elif ratio > 8.0:
-        warn(name, f"cell coverage sd is {ratio:.1f}x random expectation")
+    if ratio > 2.0:
+        fail(name, f"blotchy: cell coverage sd is {ratio:.2f}x the same "
+                   f"elements re-scattered (min cell {100*per.min():.1f}%, max "
+                   f"{100*per.max():.1f}%) - there is structure here bigger "
+                   f"than the elements, and it tiles across the screen")
+    elif ratio > 1.6:
+        warn(name, f"cell coverage sd is {ratio:.2f}x the same elements "
+                   f"re-scattered")
+
+
+def check_landmarks(name, a):
+    """No element may be conspicuously brighter than the rest of the field.
+
+    Both research passes landed on this independently, and it is the one that
+    decides whether the tiling is noticeable. The eye does not find a repeat by
+    cross-correlating the screen; it finds it by recognising a LANDMARK and
+    then seeing it again 500px away. A sparse caste of bright elements is
+    therefore the most expensive thing a tiling sheet can contain, and both
+    sheets used to have one on purpose: one rain drop in twelve was multiplied
+    by 1.9, one snow flake in ten by 1.8, filed under "variety".
+
+    Measured as the brightest pixel over the 99th percentile of lit pixels.
+    Calibrated, not picked: the sheets with the bright caste score 1.95 to 2.18
+    and the continuous lognormal ones 1.15 to 1.25.
+    """
+    nz = a[a > 0]
+    if nz.size == 0:
+        return
+    p99 = float(np.percentile(nz, 99))
+    ratio = float(a.max()) / max(p99, 1e-9)
+    if ratio > 1.5:
+        fail(name, f"brightest pixel is {ratio:.2f}x the 99th percentile of "
+                   f"lit pixels - that element is a landmark, and the sheet "
+                   f"repeats it across the screen")
 
 
 def longest_run(mask, axis):
@@ -268,7 +400,8 @@ def main():
         img = Image.open(path).convert("RGBA")
         a, cov = check_channels(name, img)
         check_seam(name, a)
-        check_uniformity(name, a, cov)
+        check_uniformity(name, a)
+        check_landmarks(name, a)
         px, share, axis = check_on_screen(name, a)
         print(f"  {name:16s} {hd['w']}x{hd['h']} {hd['bpp']}-bit  "
               f"{100*cov:5.1f}%  {px:5.0f}px {axis:4s} "
