@@ -337,10 +337,27 @@ local DEFAULTS = {
 
 -- tilesY is how many copies of the 512px sheet fit vertically; tilesX is derived
 -- from the screen aspect each frame so drops stay the right shape at any size.
+--
+-- The two speeds are not free. A streak is the drop's own motion smeared over
+-- the shutter, so on screen its LENGTH is velocity * exposure and its SPEED is
+-- velocity, both divided by the same depth. Divide one by the other and the
+-- depth cancels: speed/length = 1/exposure, the same number for every drop in
+-- a frame, near or far. It is the one relation a 2D sheet can get wrong while
+-- every individual element is still correct, and it is what the eye reads as
+-- "that is a texture scrolling", because a texture scrolling is exactly a
+-- field whose speed does not follow its own perspective.
+--
+-- Measured against the sheets precip.py actually generates: the median near
+-- streak is 2.03x the median far streak on screen, so near must travel 2.03x
+-- as fast on screen and no more. Screen speed is speed/tilesY, so
+-- near.speed = far.speed * 2.03 * (1.5/3.0) = 1.07. It was 2.30, which put
+-- near at 4.38x far - a shutter of 3ms for the near layer against 8ms for the
+-- far one, in the same frame. The near layer is the one the eye tracks, so
+-- that discrepancy is most of why heavy rain here read as too fast.
 local LAYERS = {
 	{ key = "mist", tilesY = 1.1, speed = 0.09, blend = "BLEND", layer = "BACKGROUND" },
 	{ key = "far",  tilesY = 3.0, speed = 1.05, blend = "BLEND", layer = "ARTWORK"    },
-	{ key = "near", tilesY = 1.5, speed = 2.30, blend = "ADD",   layer = "ARTWORK"    },
+	{ key = "near", tilesY = 1.5, speed = 1.07, blend = "ADD",   layer = "ARTWORK"    },
 }
 
 -- Camera distance at which the view counts as fully pulled back. Classic's
