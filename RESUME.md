@@ -1527,8 +1527,8 @@ Assets are not checked in; they are deterministic output of the build scripts.
   break the perfect circle, not enough to draw a snowflake icon. Placement is a **jittered grid**,
   not uniform random: at a few hundred flakes, uniform random leaves bald patches and clumps, and
   a 512 px sheet repeats any such blotch four or five times across the screen. Elongation comes
-  from wind, not gravity, which is why only the gale sheet has it (7× at 78° off vertical).
-  Measured coverage: far 8.5%, near 17.2%, gale 24.2%, against rain's 7.3% and 5.0%.
+  from wind, not gravity, which is why only the gale sheet has it (5× at 78° off vertical).
+  Measured coverage: far 7.9%, near 16.3%, gale 22.7%, against rain's 7.0% and 4.7%.
   **Retuned 2026-10-22**, same defect the rain sheets had. `sigma` is not the flake: visible
   diameter is about `3*sigma`, and the Lua then magnifies by `H/(tilesY*density*512)`, x1.71 at
   snow heavy. Snow's `density` is inverted too (light 1.20, normal 1.00, heavy 0.82, blizzard
@@ -1537,6 +1537,30 @@ Assets are not checked in; they are deterministic output of the build scripts.
   **205 px, 19% of frame height**, reading as scratches on glass. Now far `1500 @ 0.9-1.9`, near
   `800 @ 1.3-3.0`, gale `900 @ 0.9-1.9 elong 5.0` (was 900/210/300 at 1.1-2.3, 2.6-6.2,
   1.5-3.2 elong 7.0). Near flakes land at 7-20 px on screen across the whole ladder.
+- `build/check_art.py` — tests the TGAs **on disk**, not the generators that wrote them, because
+  the file is what the client loads and a generator that runs clean can still emit something WoW
+  silently refuses to draw. Takes a directory, defaults to the installed `_forever_` addon, exits
+  non-zero on failure, and runs in CI against the art the `assets` job has just generated.
+  Seven checks: TGA format (power-of-two, 32-bit, **image type 2** — type 10 is RLE and draws
+  nothing with no error), alpha saturation, flat RGB (colour comes from the Lua tint, so a
+  gradient here fights it), the wrap seam, placement uniformity, largest on-screen element, and
+  the icon's legibility at 20 px.
+  Two of those are measured **against a control rather than an absolute**, because an absolute
+  threshold would be arbitrary: the seam's wrap step is compared to the p99 of 200 random interior
+  lines of the same sheet, and the 8×8 grid coverage spread is compared to the binomial spread
+  random placement would give at that coverage.
+  The on-screen check measures the largest element off the sheet's own alpha — longest unbroken
+  **wrapping** run at `alpha > 0`, since the sheet tiles and an element split across the seam is
+  one element on screen. Each axis is judged against its own screen dimension: a gale streak lies
+  nearly flat and crosses the 1920 px width, not the 1080 px height. Ceiling is **12% of the
+  frame**, calibrated, not picked — the sheets Reddit called bars measure 16.4% (rain near),
+  14.8% (snow near) and 21.5% (gale); the retuned ones measure 7.0%, 5.7% and 8.9%.
+  **Threshold matters here:** at `alpha > 2/255` or higher the measured length roughly halves and
+  the check can no longer separate the old sheets from the new, because a streak's tail tapers to
+  nothing and on an `ADD` layer over a dark sky the eye still sees it.
+  Positive controls run 2026-10-22, all three fired: the pre-retune art gives 4 FAIL / 2 WARN
+  (rain-near 16%, snow-near 15%, gale 22%, gale clumpy at 12.3× random), a deliberately RLE-saved
+  sheet is caught as `image type 10`, and the shipping art gives 0 / 0.
 - `build/make_rain_audio.py` — the fallback bed only. Noise is shaped in the frequency domain over
   exactly one loop length, so the result is periodic and the join is sample-exact; that removed
   the end fades v1 needed, which were what made two clips audibly swell over each other.
