@@ -1510,6 +1510,17 @@ Assets are not checked in; they are deterministic output of the build scripts.
   curvature and an 8% chance of a brighter glint give variety a single sprite could not.
   Widths are absolute pixels, not a fraction of length — real rain stays hair-thin however long
   the streak is, and scaling width with length gives 30 px bars.
+  **Retuned 2026-10-21** from far `260 @ 20-46px` / near `70 @ 80-190px` to far `700 @ 14-34px`
+  / near `380 @ 16-40px`. Sheet pixels are not screen pixels: the Lua multiplies `tilesY` by the
+  per-intensity `density`, which is inverted (monsoon 0.58), so at the Storm preset a near-sheet
+  pixel covers **2.425** screen pixels. Measured off a real `/comfy stop` → `/comfy preset storm`
+  capture pair in `_forever_`, the old art put the longest near streak at **546 px, 51% of frame
+  height**, with only **53 streaks crossing the middle** of a 1920 px screen. Three independent
+  checks agreed it was ~4× too long: on-screen size, layer isolation (the far layer was invisible,
+  so there was no depth), and the scroll rate, which implies an **80 ms** camera exposure on the
+  near layer against a film-standard 21 ms. Blend mode was left at `ADD`: a four-way ablation put
+  the sheet art at ~10× the effect of the blend, and `LAYERS` is shared with snow, which is fine
+  as it is (`density 1.00`, so no magnification).
 - `build/make_snow_tga.py` — `snow-far.tga`, `snow-near.tga`, `snow-gale.tga`, same format and
   same no-Blizzard-art rule. Flakes are rasterised from a model: a Gaussian with a brighter core,
   plus a **weak** (0.07) randomly-phased six-fold modulation on the near layer only — enough to

@@ -96,10 +96,25 @@ def to_tga(alpha, path, tint):
 def main():
     out = sys.argv[1].rstrip("/")
 
+    # Sheet pixels are not screen pixels. The Lua scales each sheet so tilesY
+    # copies span the screen height, and tilesY is multiplied by the per-
+    # intensity density, which is INVERTED (monsoon 0.58, light 1.35). At the
+    # Storm preset a near-sheet pixel covers 2.425 screen pixels, so these
+    # numbers have to be read as "x2.4 on a 1080p screen" before judging them.
+    #
+    # They used to be far 20-46 / near 80-190. Measured off a real before/after
+    # capture pair at Storm, that put the longest near streak at 546px - 51% of
+    # the frame height - with only 53 streaks crossing the middle of a 1920px
+    # screen. That is not rain, it is 53 bars. Three independent checks agreed:
+    # the on-screen size, the layer isolation (far was invisible), and the
+    # scroll rate, which implied an 80ms camera exposure against a film-standard
+    # 21ms. Shorter and far more numerous is the fix.
+    #
     # far: short, thin, faint - reads as the depth of the downpour
-    far = scatter(260, 20, 46, 1.0, 1.4, 0.06, 0.18, seed=11)
-    # near: long, brighter streaks passing close to the camera
-    near = scatter(70, 80, 190, 1.2, 2.2, 0.18, 0.46, seed=29)
+    far = scatter(700, 14, 34, 0.8, 1.2, 0.08, 0.22, seed=11)
+    # near: brighter streaks passing close to the camera. Only modestly longer
+    # than far - the depth cue is brightness and width, not length.
+    near = scatter(380, 16, 40, 0.6, 1.1, 0.14, 0.34, seed=29)
 
     to_tga(far, f"{out}/rain-far.tga", (0.86, 0.90, 0.97))
     to_tga(near, f"{out}/rain-near.tga", (0.93, 0.96, 1.00))
