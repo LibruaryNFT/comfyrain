@@ -1537,10 +1537,16 @@ Assets are not checked in; they are deterministic output of the build scripts.
 
 ```
 ./install.sh                # _classic_beta_
+./install.sh _forever_      # the stress test / launch client
 ./install.sh _retail_
 ```
 A **full client restart** is required for a first install — WoW only scans `Interface/AddOns`
 at launch. Later Lua edits need only `/reload`.
+
+**Each flavour has its own `Interface/AddOns` and `WTF`.** Installing to `_classic_beta_` does
+not put the addon in the stress test client. As of 2026-10-21 18:35 ComfyRain is installed in
+BOTH `_classic_beta_` and `_forever_`; any Lua edit has to be pushed to each one you are testing
+in. Interface number is the same (16001) for both, so there is no out-of-date prompt.
 
 ## The settings window
 
