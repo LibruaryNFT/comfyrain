@@ -2054,6 +2054,7 @@ end
 BINDING_HEADER_COMFYRAIN = "Comfy Rain"
 BINDING_NAME_COMFYRAIN_TOGGLE = "Weather on or off"
 BINDING_NAME_COMFYRAIN_PANEL = "Open the settings window"
+BINDING_NAME_COMFYRAIN_STRIKE = "One thunderclap, now"
 
 -- One place that answers "something changed". A typed command has to move the
 -- window too, or the two disagree in front of the player and the window is the
