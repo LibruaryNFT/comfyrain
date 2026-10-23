@@ -7,6 +7,36 @@ because the client cannot be told to actually change the weather.
 Stormwind. v2 switches all audio and the drop sprite to Blizzard's own assets and stops
 the rain indoors; needs `/reload` to pick up (no new files, so no client restart).
 
+## 2026-10-23 — How other addons look native: research, nothing changed yet
+
+"can we download some addons and check how they get their UI to look more like the
+vanilla wow ui?" Read Ace3 (AceGUI widgets, behind most addon config windows), Leatrix
+Plus (a hand-built panel) and Blizzard's own UI source for this client (Gethe
+wow-ui-source, branch `forever`; `_classic_beta_` is the Forever client, iface 16001).
+
+- **Ace3 and Leatrix use the same 1.12-era art we already do**: `UI-DialogBox-Border`
+  and `-Header`, `UI-SliderBar-*`, `UI-CheckBox-Up/-Check`, `UIPanelButtonTemplate`.
+  There is no trick in them we are missing. Small things they have that we lack:
+  `UI-CheckBox-Highlight` on hover, and Ace3's Heading draws `UI-Tooltip-Border`
+  rules either side of a centred gold label.
+- **The game's own windows are `ButtonFrameTemplate` / `PortraitFrameTemplate`**, a
+  NineSlice over the `UI-Frame-Metal-*` atlases. On Forever (game type `camelot`) the
+  client ships its own art under those atlas names: `Camelot/NineSliceLayoutOverrides.lua`
+  says "the art made for Camelot doesn't match the exact size of the Mainline Standard
+  art" and re-offsets the corners. So a frame built on those templates draws Forever's
+  own window chrome, whatever that is, and keeps matching it if Blizzard changes it.
+- Also loaded on camelot per the tocs: `UIPanelCloseButtonDefaultAnchors` (28px, set by
+  `Camelot/SharedUIPanelTemplates.lua`), `MinimalSliderWithSteppersTemplate` (the Options
+  slider, arrows both sides), `UICheckButtonTemplate`, `SettingsListSectionHeaderTemplate`,
+  and the full `Settings.RegisterVerticalLayoutCategory` / `CreateCheckbox` /
+  `CreateSlider` / `CreateDropdown` API, which draws controls exactly as Esc > Options.
+- **Unverified at runtime.** All of the above is source; per the 2026-10-16 rule every
+  template is `pcall`-probed and cached because an unknown name raises.
+- **Recommendation:** rebuild the window's frame on `ButtonFrameTemplate` (no portrait)
+  plus `UIPanelCloseButtonDefaultAnchors`, today's art kept as the fallback when the probe
+  fails. That is the one change that makes it match Forever's own windows rather than
+  1.12's. Controls second, if the frame lands.
+
 ## 2026-10-23 — Light snow is fewer flakes, not fainter ones
 
 "snow light and normal dont seem diff". Measured on the near sheet (visible = peak
