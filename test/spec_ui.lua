@@ -172,17 +172,25 @@ it("toggles sound, gusts and indoors from the window", function()
 	eq(w:db().indoors, "dim", "and back round")
 end)
 
-it("switches the camera-zoom response from the window", function()
-	-- The one setting whose effect a player cannot see without moving the
-	-- camera, which is exactly why it needs to be visible in the window rather
-	-- than living only behind a slash command nobody will find.
+it("keeps the fine-tuning out of the window", function()
+	-- "we shouldnt allow a user to change the settings of the rain, thats too
+	-- granular". The scenes and the intensity set all five of these, and the
+	-- fall speeds are derived from drop physics, so a slider for each was five
+	-- ways to un-derive them in a window meant to be unintimidating.
 	local w = H.world()
 	w:open()
-	eq(w:db().zoom, true, "on by default")
-	w:button("Follow camera zoom"):Click()
-	eq(w:db().zoom, false, "the button turned it off")
-	w:button("Follow camera zoom"):Click()
-	eq(w:db().zoom, true, "and on again")
+	ok(w:slider("Volume"), "the lookup finds a slider that is there")
+	ok(w:button("Step aside for real weather"), "and a checkbox that is there")
+	for _, label in ipairs({ "Drops", "Fall Speed", "Darkness", "Wind" }) do
+		eq(w:slider(label), nil, label .. " is not in the window")
+	end
+	eq(w:button("Follow camera zoom"), nil, "nor is the camera-zoom switch")
+
+	-- Still settings underneath: the scenes write them and the commands reach them.
+	w:slash("zoom off")
+	eq(w:db().zoom, false, "the command still turns camera zoom off")
+	w:slash("speed 1.4")
+	near(w:db().speed, 1.4, 1e-9, "and still sets the fall speed")
 end)
 
 it("cycles the volume channel rather than opening a menu", function()
@@ -201,17 +209,18 @@ end)
 it("applies a slider as it moves, and clamps where the parser clamps", function()
 	local w = H.world()
 	w:open()
-	local s = w:slider("Drops")
-	ok(s, "the visibility slider exists")
+	local s = w:slider("Volume")
+	ok(s, "the volume slider exists")
 
 	s:Drag(0.5)
-	near(w:db().scale, 0.5, 1e-9, "dragging applied it")
-	near(w:layers().far:GetAlpha(), 0.35, 1e-9, "and the rain actually got fainter")
+	near(w:db().volume, 0.5, 1e-9, "dragging applied it")
 
-	-- The slider's own ceiling and the command parser's have to be the same
-	-- number, or the window offers a value the addon will refuse.
+	-- The slider's own ends and the command parser's have to be the same
+	-- numbers, or the window offers a value the addon will refuse.
 	s:Drag(99)
-	near(w:db().scale, 1.5, 1e-9, "clamped at the same 1.5 the parser uses")
+	near(w:db().volume, 1.0, 1e-9, "clamped at the same 1.0 the parser uses")
+	s:Drag(-5)
+	near(w:db().volume, 0, 1e-9, "and floored at the same 0")
 end)
 
 it("follows a typed command while it is open", function()
@@ -221,7 +230,8 @@ it("follows a typed command while it is open", function()
 	w:slash("blizzard")
 	eq(reads(w, "Type"), "Snow", "the window moved with the command")
 	eq(reads(w, "Intensity"), "Blizzard", "both selectors did")
-	near(w:slider("Darkness"):GetValue(), w:db().gloom, 1e-9, "sliders too")
+	w:slash("volume 0.30")
+	near(w:slider("Volume"):GetValue(), 0.30, 1e-9, "sliders too")
 end)
 
 it("does not type a command back at itself when it refreshes", function()
@@ -287,11 +297,11 @@ it("resets the settings and keeps the evidence", function()
 	w:db().calib = { { zone = "Elwynn" } }
 	w:open()
 	choose(w, "Type", "Snow")
-	w:slider("Drops"):Drag(0.3)
+	w:slider("Volume"):Drag(0.3)
 
 	w:button("Reset All"):Click()
 	eq(w:db().weather, "rain", "weather back to default")
-	near(w:db().scale, 1.0, 1e-9, "alpha back to default")
+	near(w:db().volume, 1.0, 1e-9, "volume back to default")
 	eq(#w:db().calib, 1, "the calibration log is untouched")
 end)
 
@@ -756,34 +766,29 @@ end
 
 it("the number beside a slider puts just that slider back", function()
 	-- Reset Look already exists and takes the whole section with it. The case
-	-- this is for is "the darkness is wrong and everything else is how I want
+	-- this is for is "the volume is wrong and everything else is how I want
 	-- it", which the section button cannot do without collateral.
 	local w = H.world()
-	w:slash("dim 1.80")
-	w:slash("alpha 0.40")
-	w:slash("gust 0.20")
+	w:slash("volume 0.30")
+	w:slash("time local")
+	w:slash("time strength 0.40")
 
-	local btn = valueOf(w, "Darkness")
+	local btn = valueOf(w, "Volume")
 	btn:Click()
 
-	near(w:db().gloom, 1.0, 1e-9, "darkness went back to its default")
-	near(w:db().scale, 0.40, 1e-9, "visibility was not touched")
-	near(w:db().gust, 0.20, 1e-9, "and neither was wind")
+	near(w:db().volume, 1.0, 1e-9, "volume went back to its default")
+	near(w:db().timeStrength, 0.40, 1e-9, "strength was not touched")
 end)
 
 it("looks up the default by db key, not by the slider's name", function()
-	-- Visibility writes `scale` through the `alpha` command and Darkness writes
-	-- `gloom` through `dim`. Two of the seven sliders have a label, a key and a
-	-- verb that are all different words, so a reset that guessed any of them
-	-- from the others would silently reset the wrong thing or nothing.
+	-- Strength writes `timeStrength` through `time strength`: a label, a key
+	-- and a verb that are three different words, so a reset that guessed any
+	-- of them from the others would silently reset the wrong thing or nothing.
 	local w = H.world()
-	w:slash("alpha 0.10")
-	valueOf(w, "Drops"):Click()
-	near(w:db().scale, 1.0, 1e-9, "Visibility reset the scale key")
-
-	w:slash("dim 0.10")
-	valueOf(w, "Darkness"):Click()
-	near(w:db().gloom, 1.0, 1e-9, "Darkness reset the gloom key")
+	w:slash("time local")
+	w:slash("time strength 0.10")
+	valueOf(w, "Strength"):Click()
+	near(w:db().timeStrength, 1.0, 1e-9, "Strength reset the timeStrength key")
 end)
 
 it("brightens the number that has moved and greys the ones that have not", function()
@@ -793,24 +798,23 @@ it("brightens the number that has moved and greys the ones that have not", funct
 	-- gold numbers down one side of the window was most of what "the weird
 	-- tellow is offputting" was pointing at.
 	local w = H.world()
-	local _, text = valueOf(w, "Wind")
+	local _, text = valueOf(w, "Volume")
 	eq(text.colour[1] < 0.8, true, "grey while it sits on the default")
 
-	w:slash("gust 0.25")
-	local _, moved = valueOf(w, "Wind")
+	w:slash("volume 0.25")
+	local _, moved = valueOf(w, "Volume")
 	near(moved.colour[1], 1.00, 1e-9, "white once it has moved")
 	near(moved.colour[2], 1.00, 1e-9, "white, not a colour of ours")
 	near(moved.colour[3], 1.00, 1e-9, "on all three channels")
 
-	valueOf(w, "Wind"):Click()
-	local _, back = valueOf(w, "Wind")
+	valueOf(w, "Volume"):Click()
+	local _, back = valueOf(w, "Volume")
 	eq(back.colour[1] < 0.8, true, "and grey again after the reset")
 end)
 
 it("every slider starts grey on a fresh profile", function()
 	local w = H.world()
-	for _, label in ipairs({ "Drops", "Fall Speed", "Darkness",
-	                         "Wind", "Volume" }) do
+	for _, label in ipairs({ "Volume", "Strength" }) do
 		local _, text = valueOf(w, label)
 		eq(text.colour[1] < 0.8, true, label .. " is grey on a fresh profile")
 	end
@@ -1031,7 +1035,7 @@ end)
 it("uses the client's slider knob, and draws one when the art is absent", function()
 	local w = H.world()
 	w:open()
-	local thumb = w:slider("Drops")._thumb
+	local thumb = w:slider("Volume")._thumb
 	ok(thumb and thumb.texture and thumb.texture:find("UI%-SliderBar%-Button"),
 		"the metal knob from the game's own options")
 
@@ -1041,7 +1045,7 @@ it("uses the client's slider knob, and draws one when the art is absent", functi
 	-- is a slider nobody can find. So this one is asked about.
 	local bare = H.world({ artPaths = {} })
 	bare:open()
-	local drawn = bare:slider("Drops")._thumb
+	local drawn = bare:slider("Volume")._thumb
 	ok(drawn and drawn.colour, "a drawn knob when the client has not got the file")
 	eq(#bare.mock.errors, 0, "and no error for art it did not have")
 end)
@@ -1052,7 +1056,7 @@ it("comes up on a client with none of it: no templates, no art", function()
 	ok(p and p:IsShown(), "the window still opens")
 	eq(p.GetBackdrop, nil, "with no backdrop, no close button and no stone")
 	ok(w:button("Turn It All Off"), "the buttons are still buttons")
-	ok(w:slider("Drops"), "and the sliders are still sliders")
+	ok(w:slider("Volume"), "and the sliders are still sliders")
 	choose(w, "Type", "Snow")
 	eq(w:db().weather, "snow", "and clicking one still runs its command")
 	eq(#w.mock.errors, 0, "and nothing was thrown at the client")
@@ -1164,7 +1168,7 @@ it("stands the checkbox on the panel, not on a button face", function()
 	-- word and a box on the background.
 	local w = H.world()
 	w:open()
-	local z = w:button("Follow camera zoom")
+	local z = w:button("Step aside for real weather")
 	eq(z._template, nil, "no panel-button template under it")
 	eq(z.label._lastPoint.x, 0, "the words start at the left edge of the row")
 	eq(z.box._lastPoint.relPoint, "RIGHT",
@@ -1184,7 +1188,7 @@ it("lines every checkbox and every selector up in one column", function()
 	-- Every one of these is anchored off its row's RIGHT edge, so the column
 	-- is one number per control: how far in from that edge it begins.
 	local seen = {}
-	for _, name in ipairs({ "Show rain & snow", "Follow camera zoom", "Sound", "Thunder" }) do
+	for _, name in ipairs({ "Show rain & snow", "Step aside for real weather", "Sound", "Thunder" }) do
 		local b = w:button(name)
 		ok(b, name .. " is a checkbox in the window")
 		seen[b.box._lastPoint.x] = true
@@ -1848,10 +1852,10 @@ it("reads its multipliers as percentages of the default", function()
 	-- OF. 0 is the one value worth reading as a state rather than a quantity.
 	local w = H.world()
 	w:open()
-	w:slash("dim 1.30")
-	eq(valueOf(w, "Darkness")._text, "130%", "a multiplier reads as a percentage")
-	w:slash("alpha 0")
-	eq(valueOf(w, "Drops")._text, "Off", "and zero reads as a state")
+	w:slash("volume 0.30")
+	eq(valueOf(w, "Volume")._text, "30%", "a multiplier reads as a percentage")
+	w:slash("volume 0")
+	eq(valueOf(w, "Volume")._text, "Off", "and zero reads as a state")
 	w:slash("time 21")
 	eq(valueOf(w, "Hold at Hour")._text, "21",
 		"the one non-multiplier keeps its own units")

@@ -7,6 +7,22 @@ because the client cannot be told to actually change the weather.
 Stormwind. v2 switches all audio and the drop sprite to Blizzard's own assets and stops
 the rain indoors; needs `/reload` to pick up (no new files, so no client restart).
 
+## 2026-10-23 — The settings window lost its five tuning controls
+
+"We shouldn't allow a user to change the settings of the rain, that's too granular... if
+we remove the options it might make it cleaner and less intimidating." Gone from the
+window: **Drops, Fall Speed, Darkness, Wind, Follow camera zoom.** Weather is now the
+master switch, Type, Intensity and "Step aside for real weather". Sound and Time of Day
+are unchanged.
+
+- The settings still exist underneath. The scenes write scale, speed, gloom and gust on
+  every press, and the slash commands still reach all five, unadvertised. The README no
+  longer lists `alpha`, `speed`, `dim` or `gust`.
+- The UI tests that used Drops, Darkness and Wind as their example slider now use Volume
+  and Strength; the checkbox layout tests use "Step aside". A new spec fails if any of the
+  five comes back into the window.
+- Photo 4 of the shoot (window over live rain) is a redo anyway, so it gets the new window.
+
 ## 2026-10-23 — The rain falls 1.8x faster: the layers were too far away
 
 "The rain looks like it's falling too slow", after the pass below. Measured off the

@@ -1038,14 +1038,9 @@ local function Refresh()
 		"How hard it comes down. " ..
 		table.concat(weather.order, ", ") .. ".")
 
-	controls.alpha:Set(db.scale)
-	controls.speed:Set(db.speed)
-	controls.dim:Set(db.gloom)
-	controls.gust:Set(db.gust)
 	controls.volume:Set(db.volume)
 
 	controls.sound:SetOn(db.sound)
-	controls.zoom:SetOn(db.zoom)
 	-- ~= false, not a plain read: this one defaults to ON, so an absent key
 	-- and an explicit false are different answers.
 	controls.defer:SetOn(db.defer ~= false)
@@ -1387,10 +1382,9 @@ local function Build()
 		Run(w.order[((at - 1 + d) % #w.order) + 1])
 	end))
 
-	-- The db key and the command verb differ for two of these - Visibility
-	-- writes `scale` through `alpha`, Darkness writes `gloom` through `dim` -
-	-- which is exactly why the default is looked up by key rather than assumed
-	-- to match the slider's name.
+	-- The default is looked up by db key rather than assumed to match the
+	-- slider's name, because the key and the command verb do not always agree:
+	-- Strength writes `timeStrength` through `time strength`.
 	local function Back(key, verb, fmt)
 		return function()
 			local d = Defaults()[key]
@@ -1399,42 +1393,12 @@ local function Build()
 		end
 	end
 
-	controls.alpha = add(Slider(panel, "Drops", 0, 1.5, 0.05, Pct,
-		function(v) Run(string.format("alpha %.2f", v)) end,
-		Back("scale", "alpha")))
-	Teach(controls.alpha.slider, "Drops", "/comfy alpha 0.75",
-		"How much weather you see through. At 0 the drops stop drawing and " ..
-		"you keep the darkening and the sound, which is the overcast-day " ..
-		"setup.")
-
-	controls.speed = add(Slider(panel, "Fall Speed", 0.2, 3, 0.05, Pct,
-		function(v) Run(string.format("speed %.2f", v)) end,
-		Back("speed", "speed")))
-	Teach(controls.speed.slider, "Fall Speed", "/comfy speed 1.4",
-		"How fast it comes down.")
-
-	controls.dim = add(Slider(panel, "Darkness", 0, 2, 0.05, Pct,
-		function(v) Run(string.format("dim %.2f", v)) end,
-		Back("gloom", "dim")))
-	Teach(controls.dim.slider, "Darkness", "/comfy dim 0.5",
-		"How much the storm dims the world. 0 leaves the light alone, 1 is " ..
-		"what this weather is meant to look like, and past that it keeps " ..
-		"going into proper storm dark. 2 is as dark as this addon goes.")
-
-	controls.gust = add(Slider(panel, "Wind", 0, 2, 0.05, Pct,
-		function(v) Run(string.format("gust %.2f", v)) end,
-		Back("gust", "gust")))
-	Teach(controls.gust.slider, "Wind", "/comfy gust 0.5",
-		"How hard it gusts. 0 is dead calm: one fixed rate, no wind.")
-
-	-- Camera distance is the only part of the world camera an addon can read,
-	-- and it is a judgement call rather than a correctness fix, so it gets a
-	-- switch. Full width: it has no natural partner on a row.
-	controls.zoom = add(Check(panel, "Follow camera zoom", "/comfy zoom off",
-		function() Run(DB().zoom and "zoom off" or "zoom on") end))
-	Teach(controls.zoom, "Follow camera zoom", "/comfy zoom off",
-		"Drops get bigger and faster the closer the camera is, finer and " ..
-		"denser when you pull back.")
+	-- No Drops, Fall Speed, Darkness, Wind or camera-zoom controls. Each scene
+	-- and intensity already sets all five, the fall speeds are derived from
+	-- drop physics rather than taste, and five sliders under two selectors
+	-- made the window read as a control panel to be learned before the rain
+	-- could be enjoyed. The settings themselves are still there underneath:
+	-- the scenes write them, and the slash commands still reach them.
 
 	-- Sits with the look rather than with the switches, because what it changes
 	-- is what you see when the real thing is already on screen. On by default,

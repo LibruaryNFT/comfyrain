@@ -28,7 +28,7 @@ the way rain should, and where the real thing exists it is simply the better of 
 | **Time of day** | Hold the world at dusk, or run it on your clock instead of the realm's. Works on its own, with the rain switched off |
 | **Indoors** | Fades down under a roof instead of raining on the ceiling |
 | **One-press scenes** | Cozy, Storm, Snow, Overcast for the weather; Dusk and Night for the light alone, with nothing falling |
-| **A settings window** | `/comfyrain`, the minimap button, the addon compartment, or a keybind of your own. Every slider shows you the command it ran, so you learn them by using it |
+| **A settings window** | `/comfyrain`, the minimap button, the addon compartment, or a keybind of your own. Every control shows you the command it ran, so you learn them by using it |
 
 ## Getting started
 
@@ -54,10 +54,6 @@ That is the whole thing. Everything below is optional.
 
 | Command | What it does |
 |---|---|
-| `/comfy alpha 0.75` | How visible the rain is |
-| `/comfy speed 1.4` | How fast it falls |
-| `/comfy dim 0.5` | How much it darkens the world. `0` leaves the light alone |
-| `/comfy gust 0.5` | How hard the wind gusts. `0` is dead calm |
 | `/comfy indoors off \| dim \| on` | What happens under a roof. `dim` is the default |
 | `/comfy sound on \| off` | The ambience bed |
 | `/comfy volume 0.5` | How loud, over the weather only |
