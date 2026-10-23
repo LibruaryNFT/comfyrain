@@ -7,6 +7,26 @@ because the client cannot be told to actually change the weather.
 Stormwind. v2 switches all audio and the drop sprite to Blizzard's own assets and stops
 the rain indoors; needs `/reload` to pick up (no new files, so no client restart).
 
+## 2026-10-23 — No scene rows: Rain & Snow, then Time of Day, each starting at Off
+
+"Do we need those presets at the top, cant we just use the rain & snow type of ui,
+and then under that time of day, im confused cause theres redundancy", and "maybe we
+dont need icons for type".
+
+- **The two button rows are gone.** Type steps Off / Rain / Snow and is the weather's
+  only switch; Time of Day's Mode steps Off / My PC clock / Shift by hours / Fixed
+  hour ("Server time" renamed Off). The scenes live on as `/comfy preset <name>`,
+  README updated.
+- **No icons anywhere**: the Type well's frost-spell picture, the well's icon slot and
+  the dead `Button:SetIcon` are deleted (`SetIcon` out of api_audit OURS).
+- Specs: the preset-button tests now drive the selectors or the typed preset; new
+  "has no row of scenes" (positive control: the same lookup finds Use mine) and
+  "puts no picture anywhere" (positive control: the scan finds a spell icon once one
+  is drawn). The harness `w:button(text, nth)` gained `nth`.
+- **Open:** `docs/curseforge-shoot-card.md` on docs/gallery-plan names the old buttons.
+- **Open:** a player whose last scene was Overcast has `scale 0` saved and no slider to
+  undo it; Reset Rain & Snow does. Unchanged by this commit, worth knowing.
+
 ## 2026-10-23 — The window holds still, and stopped narrating
 
 "We choose a setting and it shifts the UI a lot... if we choose normal light then dusk",

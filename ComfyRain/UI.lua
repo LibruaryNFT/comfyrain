@@ -107,30 +107,9 @@ local ART = {
 	next = "Interface\\Buttons\\UI-SpellbookIcon-NextPage-Up",
 }
 
--- The one picture left in the window, in the Weather selector. Picked by
--- rendering the candidates at 14px and looking at them, which is the size they
--- are drawn at here, not by reading their names at 64px:
---
---   rain     IceStorm's shards lose their detail on the way down and what is
---            left is slanted streaks, which is exactly what rain looks like.
---   snow     FrostShock keeps a bold white snowflake at 14px. ChillingBlast is
---            the better picture at full size and was the first choice, but it
---            dissolves into a white diagonal slash that is indistinguishable
---            from the rain icon, and telling rain from snow is the one thing
---            this picture has to do.
---
--- Worth recording because it is the kind of thing that gets "fixed" later: no
--- icon anywhere in the game depicts rain. The whole 2.27M-file catalogue was
--- searched, not just the classic range. So rain borrows a shape rather than a
--- subject, and that is deliberate.
---
--- Thunder and Gusts used to carry icons too, on their toggles. The client's
--- own Options window has no icons on anything, and matching it was the whole
--- point of the 2026-10-19 rebuild, so they went.
-local ICON = {
-	rain    = "Interface\\Icons\\Spell_Frost_IceStorm",
-	snow    = "Interface\\Icons\\Spell_Frost_FrostShock",
-}
+-- No pictures anywhere in the window, Type included. The client's own Options
+-- window has none, and the word Rain or Snow in the well already says it. The
+-- rain one was a borrowed frost spell, since no icon in the game depicts rain.
 
 -- An unknown template name raises inside CreateFrame, so each is asked for once
 -- and the answer cached. Which templates a client has cannot be read out of the
@@ -295,37 +274,6 @@ local function Pill(parent, label, onClick)
 		self:SetText(text)
 	end
 	b:SetLabel(label)
-
-	-- An icon on the left with the label sliding over to make room. Asked about
-	-- with HasArt rather than drawn blind, because a path this flavour does not
-	-- have leaves a 14px hole where the eye expects a picture, and a centred
-	-- label with no icon beats an off-centre one with a gap.
-	function b:SetIcon(path, off)
-		if path and not HasArt(path) then path = nil end
-		if not path then
-			if self.icon then self.icon:Hide() end
-			self.label:ClearAllPoints()
-			self.label:SetPoint("CENTER")
-			self.label:SetJustifyH("CENTER")
-			return
-		end
-		if not self.icon then
-			self.icon = self:CreateTexture(nil, "ARTWORK")
-			self.icon:SetSize(14, 14)
-			self.icon:SetPoint("LEFT", self, "LEFT", 6, 0)
-		end
-		self.icon:SetTexture(path)
-		self.icon:Show()
-		-- Greying it out is how the client itself says a thing is switched off,
-		-- and it is why the Thunder button can carry a picture instead of the
-		-- little lamp: one widget says both what it is and whether it is on.
-		if self.icon.SetDesaturated then
-			pcall(self.icon.SetDesaturated, self.icon, off and true or false)
-		end
-		self.label:ClearAllPoints()
-		self.label:SetPoint("LEFT", self, "LEFT", 24, 0)
-		self.label:SetJustifyH("LEFT")
-	end
 
 	function b:SetSelected(on)
 		self.selected = on and true or false
@@ -565,11 +513,6 @@ local function Select(parent, label, onStep)
 	row.value = Text(well, nil, "CENTER")
 	well:SetFontString(row.value)
 
-	row.icon = well:CreateTexture(nil, "ARTWORK")
-	row.icon:SetSize(16, 16)
-	row.icon:SetPoint("LEFT", well, "LEFT", 5, 0)
-	row.icon:Hide()
-
 	row.left  = Arrow(row, -1, onStep)
 	row.left:SetPoint("RIGHT", well, "LEFT", -2, 0)
 	row.right = Arrow(row, 1, onStep)
@@ -583,21 +526,11 @@ local function Select(parent, label, onStep)
 	end)
 	row.label:SetWordWrap(false)
 
-	-- icon is a path or nil. Passing one shifts the word right to make room,
-	-- which is the only layout this widget has two of.
-	function row:SetValue(text, icon)
+	function row:SetValue(text)
 		self.value:SetText(text or "")
 		self.well:SetText(text or "")
 		self.value:ClearAllPoints()
-		if icon and HasArt(icon) then
-			self.icon:SetTexture(icon)
-			self.icon:Show()
-			self.value:SetPoint("LEFT", self.icon, "RIGHT", 4, 0)
-			self.value:SetPoint("RIGHT", self.well, "RIGHT", -5, 0)
-		else
-			self.icon:Hide()
-			self.value:SetPoint("CENTER", self.well, "CENTER", 0, 0)
-		end
+		self.value:SetPoint("CENTER", self.well, "CENTER", 0, 0)
 	end
 	row:SetValue("")
 
@@ -854,7 +787,10 @@ local CHANNELS = { "Ambience", "SFX", "Master", "Music", "Dialog" }
 -- The order the Weather and Indoors selectors step through. Intensity has no
 -- list here because its one is the weather's own `order`, which is the whole
 -- reason the top step can be called monsoon under rain and blizzard under snow.
-local WEATHERS = { "rain", "snow" }
+--
+-- Off is the first step of Type, as it is of Time of Day's Mode. There are no
+-- scene buttons above the sections any more, so this is the weather's switch.
+local WEATHERS = { "off", "rain", "snow" }
 local INDOOR_ORDER = { "off", "dim", "on" }
 
 -- Which of the game's own volume sliders each channel rides on, and the switch
@@ -901,7 +837,7 @@ end
 -- The sentence that used to be the label is now the tooltip's first line, so
 -- nothing was lost: the panel scans, and the explanation is one hover away.
 local TIME_MODES = {
-	{ key = "off",    label = "Server time", cmd = "time off",
+	{ key = "off",    label = "Off",         cmd = "time off",
 	  note = "Leave the server's own day and night alone." },
 	{ key = "local",  label = "My PC clock", cmd = "time local",
 	  note = "Light the world by your clock instead of the server's. " ..
@@ -968,30 +904,10 @@ local function Refresh()
 
 	local weather = ComfyRainAPI.Weather[db.weather] or ComfyRainAPI.Weather.rain
 
-	-- Light up the scene the settings currently ARE, and only while they are
-	-- exactly it. One mark per row at most, because the two rows write
-	-- disjoint settings: Night and Cozy are both lit at once, which is the
-	-- answer to "is it raining, and what time is it". Off and Normal mark the
-	-- same way, so a row with nothing lit means the selectors below have it
-	-- somewhere no button names, and a scene plus one edit is not that scene.
-	for _, entry in ipairs(controls.presets or {}) do
-		local on = true
-		for k, v in pairs(entry.set) do
-			if db[k] ~= v then on = false break end
-		end
-		-- A bar under the button rather than a tint on its label. The two
-		-- pill flavours rest at different text colours, so a tint has to know
-		-- which one it is putting back, and the one the client's own template
-		-- uses is gold - which is this window's heading colour and reserved.
-		-- A bar is also the thing that still reads on a client with no button
-		-- art at all.
-		if on then entry.button.mark:Show() else entry.button.mark:Hide() end
-	end
-
-	controls.weather:SetValue(Title(db.weather), ICON[db.weather])
-	Teach(controls.weather.well, "Type", "/comfy " .. db.weather,
-		"Rain or snow. The arrows step between them; so do /comfy rain and " ..
-		"/comfy snow.")
+	controls.weather:SetValue(db.enabled and Title(db.weather) or "Off")
+	Teach(controls.weather.well, "Type", db.enabled and ("/comfy " .. db.weather) or "/comfy off",
+		"Off, rain or snow. The arrows step between them; so do /comfy off, " ..
+		"/comfy rain and /comfy snow. Off leaves Time of Day as it is.")
 
 	-- Named for the weather it is under: the top step is monsoon in rain and
 	-- blizzard in snow, so the value shown and the command the tooltip teaches
@@ -1168,8 +1084,11 @@ local function Build()
 	-- it down the moment it was needed, which is the window moving out from
 	-- under the mouse that just clicked it. See Note() for what it says.
 	--
-	-- There is no all-off button. Each row below starts with its own way
-	-- back, Off and Normal, and /comfy stop still does both at once.
+	-- There is no all-off button and no row of scenes. Off is the first step
+	-- of Type and of Time of Day's Mode, and /comfy stop does both at once.
+	-- The scenes are still /comfy preset; in the window they were a second way
+	-- to set what the sections below set, "im confused cause theres
+	-- redundancy", 2026-10-23.
 	local FIX_W = 78
 	local fix = add(CreateFrame("Frame", nil, panel), { gap = 4 })
 	fix:SetHeight(ROW - 4)
@@ -1191,90 +1110,18 @@ local function Build()
 	controls.fix:SetPoint("TOPRIGHT", fix, "TOPRIGHT", 0, 0)
 	controls.fix:SetWidth(FIX_W)
 
-	-- Two rows before any heading, because they answer the only two questions
-	-- most people open the window with: what weather, and what light. Each row
-	-- owns one thing and starts with its own way back, so "no rain, but night"
-	-- is Weather: Off and Light: Night, two presses that each do what they
-	-- say. The light row used to switch the weather off as a side effect, and
-	-- an all-off button sat beside both; "if we wanted no weather but wanted
-	-- it day or night" was not answerable by reading the buttons, 2026-10-23.
-	--
-	-- Built from ComfyRainAPI.Presets rather than from a list here, so adding a
-	-- scene is one table entry in the addon and the window follows. Each press
-	-- is the typed command, like every other control in this file.
-	-- The slot is a fixed fifth rather than a share of however many buttons a
-	-- row has. A three-button row stretched to fill the window would be three
-	-- buttons nearly twice the size of the five above them, which reads as
-	-- "these are the important ones" and they are not.
-	--
-	-- No Day. The light grade can darken and tint, but brightening is an ADD
-	-- quad capped at LIFT_CAP and the sky keeps its stars, so a Day button on a
-	-- night realm would barely move. Normal is the honest one: the game's own
-	-- clock, which is daylight whenever the realm is in it.
-	local OFF = {
-		weather = { label = "Off", cmd = "off", command = "/comfy off",
-			set = { enabled = false },
-			note = "No rain, no snow, no weather sound. The light stays as it is." },
-		light = { label = "Normal", cmd = "time off", command = "/comfy time off",
-			set = { timeMode = "off" },
-			note = "The game's own day and night. The weather stays as it is." },
-	}
-	local scenes = (ComfyRainAPI and ComfyRainAPI.Presets) or {}
-	local slot, byKind, order = (WIDTH - PAD * 2) / 5, {}, {}
-	for _, p in ipairs(scenes) do
-		local kind = p.kind or "weather"
-		if not byKind[kind] then
-			byKind[kind] = { OFF[kind] }
-			order[#order + 1] = kind
-		end
-		local verb = (kind == "light")
-			and "Changes the light and nothing else: "
-			or "A whole weather in one press: "
-		table.insert(byKind[kind], { label = p.label, cmd = "preset " .. p.key,
-			command = "/comfy preset " .. p.key, set = p.set,
-			note = verb .. p.blurb .. ". " .. (kind == "light"
-				and "The weather stays as it is."
-				or "The light stays as it is.") })
-	end
-	-- Named for what each row changes. The section headed Rain & Snow below
-	-- is the long form of the first row and Time of Day the long form of the
-	-- second, so neither caption repeats a heading.
-	local CAPTION = { weather = "Weather", light = "Light" }
-	controls.presets = {}
-	for ri, kind in ipairs(order) do
-		local cap = add(CreateFrame("Frame", nil, panel), { gap = ri == 1 and 6 or 5 })
-		cap:SetHeight(13)
-		local capText = Text(cap, "GameFontDisableSmall")
-		capText:SetPoint("TOPLEFT", cap, "TOPLEFT", 2, 0)
-		capText:SetText(CAPTION[kind] or Title(kind))
-
-		local row = add(CreateFrame("Frame", nil, panel), { gap = 1 })
-		row:SetHeight(ROW)
-		for i, e in ipairs(byKind[kind]) do
-			local b = Pill(row, e.label, function() Run(e.cmd) end)
-			b:SetPoint("TOPLEFT", row, "TOPLEFT", slot * (i - 1), 0)
-			b:SetWidth(slot - 3)
-			b.mark = Fill(b, { 0.45, 1.00, 0.45, 0.85 }, "OVERLAY")
-			b.mark:SetHeight(2)
-			b.mark:SetPoint("BOTTOMLEFT", b, "BOTTOMLEFT", 3, 2)
-			b.mark:SetPoint("BOTTOMRIGHT", b, "BOTTOMRIGHT", -3, 2)
-			b.mark:Hide()
-			controls.presets[#controls.presets + 1] = { button = b, set = e.set }
-			Teach(b, e.label, e.command, e.note)
-		end
-	end
-
 	add(Heading(panel, "Rain & Snow", "look"), { gap = 4 })
 
-	-- No on/off box here: Weather: Off above is the switch, its lit mark is
-	-- the readout, and stepping Type or Intensity turns the weather back on.
-	-- There used to be a line here saying so while it was off. It appeared
-	-- and vanished with the setting and shoved everything under it 28 px.
+	-- No on/off box here: Type: Off is the switch, and stepping Intensity
+	-- turns the weather back on. There used to be a line here saying so while
+	-- it was off. It appeared and vanished with the setting and shoved
+	-- everything under it 28 px.
 
 	controls.weather = add(Select(panel, "Type", function(d)
 		local order, db2 = WEATHERS, DB()
+		local now = db2.enabled and db2.weather or "off"
 		local at = 1
-		for i, n in ipairs(order) do if n == db2.weather then at = i end end
+		for i, n in ipairs(order) do if n == now then at = i end end
 		Run(order[((at - 1 + d) % #order) + 1])
 	end))
 
@@ -1396,8 +1243,8 @@ local function Build()
 	-- Title, note and command are all replaced by Refresh, which knows which of
 	-- the two settings this row is currently standing in for. Greyed rather
 	-- than hidden in the two modes with no hour to set, and Strength the same
-	-- under Server time: hiding them made Normal then Dusk grow the window by
-	-- two rows and Dusk then Normal shrink it, every press.
+	-- under Off: hiding them made every step into or out of Off grow or
+	-- shrink the window by two rows.
 	Teach(controls.hour.slider, "Hour", "/comfy time +9",
 		"Move the light away from the server's own clock.")
 

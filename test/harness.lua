@@ -209,10 +209,14 @@ function H.world(opts)
 	-- Controls are found by the text the player reads, not by an index into a
 	-- table the panel happens to keep. A spec that clicks "Snow" is clicking
 	-- what somebody with a mouse would click.
-	function w:button(text)
+	-- nth for a label that appears more than once, in creation order: both
+	-- rows at the top of the window start with Off.
+	function w:button(text, nth)
+		local seen = 0
 		for _, f in ipairs(mock.frames) do
 			if (f._kind == "Button" or f._kind == "CheckButton") and f._text == text then
-				return f
+				seen = seen + 1
+				if seen == (nth or 1) then return f end
 			end
 		end
 	end

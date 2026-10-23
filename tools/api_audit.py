@@ -73,7 +73,7 @@ LUA_SIDE = {
 }
 
 # Methods the addon defines on its own widgets. Not client API at all.
-OURS = {"Set", "SetLabel", "SetOn", "SetSelected", "SetIcon", "Type", "Press",
+OURS = {"Set", "SetLabel", "SetOn", "SetSelected", "Type", "Press",
         "SetLabelText", "SetActive",
         # Our own saved variables, and the two we migrate from.
         "ComfyRainDB", "DuskfallDB", "AlwaysRainDB"}

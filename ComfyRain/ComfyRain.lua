@@ -574,8 +574,8 @@ local SECTION_ORDER = { "look", "sound", "time" }
 --
 -- Deliberately NOT touched by anything here: volume, channel, indoors, defer,
 -- zoom and minimap. Those are how this player likes the addon to behave rather
--- than what it looks like, and a scene button that moves them is a scene
--- button that gets pressed once.
+-- than what it looks like, and a scene that moves them is a scene that gets
+-- used once.
 --
 -- There is no "Day", and that is not an omission. Brightening is an ADD quad
 -- clamped at LIFT_CAP because it can raise the black level but cannot give
@@ -618,8 +618,8 @@ local PRESETS = {
 	-- Light. These leave the weather exactly as it was. They used to switch it
 	-- off, to answer "night without rain" in one press, and that made the
 	-- window's two rows secretly one: pressing Night after Storm threw the
-	-- storm away. Night without rain is now Weather: Off plus Light: Night,
-	-- two presses that each do one thing. The grade is a ratio against the
+	-- storm away. Night without rain is now /comfy off plus /comfy preset
+	-- night, two commands that each do one thing. The grade is a ratio against the
 	-- realm clock, so both of these are no-ops on a realm already at that
 	-- hour, which is correct and is why the window names the held hour.
 	{ key = "dusk", label = "Dusk", kind = "light",
@@ -882,7 +882,7 @@ local function UpdateTimeOfDay()
 	-- I can't turn it off" from live play 2026-10-19. The real fault there was
 	-- not the coupling, it was that a standing grade had no visible cause. It
 	-- has three now: /comfy status leads with the mode whenever it is not off,
-	-- the window lights Dusk or Night and Time of Day reads the held hour,
+	-- the window's Time of Day reads the mode and the held hour,
 	-- and /comfy stop is the one switch that kills everything including this.
 	-- So timeMode is the only thing that decides whether the curtain draws.
 	if db.timeMode == "off" or cinematic then tod:Hide() return end
