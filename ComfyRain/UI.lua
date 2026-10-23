@@ -320,10 +320,10 @@ local function Title(s)
 end
 
 -- The player's word for each section, which is not always the code's. The
--- Rain & Snow section is `look` internally because it owns every visual
+-- Weather section is `look` internally because it owns every visual
 -- setting, and a button reading "Reset Look" under a heading reading
--- "Rain & Snow" is the window talking to itself.
-local RESET_LABEL = { look = "Rain & Snow" }
+-- "Weather" is the window talking to itself.
+local RESET_LABEL = { look = "Weather" }
 
 --------------------------------------------------------------------------------
 -- The control column
@@ -874,10 +874,10 @@ local function Note(db)
 		-- Ahead of indoors, because the two can be true at once and this is
 		-- the one the player cannot see a reason for.
 		if st.yielding then
-			return "Real rain here, so ours is paused.", "Use mine",
+			return "Game rain here, so ours is hidden.", "Use mine",
 				"defer off",
 				"Draw ours over the top of the game's own weather instead of " ..
-				"standing aside for it. Same as unticking Pause in real weather, " ..
+				"hiding while it falls. Same as unticking Hide when game rains, " ..
 				"further down."
 		end
 		-- Reported 2026-10-19: "we reload and hear rain but dont see anything".
@@ -1110,7 +1110,7 @@ local function Build()
 	controls.fix:SetPoint("TOPRIGHT", fix, "TOPRIGHT", 0, 0)
 	controls.fix:SetWidth(FIX_W)
 
-	add(Heading(panel, "Rain & Snow", "look"), { gap = 4 })
+	add(Heading(panel, "Weather", "look"), { gap = 4 })
 
 	-- No on/off box here: Type: Off is the switch, and stepping Intensity
 	-- turns the weather back on. There used to be a line here saying so while
@@ -1154,16 +1154,59 @@ local function Build()
 	-- Sits with the look rather than with the switches, because what it changes
 	-- is what you see when the real thing is already on screen. On by default,
 	-- which is the one default that argues with the addon's own name.
-	-- "Pause in real weather", not the "Step aside for real weather" it was:
-	-- a row label gets 148 px beside the control column, the client's font
-	-- runs 6 to 7.4 px a character, and the old one came out "Step aside for
-	-- real we...". 21 characters is the most that fits.
-	controls.defer = add(Check(panel, "Pause in real weather", "/comfy defer off",
+	-- "Hide when game rains": what hides is ours. It was "Pause in real
+	-- weather", which reads as pausing the game's weather, and no addon can
+	-- touch that. A row label gets 148 px beside the control column, the
+	-- client's font runs 6 to 7.4 px a character, so 21 characters at most.
+	controls.defer = add(Check(panel, "Hide when game rains", "/comfy defer off",
 		function() Run(DB().defer ~= false and "defer off" or "defer on") end))
-	Teach(controls.defer, "Pause in real weather", "/comfy defer off",
-		"Stand aside while the game's own rain or snow is falling. Theirs is " ..
-		"3D and stops under an arch or a bridge; ours is drawn in front of " ..
-		"the camera and cannot. Where the real thing exists, it wins.")
+	Teach(controls.defer, "Hide when game rains", "/comfy defer off",
+		"Hides Comfy Rain while the game's own rain or snow is falling, and " ..
+		"brings it back when that stops. It cannot stop the game's weather; " ..
+		"no addon can. Theirs is 3D and stops under a bridge, ours cannot, " ..
+		"so where theirs falls it wins.")
+
+	-- Time of Day sits with Weather because it is the other half of what you
+	-- see. Sound goes last.
+	add(Heading(panel, "Time of Day", "time"), { gap = 4 })
+
+	controls.timeMode = add(Select(panel, "Mode", function(d)
+		local db2, at = DB(), 1
+		for i, m in ipairs(TIME_MODES) do if m.key == db2.timeMode then at = i end end
+		Run(TIME_MODES[((at - 1 + d) % #TIME_MODES) + 1].cmd)
+	end))
+
+	controls.hour = add(Slider(panel, "Hour", -12, 23, 1, "%d", function(v)
+		if DB().timeMode == "offset" then
+			Run(string.format("time %+d", v))
+		else
+			Run(string.format("time %d", v))
+		end
+	end,
+	-- The only slider whose default moves. One control is shown for two
+	-- settings - an offset from realm time, and an absolute hour to hold at -
+	-- so "the default" is 0 in one mode and 21 in the other, and a fixed
+	-- number here would grey out the wrong one half the time.
+	function()
+		local d = Defaults()
+		if DB() and DB().timeMode == "offset" then
+			return d.timeOffset, string.format("time %+d", d.timeOffset or 0)
+		end
+		return d.timeFixed, string.format("time %d", d.timeFixed or 21)
+	end))
+	-- Title, note and command are all replaced by Refresh, which knows which of
+	-- the two settings this row is currently standing in for. Greyed rather
+	-- than hidden in the two modes with no hour to set, and Strength the same
+	-- under Off: hiding them made every step into or out of Off grow or
+	-- shrink the window by two rows.
+	Teach(controls.hour.slider, "Hour", "/comfy time +9",
+		"Move the light away from the server's own clock.")
+
+	controls.strength = add(Slider(panel, "Strength", 0, 1, 0.05, Pct,
+		function(v) Run(string.format("time strength %.2f", v)) end,
+		Back("timeStrength", "time strength")))
+	Teach(controls.strength.slider, "Strength", "/comfy time strength 0.7",
+		"How far towards that hour to grade the light.")
 
 	add(Heading(panel, "Sound", "sound"), { gap = 4 })
 
@@ -1213,46 +1256,6 @@ local function Build()
 	Teach(controls.channel.well, "Volume follows", "/comfy channel Ambience",
 		"Which of the game's volume sliders owns the weather. Ambience keeps " ..
 		"it out of the way of music.")
-
-	add(Heading(panel, "Time of Day", "time"), { gap = 4 })
-
-	controls.timeMode = add(Select(panel, "Mode", function(d)
-		local db2, at = DB(), 1
-		for i, m in ipairs(TIME_MODES) do if m.key == db2.timeMode then at = i end end
-		Run(TIME_MODES[((at - 1 + d) % #TIME_MODES) + 1].cmd)
-	end))
-
-	controls.hour = add(Slider(panel, "Hour", -12, 23, 1, "%d", function(v)
-		if DB().timeMode == "offset" then
-			Run(string.format("time %+d", v))
-		else
-			Run(string.format("time %d", v))
-		end
-	end,
-	-- The only slider whose default moves. One control is shown for two
-	-- settings - an offset from realm time, and an absolute hour to hold at -
-	-- so "the default" is 0 in one mode and 21 in the other, and a fixed
-	-- number here would grey out the wrong one half the time.
-	function()
-		local d = Defaults()
-		if DB() and DB().timeMode == "offset" then
-			return d.timeOffset, string.format("time %+d", d.timeOffset or 0)
-		end
-		return d.timeFixed, string.format("time %d", d.timeFixed or 21)
-	end))
-	-- Title, note and command are all replaced by Refresh, which knows which of
-	-- the two settings this row is currently standing in for. Greyed rather
-	-- than hidden in the two modes with no hour to set, and Strength the same
-	-- under Off: hiding them made every step into or out of Off grow or
-	-- shrink the window by two rows.
-	Teach(controls.hour.slider, "Hour", "/comfy time +9",
-		"Move the light away from the server's own clock.")
-
-	controls.strength = add(Slider(panel, "Strength", 0, 1, 0.05, Pct,
-		function(v) Run(string.format("time strength %.2f", v)) end,
-		Back("timeStrength", "time strength")))
-	Teach(controls.strength.slider, "Strength", "/comfy time strength 0.7",
-		"How far towards that hour to grade the light.")
 
 	local foot = add(CreateFrame("Frame", nil, panel))
 	foot:SetHeight(ROW)

@@ -27,6 +27,7 @@ the way rain should, and where the real thing exists it is simply the better of 
 | **Wind** | Gusts that move the rain, the sound and the light together, not on a timer |
 | **Time of day** | Hold the world at dusk, or run it on your clock instead of the realm's. Works on its own, with the rain switched off |
 | **Indoors** | Fades down under a roof instead of raining on the ceiling |
+| **The game's own weather** | When the game is raining or snowing for real, Comfy Rain hides so you never see both, and comes back when it stops. It cannot stop the game's weather; no addon can. `/comfy defer off` keeps yours on top |
 | **Scenes** | `/comfy preset cozy`, `storm`, `snow` or `overcast` sets a whole weather; `dusk` or `night` sets just the time of day. Each leaves the other alone, so night with no rain is `/comfy off` plus `/comfy preset night` |
 | **A settings window** | `/comfyrain`, the minimap button, the addon compartment, or a keybind of your own. Every control shows you the command it ran, so you learn them by using it |
 

@@ -122,7 +122,7 @@ local CASES = {
 	{ "Intensity, snow normal to heavy", { "select", "Intensity" }, "heavy", before = { "snow" } },
 	{ "Intensity, snow heavy to blizzard", { "select", "Intensity" }, "blizzard",
 	  before = { "snow", "heavy" } },
-	{ "Pause in real weather, in a real storm", { "check", "Pause in real weather" }, "defer off",
+	{ "Hide when game rains, in a real storm", { "check", "Hide when game rains" }, "defer off",
 	  state = STORM, cvars = { weatherDensity = "3" } },
 	{ "Play sounds", { "check", "Play sounds" }, "sound off" },
 	{ "Volume", { "slider", "Volume", 0.3 }, "volume 0.30" },

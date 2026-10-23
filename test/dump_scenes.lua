@@ -69,7 +69,7 @@ local GROUPS = {
 		{ "Off", "indoors off" }, { "Dim", "indoors dim" }, { "On", "indoors on" } } },
 	-- weatherDensity too: C_Weather reports rain on a client drawing none,
 	-- and the addon rightly ignores that (spec_visuals).
-	{ group = "Pause in real weather, real rain falling", kind = "choices",
+	{ group = "Hide when game rains, real rain falling", kind = "choices",
 	  state = { weather = { type = 1, intensity = 0.8 } }, cvars = { weatherDensity = "3" }, rows = {
 		{ "ticked", "defer on" }, { "unticked", "defer off" } } },
 	-- The slider's ends, 0 and 23, are an hour apart on the clock, so the

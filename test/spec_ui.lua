@@ -186,7 +186,7 @@ it("keeps the fine-tuning out of the window", function()
 	local w = H.world()
 	w:open()
 	ok(w:slider("Volume"), "the lookup finds a slider that is there")
-	ok(w:button("Pause in real weather"), "and a checkbox that is there")
+	ok(w:button("Hide when game rains"), "and a checkbox that is there")
 	for _, label in ipairs({ "Drops", "Fall Speed", "Darkness", "Wind" }) do
 		eq(w:slider(label), nil, label .. " is not in the window")
 	end
@@ -405,6 +405,22 @@ it("holds still whatever is pressed: no row appears, vanishes or moves", functio
 	w:slash("snow")
 	gt(p:GetHeight(), h0, "a taller row does grow the window")
 	lt(volume._lastPoint.y, y0, "and does push Volume down")
+end)
+
+it("reads Weather, then Time of Day, then Sound, top to bottom", function()
+	-- "we might want time of day after rain & snow, maybe rename that to
+	-- weather", 2026-10-23. The two sections that change what you see sit
+	-- together; sound is the other sense, so it goes last.
+	local w = H.world()
+	w:open()
+	local function y(text)
+		local fs = w:says("^" .. text .. "$")
+		ok(fs, text .. " is a heading in the window")
+		return fs:GetParent()._lastPoint.y
+	end
+	local weather, time, sound = y("Weather"), y("Time of Day"), y("Sound")
+	gt(weather, time, "Time of Day sits under Weather")
+	gt(time, sound, "and Sound under Time of Day")
 end)
 
 it("is not load-bearing: the addon works with the window deleted", function()
@@ -726,8 +742,8 @@ it("has a Reset for every section a setting can live in", function()
 	                    probe = true, where = true, seen = true, seenUI = true,
 	                    undo = true }
 	-- The button is named for the heading the player reads, which is not
-	-- always the section key: `look` sits under a heading that says Rain & Snow.
-	local SHOWN = { look = "Rain & Snow" }
+	-- always the section key: `look` sits under a heading that says Weather.
+	local SHOWN = { look = "Weather" }
 	local covered = {}
 	for _, name in ipairs(w.env.ComfyRainAPI.SectionOrder) do
 		ok(w:button("Reset " .. (SHOWN[name] or name:gsub("^%l", string.upper))),
@@ -1285,7 +1301,7 @@ it("stands the checkbox on the panel, not on a button face", function()
 	-- word and a box on the background.
 	local w = H.world()
 	w:open()
-	local z = w:button("Pause in real weather")
+	local z = w:button("Hide when game rains")
 	eq(z._template, nil, "no panel-button template under it")
 	eq(z.label._lastPoint.x, 0, "the words start at the left edge of the row")
 	eq(z.box._lastPoint.relPoint, "RIGHT",
@@ -1305,7 +1321,7 @@ it("lines every checkbox and every selector up in one column", function()
 	-- Every one of these is anchored off its row's RIGHT edge, so the column
 	-- is one number per control: how far in from that edge it begins.
 	local seen = {}
-	for _, name in ipairs({ "Pause in real weather", "Play sounds", "Thunder" }) do
+	for _, name in ipairs({ "Hide when game rains", "Play sounds", "Thunder" }) do
 		local b = w:button(name)
 		ok(b, name .. " is a checkbox in the window")
 		seen[b.box._lastPoint.x] = true
@@ -1622,8 +1638,8 @@ it("keeps gold for headings and the status line, and off every control", functio
 
 	-- The positive control. If the detector above cannot see gold where gold
 	-- IS, then zero means nothing.
-	local heading = w:says("^Rain & Snow$")
-	ok(heading, "the Rain & Snow heading is there to look at")
+	local heading = w:says("^Weather$")
+	ok(heading, "the Weather heading is there to look at")
 	near(heading.colour[1], 1.00, 1e-9, "and it is gold")
 	near(heading.colour[2], 0.82, 1e-9, "on the channel the detector tests")
 	lt(heading.colour[3], 0.3, "with no blue in it")
@@ -1638,7 +1654,7 @@ function()
 	local w = H.world()
 	w:open()
 	eq(w:button("Show rain & snow"), nil, "the checkbox is gone")
-	ok(w:button("Pause in real weather"), "while the section's other checkbox is not")
+	ok(w:button("Hide when game rains"), "while the section's other checkbox is not")
 
 	choose(w, "Type", "Off")
 	eq(w:db().enabled, false, "Off switches the weather off")
@@ -1730,7 +1746,7 @@ it("says why nothing is drawn when it is standing aside, not just that nothing i
 	w:advance(3.0, 0.1)
 	eq(w:overlay():IsShown(), false, "their storm has stopped ours")
 	eq(w:db().enabled, true, "with the setting still on, which is the trap")
-	ok(w:says("Real rain here"), "and the window says so, in words")
+	ok(w:says("Game rain here"), "and the window says so, in words")
 
 	-- Positive control: it is the deference talking, not a hard-wired string.
 	w:slash("defer off")
@@ -1969,7 +1985,7 @@ it("offers the fix beside the reason when real weather has won", function()
 	w.mock.cvars.weatherDensity = "3"
 	w:advance(3.0, 0.1)
 
-	ok(w:says("Real rain here"), "the reason is spelled out under the status")
+	ok(w:says("Game rain here"), "the reason is spelled out under the status")
 	local use = w:button("Use mine")
 	ok(use and use:IsVisible(), "and the fix is right beside it")
 

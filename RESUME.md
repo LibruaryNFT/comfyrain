@@ -7,6 +7,28 @@ because the client cannot be told to actually change the weather.
 Stormwind. v2 switches all audio and the drop sprite to Blizzard's own assets and stops
 the rain indoors; needs `/reload` to pick up (no new files, so no client restart).
 
+## 2026-10-23 — Weather, Time of Day, Sound; "Hide when game rains"
+
+"i dont think we are even able to pause in real weather... that doesnt make sense to me
+that we can stop 3d rain", and "time of day after rain & snow, maybe rename that to weather".
+
+- **The setting never stopped the game's rain and cannot.** `db.defer` hides OUR overlay
+  while the game's own rain or snow falls. The label "Pause in real weather" read as
+  pausing theirs. Now **Hide when game rains** (20 chars, inside the 7.0 px/char spec);
+  the tooltip, the "Use mine" note ("Game rain here, so ours is hidden.") and a new README
+  row say it cannot touch the game's weather.
+- **Detection is proven live, from `SavedVariables/ComfyRain.lua` `calib`:** 2026-10-20
+  07:24:01 Elwynn, the console line `Weather changed to 1, intensity 0.674720` and
+  `C_Weather` = rain in the same second; 69 yielded/resumed switches 10-20 to 10-23
+  (Duskwood, Westfall, Riverglades, Wetlands, Stormwind), `weatherDensity` 3. Closes the
+  "not yet confirmed in a running client" notes on both sources below. The real console
+  line has a comma and **no `recID`**, unlike LibForecast's pattern.
+- Riverglades flips ours on and off every 10 s to a few minutes as you cross subzones:
+  the game's weather is per subzone. Works as built; watch for complaints.
+- **Window order is Weather, Time of Day, Sound.** Heading "Rain & Snow" is "Weather"
+  again (Reset Weather). `SECTION_ORDER` (share-string key order) is unchanged on purpose.
+  New spec pins the heading order.
+
 ## 2026-10-23 — Every setting tested for a difference a player can see or hear
 
 "why do we keep mentioning things are broke ie the light snow, but you said u tested
