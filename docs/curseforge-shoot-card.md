@@ -3,6 +3,9 @@
 **7 photos, 3 clips, three spots.** CurseForge takes images only; each clip becomes a 2-4 s
 looping GIF. The throwaway HTML copy used on shoot day is a hand-made mirror of this file.
 
+**Status 2026-10-23:** Stormwind 2, 3 and 5 are kept. Redo 1 (shot before the rain sped up)
+and 4 (the UI was hidden). Everything from 6 on is still to do.
+
 - **Daylight only.** The gloom layer is a fullscreen multiply and cannot make a lamp glow,
   so Stormwind at night is the one scene the addon loses.
 - **Buttons only.** A frame of a hand-tuned config advertises something a fresh install
@@ -19,8 +22,7 @@ Every capture names the one to click. Clicking a scene also turns the rain back 
 
 ## Before you start
 
-1. **Launch WoW.** The fall-speed pass changed `snow-gale.tga`, so it needs a full launch,
-   not a `/reload`.
+1. **`/reload`.** The 2026-10-23 rain speed change is Lua only. A fresh launch also works.
 2. Paste this into chat. `Alt+Z` does not hide chat bubbles, which are drawn in the world:
 
    ```
@@ -30,6 +32,9 @@ Every capture names the one to click. Clicking a scene also turns the rain back 
 3. Already done, verified on disk 2026-10-22: PNG screenshots (`screenshotFormat png`,
    `screenshotQuality 10` in `Config.wtf`) and the `/comfy strike` macro
    (`macros-cache.txt`, account-wide).
+
+4. **Park the mouse in the top-left corner** before every capture. It shows in both
+   screenshots and clips.
 
 ## Keys
 
