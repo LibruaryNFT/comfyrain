@@ -162,12 +162,30 @@ def main():
     # lens is out of its focus. Garg and Nayar treat near rain as defocused
     # even where the scene behind it is sharp, and a near layer made only of
     # razor-thin high-alpha bars is the look that reads as drawn-on.
-    near = scatter(420, 10, 72, 0.95, 2.90,
-                   a_med=0.163, a_sig=0.62, a_lo=0.030, a_hi=0.46, seed=29)
+    def near_drops(count, seed):
+        return scatter(count, 10, 72, 0.95, 2.90,
+                       a_med=0.163, a_sig=0.62, a_lo=0.030, a_hi=0.46, seed=seed)
+
+    near = near_drops(420, 29)
+
+    # Heavy and monsoon draw denser near sheets: normal's drops with more
+    # strewn among them, 1.8x and then 2x again. Intensity used to be alpha
+    # and speed alone, and every drop on this sheet is already visible at
+    # normal's alpha, so heavy and monsoon showed the same 420 drops brighter
+    # and barely faster (tools/perceive.py, 2026-10-23). A heavier downpour is
+    # more drops. The extra ones come from their own seeds, so normal is
+    # unchanged, and adding one Poisson field to another leaves a Poisson field.
+    # Overlapping drops merge into one streak, so the count a player sees
+    # grows slower than the count drawn: these land at about 1.5x each.
+    heavy = np.maximum(near, near_drops(336, 31))
+    monsoon = np.maximum(heavy, near_drops(756, 37))
 
     to_tga(far, f"{out}/rain-far.tga", (0.86, 0.90, 0.97))
     to_tga(near, f"{out}/rain-near.tga", (0.93, 0.96, 1.00))
-    print(f"wrote rain-far.tga and rain-near.tga ({SIZE}x{SIZE} 32-bit TGA), "
+    to_tga(heavy, f"{out}/rain-near-heavy.tga", (0.93, 0.96, 1.00))
+    to_tga(monsoon, f"{out}/rain-near-monsoon.tga", (0.93, 0.96, 1.00))
+    print(f"wrote rain-far.tga, rain-near.tga, rain-near-heavy.tga and "
+          f"rain-near-monsoon.tga ({SIZE}x{SIZE} 32-bit TGA), "
           f"drops rasterised from the optical model - no Blizzard art")
 
 

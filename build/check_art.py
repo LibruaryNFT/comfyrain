@@ -29,10 +29,11 @@ or would be invisible until a player saw it:
 7. On-screen size  Sheet pixels are not screen pixels. tilesY is multiplied by
                    the weather's tiling and by the zoom, so the same sheet is
                    magnified differently in different views. The largest
-                   element is measured off the sheet's own alpha and put
-                   through the worst of those. This is the check that was
-                   missing when the rain streaks shipped at 51% of the frame
-                   height.
+                   element is measured off the sheet's own alpha, followed
+                   at its own slant and cut from any neighbour touching it,
+                   and put through the worst of those. This is the check
+                   that was missing when the rain streaks shipped at 51% of
+                   the frame height.
 8. Icon            64x64, and still legible once the addon list shrinks it.
 
 Usage: check_art.py <dir>        (defaults to the installed _forever_ addon)
@@ -66,13 +67,21 @@ ZOOM_WORST = 1 + (0.0 - 0.65) * 0.55
 # height for a falling streak, width for a wind-driven one. Above it the eye
 # stops reading "weather" and starts reading "line drawn on the screen".
 #
-# Calibrated against known-bad and known-good art rather than picked. The
-# sheets that shipped and were called bars measured 16.4% (rain near), 14.8%
-# (snow near) and 21.5% (gale); the retuned ones measure 7.0%, 5.7% and 8.9%.
+# Checked against the truth rather than picked. Rasterising each generator's
+# elements one at a time gives every element's real size to hold the ruler
+# against (2026-10-23): the rain bars that shipped at 80-190px measure 187px
+# here, true 187, = 28% of the frame, and fail. Every sheet shipped since
+# measures 7-12%, within 20% of its true largest element, over it where a
+# dense sheet stands two elements end to end. The figures this used to quote,
+# 16.4% rain near, 14.8% snow near and 21.5% gale, came from a ruler that read
+# straight down a column: it measured those bars at 73px, and passed them once
+# the tiling stopped depending on intensity.
 MAX_FRAME_SHARE = 0.12
 
-SHEETS = ["rain-far.tga", "rain-near.tga",
+SHEETS = ["rain-far.tga", "rain-near.tga", "rain-near-heavy.tga",
+          "rain-near-monsoon.tga",
           "snow-far.tga", "snow-near.tga", "snow-near-light.tga",
+          "snow-near-heavy.tga",
           "snow-gale.tga"]
 
 fails = []
@@ -301,23 +310,89 @@ def check_landmarks(name, a):
                    f"repeats it across the screen")
 
 
-def longest_run(mask, axis):
-    """Longest unbroken run of set pixels along one axis, wrapping.
+# Where a lit run dips below this share of the dimmer of the peaks either side
+# of it, it is two elements touching, not one. See measure_largest.
+VALLEY = 0.5
+
+
+def pieces(seg):
+    """Lengths of the elements in one unbroken lit run, cut at deep valleys.
+
+    A cut goes at a local minimum lower than VALLEY times the brightest pixel
+    on its dimmer side. A single streak tapers smoothly from one peak, so its
+    only minima are noise in the tail, where the brightest pixel behind them is
+    barely above them, and it comes back whole.
+    """
+    n = len(seg)
+    if n < 3:
+        return np.array([n])
+    left = np.maximum.accumulate(seg)
+    right = np.maximum.accumulate(seg[::-1])[::-1]
+    mid = seg[1:-1]
+    low = (mid <= seg[:-2]) & (mid <= seg[2:])
+    deep = mid < VALLEY * np.minimum(left[:-2], right[2:])
+    cuts = np.flatnonzero(low & deep) + 1
+    return np.diff(np.concatenate([[-1], cuts, [n]])) - 1
+
+
+# The lines an element is followed along: every slope from 45 degrees one way
+# to 45 the other, in steps fine enough that a streak the length of the old
+# bars (190px, a hair wide) drifts at most a pixel off its line from end to
+# end. 0.02 drifted off them and read the bars at 144px. The other axis's
+# pass covers the steeper half.
+SLOPES = np.arange(-1.0, 1.0001, 0.01)
+
+
+def longest_element(a, axis):
+    """Longest element's extent along one axis, following it at its own slant.
+
+    Straight down a pixel column was the first ruler, and it cannot measure a
+    slanted streak: the column crosses it and leaves, so it reads the crossing,
+    not the streak. Rain falls at 7.5 degrees, and the 190px bars this check
+    was written for measured 73px straight down, under the ceiling. So the
+    sheet is sheared at each slope in SLOPES until the streak stands in one
+    column, and the longest run over every slope is the element.
 
     Wrapping matters: the sheet tiles, so an element split across the seam is
     one element on screen, and measuring the file without wrapping would report
     it as two short ones. Doubling the array and capping the answer at the
     original length is the cheap way to get that.
+
+    A slope whose longest unbroken run is no longer than the best element
+    found so far is skipped, and the runs of the rest are visited longest
+    first, stopping at the same bound, because cutting a run can only shorten
+    it. Each sheared column is gathered as a contiguous row, padded with an
+    unlit pixel at each end, so every run in the sheet is one pair of sign
+    changes in a single flat diff. Together that keeps 201 slopes on two axes
+    to about a second a sheet.
     """
-    m = mask if axis == 0 else mask.T
+    m = a if axis == 0 else a.T
     n = m.shape[0]
-    d = np.vstack([m, m])
-    # Vectorised run length: a running counter that resets to zero on a gap.
-    run = np.zeros(d.shape[1], dtype=np.int32)
+    # Doubled down the run, so a run crossing the seam is whole; doubled
+    # across, so a shifted column can be read without a modulo.
+    d = np.tile(m, (2, 2))
+    flat = d.ravel()
+    on = flat > 0
+    y = np.arange(2 * n)
+    width = 2 * n + 2
+    padded = np.zeros((n, width), dtype=bool)
     best = 0
-    for row in d:
-        run = np.where(row, run + 1, 0)
-        best = max(best, int(run.max()))
+    for s in SLOPES:
+        # Sheared column c is d[y, c + shift(y)], laid out as row c here.
+        start = y * (2 * n) + np.round(s * y).astype(np.int64) % n
+        idx = start[None, :] + np.arange(n)[:, None]
+        padded[:, 1:-1] = on[idx]
+        edges = np.flatnonzero(np.diff(padded.ravel().view(np.int8)))
+        starts, ends = edges[::2], edges[1::2]
+        lengths = ends - starts
+        if lengths.size == 0 or lengths.max() <= best:
+            continue
+        for k in np.argsort(-lengths):
+            if lengths[k] <= best:
+                break
+            c, i = divmod(int(starts[k]), width)
+            run = flat[idx[c, i:i + lengths[k]]]
+            best = max(best, int(pieces(run).max()))
     return min(best, n)
 
 
@@ -329,9 +404,47 @@ def measure_largest(name, a):
     tail registers - thresholding at 2/255 or higher cut the measured length
     roughly in half and could no longer tell the sheets that shipped apart from
     the retuned ones. The eye sees the tail; so does the check.
+
+    But at alpha > 0 the tails of neighbouring elements touch, and on a dense
+    sheet (heavy snow, monsoon) a plain run of lit pixels chains several of
+    them into one "element" that no player sees: heavy snow's longest run was
+    five separate flakes, its alpha falling to 2/255 between each. So a run is
+    cut where it dips to under half the dimmer peak beside it (pieces).
+    control() holds both halves of that, whole streak and split pair, every
+    time this runs.
     """
-    mask = a > 0.0
-    return longest_run(mask, 0), longest_run(mask, 1)
+    return longest_element(a, 0), longest_element(a, 1)
+
+
+def control():
+    """The ruler has to measure one long slanted streak whole and cut two
+    touching flakes apart. Abort rather than judge the art with a ruler that
+    does neither."""
+    n = 256
+    ys = np.arange(n, dtype=np.float32)
+
+    # A 200px streak at rain's 7.5 degrees, 2px wide, its head bright and its
+    # tail tapering to nothing, with faint ripple along it.
+    streak = np.zeros((n, n), dtype=np.float32)
+    t = np.clip((ys - 20) / 200, 0, 1)
+    along = np.where((ys >= 20) & (ys < 220), 0.4 * (1 - t) ** 0.5 + 0.002, 0)
+    along *= 1 + 0.05 * np.sin(ys * 1.7)
+    cx = 40 + 0.1317 * ys
+    xs = np.arange(n, dtype=np.float32)
+    streak[:] = along[:, None] * np.exp(-((xs[None, :] - cx[:, None]) / 1.0) ** 2)
+    streak[streak < 1 / 255] = 0                 # as the 8-bit file stores it
+
+    # Two 60px flakes, one above the other, overlapping by their faint edges.
+    pair = np.zeros((n, n), dtype=np.float32)
+    for c in (80, 135):
+        pair[:, 128] = np.maximum(pair[:, 128],
+                                  np.clip(0.3 * (1 - np.abs(ys - c) / 30), 0, None))
+
+    whole, split = longest_element(streak, 0), longest_element(pair, 0)
+    if not (190 <= whole <= 200 and split <= 61):
+        sys.exit(f"control failed: a 200px slanted streak measured {whole}px "
+                 f"and two 60px flakes touching measured {split}px; the size "
+                 f"check cannot be trusted")
 
 
 def check_on_screen(name, a):
@@ -381,7 +494,7 @@ def check_icon(path):
     if contrast < 0.04:
         fail("icon.tga", f"at 20px the contrast is {contrast:.3f}; it will "
                          f"read as a flat blob in the addon list")
-    print(f"  icon.tga        64x64 32-bit    contrast at 20px {contrast:.3f}")
+    print(f"  {'icon.tga':22s} 64x64 32-bit    contrast at 20px {contrast:.3f}")
 
 
 def main():
@@ -389,8 +502,9 @@ def main():
                "Program Files (x86)/World of Warcraft/_forever_/Interface/"
                "AddOns/ComfyRain")
     d = (sys.argv[1] if len(sys.argv) > 1 else default).rstrip("/")
+    control()
     print(f"checking art in {d}\n")
-    print(f"  {'sheet':16s} {'format':15s} {'cover':>6s}  "
+    print(f"  {'sheet':22s} {'format':15s} {'cover':>6s}  "
           f"{'largest element on a %dx%d screen' % (SCREEN_W, SCREEN_H):40s}")
     for name in SHEETS:
         path = f"{d}/{name}"
@@ -404,7 +518,7 @@ def main():
         check_uniformity(name, a)
         check_landmarks(name, a)
         px, share, axis = check_on_screen(name, a)
-        print(f"  {name:16s} {hd['w']}x{hd['h']} {hd['bpp']}-bit  "
+        print(f"  {name:22s} {hd['w']}x{hd['h']} {hd['bpp']}-bit  "
               f"{100*cov:5.1f}%  {px:5.0f}px {axis:4s} "
               f"= {100*share:4.1f}% of the frame")
     check_icon(f"{d}/icon.tga")

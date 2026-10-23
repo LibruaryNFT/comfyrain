@@ -138,11 +138,17 @@ local WEATHER = {
 		-- gloom and slant, every one of which we already scale harder than
 		-- speed. Anchored on normal = 1.00, which is unchanged and was the one
 		-- that always looked right.
+		-- Count is the near sheet: heavy and monsoon draw denser ones, 1.8x
+		-- and 3.6x normal's drops. Every drop on the normal sheet already
+		-- shows at normal's alpha, so raising alpha only brightened the same
+		-- drops, and heavy and monsoon looked like normal (tools/perceive.py).
 		presets = {
 			light   = { mist = 0.05, far = 0.40, near = 0.35, speed = 0.547, gloom = 0.18, strikeEvery = 70, bed = { id = 538983, len = 20.0 }, under = { id = 538981, len = 30.0, volume = 0.35 } },
 			normal  = { mist = 0.10, far = 0.70, near = 0.65, speed = 1.00, gloom = 0.38, strikeEvery = 64, bed = { id = 538981, len = 30.0 }, under = { id = 538983, len = 20.0, volume = 0.40 } },
-			heavy   = { mist = 0.17, far = 0.95, near = 0.90, speed = 1.204, gloom = 0.75, strikeEvery = 57, bed = { id = 538982, len = 25.0 }, under = { id = 538981, len = 30.0, volume = 0.45 } },
-			monsoon = { mist = 0.26, far = 1.00, near = 1.00, speed = 1.295, gloom = 0.95, strikeEvery = 48, bed = { id = 538982, len = 25.0 }, under = { id = 538983, len = 20.0, volume = 0.55 } },
+			heavy   = { mist = 0.17, far = 0.95, near = 0.90, speed = 1.204, gloom = 0.75, strikeEvery = 57, bed = { id = 538982, len = 25.0 }, under = { id = 538981, len = 30.0, volume = 0.45 },
+			            near_texture = MEDIA .. "rain-near-heavy.tga" },
+			monsoon = { mist = 0.26, far = 1.00, near = 1.00, speed = 1.295, gloom = 0.95, strikeEvery = 48, bed = { id = 538982, len = 25.0 }, under = { id = 538983, len = 20.0, volume = 0.55 },
+			            near_texture = MEDIA .. "rain-near-monsoon.tga" },
 		},
 	},
 	snow = {
@@ -182,11 +188,14 @@ local WEATHER = {
 		-- flakes already showed at light's old 0.30, so light and normal drew
 		-- 552 and 618 flakes and differed only in brightness. Near-light at
 		-- 0.52 shows 320, each about as bright as normal's (make_snow_tga.py).
+		-- Heavy draws near-heavy, 2.2x normal's flakes, the same fix the other
+		-- way: it had been normal's flakes drawn brighter.
 		presets = {
 			light    = { mist = 0.06, far = 0.34, near = 0.52, speed = 0.193, gloom = 0.26, strikeEvery = 85, bed = { id = 538985, len = 29.951 }, under = { id = 538989, len = 50.0, volume = 0.30 },
 			             near_texture = MEDIA .. "snow-near-light.tga" },
 			normal   = { mist = 0.12, far = 0.62, near = 0.58, speed = 0.227, gloom = 0.54, strikeEvery = 82, bed = { id = 538989, len = 50.0 }, under = { id = 538985, len = 29.951, volume = 0.35 } },
-			heavy    = { mist = 0.20, far = 0.88, near = 0.84, speed = 0.261, gloom = 0.78, strikeEvery = 78, bed = { id = 538984, len = 40.0 }, under = { id = 538989, len = 50.0, volume = 0.40 } },
+			heavy    = { mist = 0.20, far = 0.88, near = 0.84, speed = 0.261, gloom = 0.78, strikeEvery = 78, bed = { id = 538984, len = 40.0 }, under = { id = 538989, len = 50.0, volume = 0.40 },
+			             near_texture = MEDIA .. "snow-near-heavy.tga" },
 			blizzard = {
 				-- speed is the VERTICAL rate, and a blizzard's flakes settle no
 				-- faster than light snow's - so this is the same 0.227 the other

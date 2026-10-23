@@ -220,6 +220,17 @@ def main():
                                elong=1.3, elong_sig=0.30, angle=0.0,
                                angle_sd=0.24, hex_strength=0.07, thin=0.45)
 
+    # Heavy draws near-heavy, the same sheet with 2.2x the flakes, for the
+    # same reason from the other side: heavy and normal showed the same
+    # flakes, heavy's brighter (tools/perceive.py). The extra flakes come from
+    # their own seed, so the near sheet itself is unchanged. Overlapping
+    # flakes merge, so 2.2x drawn is about 1.4-1.7x seen.
+    near_heavy = np.maximum(near, scatter(1080, 1.00, 7.00, a_med=0.111,
+                                          a_sig=0.70, a_lo=0.012, a_hi=0.40,
+                                          seed=211, elong=1.3, elong_sig=0.30,
+                                          angle=0.0, angle_sd=0.24,
+                                          hex_strength=0.07))
+
     # gale: the wind beats gravity, so the streaks lie close to flat. 85
     # degrees off vertical, which is what ComfyRain.lua's blizzard slant of
     # 11.4301 = tan(85) scrolls at: the sheet and its travel have to point
@@ -242,9 +253,10 @@ def main():
     to_tga(far, f"{out}/snow-far.tga", (0.92, 0.95, 1.00))
     to_tga(near, f"{out}/snow-near.tga", (0.97, 0.98, 1.00))
     to_tga(near_light, f"{out}/snow-near-light.tga", (0.97, 0.98, 1.00))
+    to_tga(near_heavy, f"{out}/snow-near-heavy.tga", (0.97, 0.98, 1.00))
     to_tga(bliz, f"{out}/snow-gale.tga", (0.95, 0.97, 1.00))
-    print(f"wrote snow-far.tga, snow-near.tga, snow-near-light.tga and "
-          f"snow-gale.tga "
+    print(f"wrote snow-far.tga, snow-near.tga, snow-near-light.tga, "
+          f"snow-near-heavy.tga and snow-gale.tga "
           f"({SIZE}x{SIZE} 32-bit TGA), flakes rasterised from the model "
           f"- no Blizzard art")
 

@@ -44,8 +44,10 @@ jobs:
       # make_rain_audio.py shells out to ffmpeg for the Vorbis encode. It is on
       # this workstation and it is NOT on the GitHub runner image, so the step
       # dies with a bare FileNotFoundError that says nothing about audio.
-      - name: Install ffmpeg
-        run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
+      # Lua 5.1 too: tools/perceive.py asks the addon what each setting draws
+      # by running test/dump_scenes.lua.
+      - name: Install ffmpeg and Lua 5.1
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg lua5.1
 
       # The art is generated, so "does the build still produce it" is a real
       # test and the only one that catches a broken generator before a tag.
@@ -56,8 +58,10 @@ jobs:
           python build/make_snow_tga.py   /tmp/assets
           python build/make_rain_audio.py /tmp/assets
           python build/make_icon_tga.py   /tmp/assets
-          for f in rain-far.tga rain-near.tga snow-far.tga snow-near.tga \
-                   snow-near-light.tga snow-gale.tga rain.ogg thunder.ogg icon.tga; do
+          for f in rain-far.tga rain-near.tga rain-near-heavy.tga \
+                   rain-near-monsoon.tga snow-far.tga snow-near.tga \
+                   snow-near-light.tga snow-near-heavy.tga snow-gale.tga \
+                   rain.ogg thunder.ogg icon.tga; do
             [ -s "/tmp/assets/$f" ] || { echo "::error::$f not produced"; exit 1; }
           done
           ls -la /tmp/assets
@@ -68,3 +72,11 @@ jobs:
       # of the largest element at every preset.
       - name: Check the art assets
         run: python build/check_art.py /tmp/assets
+
+      # Every choice in the window, rendered with this art and judged the way a
+      # player would: two settings that land on the same picture and the same
+      # sound fail. The spec suite cannot catch that, because it checks the
+      # numbers sent to the renderer, and light snow sent different numbers for
+      # weeks while drawing what normal drew.
+      - name: Check every setting looks or sounds different
+        run: LUA=lua5.1 python tools/perceive.py /tmp/assets

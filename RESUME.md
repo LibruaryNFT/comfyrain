@@ -7,6 +7,37 @@ because the client cannot be told to actually change the weather.
 Stormwind. v2 switches all audio and the drop sprite to Blizzard's own assets and stops
 the rain indoors; needs `/reload` to pick up (no new files, so no client restart).
 
+## 2026-10-23 — Every setting tested for a difference a player can see or hear
+
+"why do we keep mentioning things are broke ie the light snow, but you said u tested
+things, can u test things urself more thoroughly, all the things". The suite checked
+that each setting sent the renderer the right numbers; light snow did, and drew what
+normal drew. Nothing checked what the numbers looked like with the real art.
+
+- **`tools/perceive.py`** renders every choice the window offers (from
+  `test/dump_scenes.lua`) with the built art, over a dark ground and a snowfield, and
+  fails any pair a player could not tell apart. Thresholds and both negative controls
+  are in its docstring and `test/README.md`. In CI (`assets` job).
+- **`test/spec_perceive.lua`**: all 18 controls in the window, clicked, land exactly
+  where typing their command does, and somewhere other than where they started.
+- **What it found, fixed:** heavy rain, monsoon and heavy snow drew the lighter step's
+  flakes brighter, the light-snow flaw again. Each now draws a denser near sheet
+  (`rain-near-heavy`, `rain-near-monsoon`, `snow-near-heavy`): the lighter sheet plus
+  more elements from their own seeds, so every existing sheet is bit-identical. Every
+  window choice now passes: 0 pairs a player could not tell apart.
+- **check_art's size ruler was wrong, fixed.** It read straight down a pixel column, so
+  it measured where a slanted streak crossed a column (the 190px bars it was written for
+  read 73px and, at today's tiling, passed) and chained touching flakes into one (heavy
+  snow read 17% and failed). It now follows each element at its own slant and cuts
+  touching ones at deep valleys. Held against every element's true size, rasterised one
+  at a time: the bars read 187px (true 187) and fail at 28%; every current sheet reads
+  within 20% of its truth and passes. A built-in control (a 200px slanted streak whole,
+  two touching flakes split) aborts the run if the ruler breaks either way.
+- **Margin to know:** monsoon 11.6% and heavy snow 11.5% against the 12% ceiling, both
+  over their true sizes (9.6%) because dense sheets stand two elements end to end.
+- Not done: an in-game screenshot sweep (`/comfy selftest`) as ground truth for the
+  renderer model itself. Everything above trusts that perceive.py draws as WoW does.
+
 ## 2026-10-23 — How other addons look native: research, nothing changed yet
 
 "can we download some addons and check how they get their UI to look more like the
@@ -52,8 +83,8 @@ difference the way rain's 1.8x does.
   Far stays 0.34, so light's depth haze is still fainter too.
 - Wired into check_art SHEETS and both workflows' asset lists; release force-adds by
   glob. New spec "gives light snow fewer flakes"; draw golden updated (two rows).
-- **Open:** heavy has the same flaw against normal (628 vs 618, brighter only). Same
-  fix would be a denser sheet; waiting on Justin's read of light in game first.
+- Heavy had the same flaw against normal (628 vs 618, brighter only); fixed with a
+  denser sheet, see "Every setting tested" above.
 
 ## 2026-10-23 — No scene rows: Rain & Snow, then Time of Day, each starting at Off
 

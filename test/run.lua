@@ -35,6 +35,7 @@ local SPECS = {
 	"spec_ui",
 	"spec_probe",
 	"spec_sweep",
+	"spec_perceive",
 }
 
 os.exit(H.run(SPECS) and 0 or 1)
