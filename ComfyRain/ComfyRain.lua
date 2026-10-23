@@ -177,8 +177,14 @@ local WEATHER = {
 		-- it gains mass. That is a 1.35x span, not the 2.9x we had. Blizzard
 		-- falls no faster than light snow at all - all of its speed is sideways
 		-- transport, which the slant below supplies.
+		-- Light snow draws a sheet with about half the flakes of the others.
+		-- Alpha alone is not a count control on the near sheet: 87% of its
+		-- flakes already showed at light's old 0.30, so light and normal drew
+		-- 552 and 618 flakes and differed only in brightness. Near-light at
+		-- 0.52 shows 320, each about as bright as normal's (make_snow_tga.py).
 		presets = {
-			light    = { mist = 0.06, far = 0.34, near = 0.30, speed = 0.193, gloom = 0.26, strikeEvery = 85, bed = { id = 538985, len = 29.951 }, under = { id = 538989, len = 50.0, volume = 0.30 } },
+			light    = { mist = 0.06, far = 0.34, near = 0.52, speed = 0.193, gloom = 0.26, strikeEvery = 85, bed = { id = 538985, len = 29.951 }, under = { id = 538989, len = 50.0, volume = 0.30 },
+			             near_texture = MEDIA .. "snow-near-light.tga" },
 			normal   = { mist = 0.12, far = 0.62, near = 0.58, speed = 0.227, gloom = 0.54, strikeEvery = 82, bed = { id = 538989, len = 50.0 }, under = { id = 538985, len = 29.951, volume = 0.35 } },
 			heavy    = { mist = 0.20, far = 0.88, near = 0.84, speed = 0.261, gloom = 0.78, strikeEvery = 78, bed = { id = 538984, len = 40.0 }, under = { id = 538989, len = 50.0, volume = 0.40 } },
 			blizzard = {
@@ -2210,7 +2216,7 @@ local function Help()
 	print("  |cffffd100/comfy ui|r - open the settings window, which has all of this in it")
 	print("  |cffffd100/comfy|r - toggle; |cffffd100/comfy on|r and |cffffd100/comfy off|r say which")
 	print("  |cffffd100/comfy preset cozy||storm||snow||overcast|r - a whole look in one go")
-	print("  |cffffd100/comfy preset dusk||night|r - just the light; the weather stays as it is")
+	print("  |cffffd100/comfy preset dusk||night|r - just the time of day; the weather stays as it is")
 	print("  |cffffd100/comfy rain||snow|r - which weather to draw")
 	print("  |cffffd100/comfy light||normal||heavy|r - intensity")
 	print("  |cffffd100/comfy monsoon|r, |cffffd100/comfy blizzard|r - the top of each, weather included")

@@ -7,6 +7,24 @@ because the client cannot be told to actually change the weather.
 Stormwind. v2 switches all audio and the drop sprite to Blizzard's own assets and stops
 the rain indoors; needs `/reload` to pick up (no new files, so no client restart).
 
+## 2026-10-23 — Light snow is fewer flakes, not fainter ones
+
+"snow light and normal dont seem diff". Measured on the near sheet (visible = peak
+contrast at least 5/255 over the ground, positive control rain light/normal/heavy):
+light drew 552 flakes, normal 618, heavy 628. Alpha only changed brightness (median
+13 vs 26 vs 37 /255), because 87% of the near sheet's flakes already show at 0.30.
+Speed differs 18%, which is physically right for snow, so it cannot carry the
+difference the way rain's 1.8x does.
+
+- **`snow-near-light.tga`**: the same flakes with a 45% keep mask from its own RNG
+  (`scatter(thin=)`), so the other three sheets are bit-identical. Light snow's near
+  layer draws it at 0.52: 320 visible flakes at 21/255, against normal's 618 at 26.
+  Far stays 0.34, so light's depth haze is still fainter too.
+- Wired into check_art SHEETS and both workflows' asset lists; release force-adds by
+  glob. New spec "gives light snow fewer flakes"; draw golden updated (two rows).
+- **Open:** heavy has the same flaw against normal (628 vs 618, brighter only). Same
+  fix would be a denser sheet; waiting on Justin's read of light in game first.
+
 ## 2026-10-23 — No scene rows: Rain & Snow, then Time of Day, each starting at Off
 
 "Do we need those presets at the top, cant we just use the rain & snow type of ui,

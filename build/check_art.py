@@ -72,7 +72,8 @@ ZOOM_WORST = 1 + (0.0 - 0.65) * 0.55
 MAX_FRAME_SHARE = 0.12
 
 SHEETS = ["rain-far.tga", "rain-near.tga",
-          "snow-far.tga", "snow-near.tga", "snow-gale.tga"]
+          "snow-far.tga", "snow-near.tga", "snow-near-light.tga",
+          "snow-gale.tga"]
 
 fails = []
 warns = []

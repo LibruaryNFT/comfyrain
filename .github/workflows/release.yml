@@ -96,7 +96,7 @@ jobs:
           missing=0
           for f in ComfyRain.lua UI.lua ComfyRain.toc icon.tga \
                    rain-far.tga rain-near.tga \
-                   snow-far.tga snow-near.tga snow-gale.tga \
+                   snow-far.tga snow-near.tga snow-near-light.tga snow-gale.tga \
                    rain.ogg thunder.ogg; do
             if [ ! -s "/tmp/verify/ComfyRain/$f" ]; then
               echo "::error::$f is missing from the release zip"

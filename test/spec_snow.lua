@@ -55,6 +55,23 @@ it("gives the blizzard its own gale sheet, not the same flakes faster", function
 	ok(tostring(l.near.texture):find("gale"), "and it is the gale sheet")
 end)
 
+-- Light and normal snow used to be the same near sheet at two alphas, and on
+-- that sheet alpha barely changes how many flakes show: 552 against 618. Light
+-- is fewer flakes now, so it has to be a different sheet, and the other
+-- intensities have to keep the full one.
+it("gives light snow fewer flakes, not the same flakes fainter", function()
+	local w = H.world()
+	w:slash("snow")
+	local l = w:layers()
+	local full = l.near.texture
+	ok(not tostring(full):find("light"), "normal snow draws the full near sheet")
+	w:slash("light")
+	ok(l.near.texture ~= full, "light snow's near layer is a different sprite")
+	ok(tostring(l.near.texture):find("snow%-near%-light"), "and it is the thinned sheet")
+	w:slash("heavy")
+	eq(l.near.texture, full, "heavy goes back to the full sheet")
+end)
+
 it("plays the snow bed, and relooks it on the snow clip length", function()
 	local w = H.world()
 	local before = #w.mock.sounds

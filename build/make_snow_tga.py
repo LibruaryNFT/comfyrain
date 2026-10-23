@@ -107,7 +107,7 @@ def make_flake(sigma, elong, angle, hex_strength, hex_phase):
 
 def scatter(count, sig_lo, sig_hi, a_med, a_sig, a_lo, a_hi, seed,
             elong=1.0, elong_sig=0.0, angle=0.0, angle_sd=0.0,
-            hex_strength=0.0, gust=None):
+            hex_strength=0.0, gust=None, thin=None):
     """Strew flakes over a sheet that wraps in both axes.
 
     Placement is independent and uniform. It used to be a jittered grid, one
@@ -118,6 +118,12 @@ def scatter(count, sig_lo, sig_hi, a_med, a_sig, a_lo, a_hi, seed,
     `gust`, on the gale sheet only, is (sigma, along, across): a log-Gaussian
     Cox field that makes the placement intensity vary smoothly across the
     sheet, so blowing snow comes in patches rather than at one flat density.
+
+    `thin`, when given, also returns a second sheet holding each flake with
+    that probability. The choice comes from its own generator, so the full
+    sheet is bit-identical with or without it, and thinning a Poisson field
+    leaves a Poisson field: light snow is the same snowfall with fewer flakes
+    in it, not the same flakes drawn fainter.
     """
     rng = np.random.default_rng(seed)
     sheet = np.zeros((SIZE, SIZE), dtype=np.float32)
@@ -150,6 +156,9 @@ def scatter(count, sig_lo, sig_hi, a_med, a_sig, a_lo, a_hi, seed,
         if gust else None
     ys, xs = poisson_centres(rng, count, SIZE, intensity)
 
+    thinned = np.zeros_like(sheet) if thin else None
+    keep = np.random.default_rng(seed + 7919).random(count) < thin if thin else None
+
     big = np.quantile(sigmas, HEX_TOP)
     for i in range(count):
         hexs = (hex_strength * float(rng.uniform(0.4, 1.0))
@@ -158,7 +167,9 @@ def scatter(count, sig_lo, sig_hi, a_med, a_sig, a_lo, a_hi, seed,
                        angle=float(angles[i]), hex_strength=hexs,
                        hex_phase=float(rng.uniform(0, math.pi))) * alphas[i]
         stamp(sheet, f, ys[i], xs[i])
-    return sheet
+        if thin and keep[i]:
+            stamp(thinned, f, ys[i], xs[i])
+    return (sheet, thinned) if thin else sheet
 
 
 def to_tga(alpha, path, tint):
@@ -197,10 +208,17 @@ def main():
 
     # near: the layer that carries the character of the snowfall. A few large
     # soft flakes close to the camera, a great many small ones behind them.
-    near = scatter(900, 1.00, 7.00, a_med=0.111, a_sig=0.70,
-                   a_lo=0.012, a_hi=0.40, seed=207,
-                   elong=1.3, elong_sig=0.30, angle=0.0, angle_sd=0.24,
-                   hex_strength=0.07)
+    #
+    # Light snow draws near-light, the same sheet with about half its flakes.
+    # Intensity used to be layer alpha alone, and on this sheet alpha is not a
+    # count control: 87% of its flakes are already visible at light's alpha,
+    # so normal drew 12% more flakes at twice the brightness and light and
+    # normal looked the same, 2026-10-23. A light snowfall is fewer flakes,
+    # each as bright as ever.
+    near, near_light = scatter(900, 1.00, 7.00, a_med=0.111, a_sig=0.70,
+                               a_lo=0.012, a_hi=0.40, seed=207,
+                               elong=1.3, elong_sig=0.30, angle=0.0,
+                               angle_sd=0.24, hex_strength=0.07, thin=0.45)
 
     # gale: the wind beats gravity, so the streaks lie close to flat. 85
     # degrees off vertical, which is what ComfyRain.lua's blizzard slant of
@@ -223,8 +241,10 @@ def main():
 
     to_tga(far, f"{out}/snow-far.tga", (0.92, 0.95, 1.00))
     to_tga(near, f"{out}/snow-near.tga", (0.97, 0.98, 1.00))
+    to_tga(near_light, f"{out}/snow-near-light.tga", (0.97, 0.98, 1.00))
     to_tga(bliz, f"{out}/snow-gale.tga", (0.95, 0.97, 1.00))
-    print(f"wrote snow-far.tga, snow-near.tga and snow-gale.tga "
+    print(f"wrote snow-far.tga, snow-near.tga, snow-near-light.tga and "
+          f"snow-gale.tga "
           f"({SIZE}x{SIZE} 32-bit TGA), flakes rasterised from the model "
           f"- no Blizzard art")
 
