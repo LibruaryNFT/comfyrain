@@ -882,7 +882,7 @@ local function UpdateTimeOfDay()
 	-- I can't turn it off" from live play 2026-10-19. The real fault there was
 	-- not the coupling, it was that a standing grade had no visible cause. It
 	-- has three now: /comfy status leads with the mode whenever it is not off,
-	-- the window names the held hour every refresh (LightPhrase in UI.lua),
+	-- the window lights Dusk or Night and Time of Day reads the held hour,
 	-- and /comfy stop is the one switch that kills everything including this.
 	-- So timeMode is the only thing that decides whether the curtain draws.
 	if db.timeMode == "off" or cinematic then tod:Hide() return end

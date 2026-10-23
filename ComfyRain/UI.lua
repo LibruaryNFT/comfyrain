@@ -756,6 +756,22 @@ local function Slider(parent, label, lo, hi, step, fmt, apply, reset)
 			row.valueText:SetTextColor(1, 1, 1)
 		end
 	end
+
+	-- Greyed and deaf to the mouse when the setting it drives does nothing in
+	-- the current mode. Never hidden: a row that comes and goes moves every
+	-- row under it, and the window moving after a click reads as a glitch.
+	function row:SetActive(on)
+		self.active = on
+		s:EnableMouse(on)
+		row.value:EnableMouse(on and reset ~= nil)
+		s:SetAlpha(on and 1 or 0.35)
+		if on then
+			row.label:SetTextColor(1, 1, 1)
+		else
+			row.label:SetTextColor(DIM[1], DIM[2], DIM[3])
+			row.valueText:SetTextColor(DIM[1], DIM[2], DIM[3])
+		end
+	end
 	return row
 end
 
@@ -808,9 +824,10 @@ end
 -- Layout
 --------------------------------------------------------------------------------
 
--- Rows are stacked top-down and the window is sized to whatever is visible, so
--- hiding the time-of-day controls when the feature is off shrinks the window
--- instead of leaving a hole in it.
+-- Rows are stacked top-down and the window is sized to whatever is visible.
+-- Nothing uses `visible` any more, deliberately: every row hidden by a setting
+-- moved the rows under it when that setting changed. Kept because a row that
+-- only exists on some clients is the case it is still right for.
 local function Relayout()
 	local y = -TOP_INSET
 	for _, r in ipairs(rows) do
@@ -896,97 +913,51 @@ local TIME_MODES = {
 	  note = "Hold one hour, all session. Permanent dusk." },
 }
 
--- What is still changing the screen, in one sentence.
+-- The one line of words at the top of the window, and it is usually empty.
 --
--- This exists because of a real report: "my screen is too dark and i cant reset
--- it easily, like i want to turn off the changes it made but i cant". The time
--- of day grading is the one ComfyRain effect with no weather attached to it, so
--- a player who turns the weather off and still has a dark world has no way to
--- connect the two. Naming the held hour, in the window, every refresh, is what
--- turns an unexplained dark screen into a setting with an off switch next to it.
-local function LightPhrase(db)
-	if db.timeMode == "off" then return nil end
-	if db.timeMode == "local" then return "light on your own clock" end
-	if db.timeMode == "offset" then
-		return string.format("light shifted %+g h", db.timeOffset)
-	end
-	return string.format("light held at %02d:00", db.timeFixed)
-end
-
--- The weather half of the sentence, which is not the same question as "is the
--- weather switched on".
+-- It used to be a status sentence that was always there: "Drawing normal
+-- rain, light held at 22:00." The lit buttons under it say the same thing, so
+-- pressing Overcast got "Drawing normal rain" read back to you, which is the
+-- window describing the settings to the person who just chose them. "why do
+-- we need drawing normal rain etc", 2026-10-23.
 --
--- Reported 2026-10-19: "we reload and hear rain but dont see anything". Under
--- a roof the engine counts as indoors - and that includes awnings, cave
--- mouths and most doorways - "dim" means heard and not seen, and the window
--- went on saying "Drawing normal rain." the whole time. The setting was on,
--- so the old sentence was true about the setting and a lie about the screen,
--- which is the only thing the player was looking at.
-local function WeatherPhrase(db)
-	if not db.enabled then return nil end
-	local full = db.intensity .. " " .. db.weather
+-- What is left is the case the buttons cannot show: the screen disagrees with
+-- what is lit. Under a roof, the game's own rain, a cutscene, or a held hour
+-- the realm is already at. Each is the addon working as designed while
+-- looking broken, so each is said in words, and the one with a fix gets the
+-- button beside it. The row is always there, empty or not, so a note arriving
+-- never pushes the rest of the window down.
+--
+-- Every sentence fits one line, and the one beside the button fits the 242 px
+-- the button leaves: the line does not wrap, and a reason cut off halfway is
+-- worse than no reason.
+local function Note(db)
 	local st = (ComfyRainAPI and ComfyRainAPI.State and ComfyRainAPI.State()) or {}
-	-- No State() means an addon older than this window; drawing is the honest
-	-- assumption there, because that is what every build before today did.
-	if st.drawing == false then
-		if st.cinematic then return "Paused for the cutscene" end
+	if db.enabled and st.drawing == false then
+		if st.cinematic then return "Paused for the cutscene." end
 		-- Ahead of indoors, because the two can be true at once and this is
 		-- the one the player cannot see a reason for.
-		-- Short, because the row below it carries the reason and the fix. The
-		-- status line does not wrap, so a sentence long enough to explain
-		-- itself here is a sentence that gets cut off here.
-		if st.yielding then return "Real weather here, so this stood aside" end
+		if st.yielding then
+			return "Real rain here, so ours is paused.", "Use mine",
+				"defer off",
+				"Draw ours over the top of the game's own weather instead of " ..
+				"standing aside for it. Same as unticking Pause in real weather, " ..
+				"further down."
+		end
+		-- Reported 2026-10-19: "we reload and hear rain but dont see anything".
+		-- Awnings, cave mouths and most doorways count as indoors.
 		if st.indoors then
 			return st.hearing
-				and "Indoors: " .. db.weather .. " heard, not drawn"
-				or  "Indoors: nothing drawn"
+				and ("Under a roof: " .. db.weather .. " heard, not drawn.")
+				or  "Under a roof: nothing drawn."
 		end
-		return full .. ", not drawn"
-	end
-	return "Drawing " .. full
-end
-
--- Why the last press appeared to do nothing, and the one button that makes it
--- do something.
---
--- Both cases below are the addon working exactly as designed while looking
--- broken: standing aside from the game's own storm is the right answer and
--- leaves the screen with no rain of ours on it, and holding 22:00 on a server
--- already at 22:00 is correctly no change at all. Somebody who just pressed
--- Storm or Night sees the same nothing either way, and the status line alone
--- only tells them the first half. The fix belongs in the row that is
--- explaining the problem, not nine controls further down the window.
-local function FixNote(db)
-	local st = (ComfyRainAPI and ComfyRainAPI.State and ComfyRainAPI.State()) or {}
-	if st.yielding then
-		return "Real rain here, so the game's own is showing.", "Use mine",
-			"defer off",
-			"Draw ours over the top of the game's own weather instead of " ..
-			"standing aside for it. Same as unticking Pause in real weather, " ..
-			"further down."
 	end
 	-- The addon owns what counts as "nothing", because it owns the arithmetic
 	-- that the nothing comes out of.
 	if st.lightFlat then
-		return "The server is already at that light, so this adds nothing yet."
+		return "The realm is already at that hour."
 	end
 	return nil
-end
-
-local function StatusPhrase(db)
-	local light = LightPhrase(db)
-	local weather = WeatherPhrase(db)
-	if weather and light then
-		return weather .. ", " .. light .. ".", GOLD
-	elseif weather then
-		return weather .. ".", GOLD
-	elseif light then
-		-- The dangerous state, and the one that generated the report: the
-		-- weather is off, so the player believes the addon is off, and the
-		-- world is still being graded.
-		return "Weather off, but " .. light .. ".", GOLD
-	end
-	return "Everything off. Nothing here is touching your screen.", DIM
 end
 
 local function Refresh()
@@ -1074,31 +1045,29 @@ local function Refresh()
 		controls.hour.slider.tipNote =
 			"Hold the light at one hour of the day and leave it there."
 		controls.hour.slider.command = "/comfy time 21"
+	else
+		-- No hour in this mode. The knob stays where it was and the number
+		-- says there is nothing to read, so the row keeps its place.
+		controls.hour.label:SetText("Hour")
+		controls.hour.value:SetText("-")
 	end
+	controls.hour:SetActive(db.timeMode == "offset" or db.timeMode == "fixed")
 	controls.strength:Set(db.timeStrength)
+	controls.strength:SetActive(db.timeMode ~= "off")
 
-	local phrase, colour = StatusPhrase(db)
-	controls.status:SetText(phrase)
-	controls.status:SetTextColor(colour[1], colour[2], colour[3])
-
-	local note, fixLabel, fixCmd, fixNote = FixNote(db)
-	-- Cleared rather than just hidden. A hidden row still holds its last
-	-- sentence, and the next thing to go wrong would flash the previous
-	-- problem's text for one frame before this ran again.
+	local note, fixLabel, fixCmd, fixNote = Note(db)
 	controls.fixText:SetText(note or "")
-	if note then
-		if fixLabel then
-			controls.fix:SetLabel(fixLabel)
-			controls.fix:Show()
-			controls.fixText:SetWidth(controls.fixNarrow)
-			Teach(controls.fix, fixLabel, "/comfy " .. fixCmd, fixNote)
-		else
-			-- A note with no fix is still worth saying: "it is already that
-			-- hour on the server" has no button because there is nothing to
-			-- press, only something to understand.
-			controls.fix:Hide()
-			controls.fixText:SetWidth(controls.fixWide)
-		end
+	if fixLabel then
+		controls.fix:SetLabel(fixLabel)
+		controls.fix:Show()
+		controls.fixText:SetWidth(controls.fixNarrow)
+		Teach(controls.fix, fixLabel, "/comfy " .. fixCmd, fixNote)
+	else
+		-- A note with no fix is still worth saying: "the realm is already at
+		-- that hour" has no button because there is nothing to press, only
+		-- something to understand.
+		controls.fix:Hide()
+		controls.fixText:SetWidth(controls.fixWide)
 	end
 
 	updating = false
@@ -1192,29 +1161,19 @@ local function Build()
 		return frame
 	end
 
-	-- The state line comes before any control, because the first question
-	-- somebody opens this window with is "what is this doing to my screen", and
-	-- the answer has to be readable without understanding a single widget below
-	-- it. The undo is the first button of each row under it: Off and Normal.
-	-- There is no all-off button any more. It sat beside two rows that each
-	-- had their own way back, and three ways to turn things off read as three
-	-- different kinds of off. /comfy stop still does both at once.
-	local state = add(CreateFrame("Frame", nil, panel), { gap = 9 })
-	state:SetHeight(ROW)
-	controls.status = Text(state, "GameFontHighlightSmall")
-	controls.status:SetPoint("LEFT", state, "LEFT", 0, 0)
-	controls.status:SetWordWrap(false)
-	controls.status:SetText("")
-	controls.status:SetWidth(WIDTH - PAD * 2)
-
-	-- Directly under the state line and above everything else, because it is
-	-- the answer to "I pressed that and nothing happened" and anybody with
-	-- that question has already stopped reading the rest of the window.
+	-- The note line, above everything else, because it is the answer to "I
+	-- pressed that and nothing happened" and anybody with that question has
+	-- already stopped reading the rest of the window. Always laid out, empty
+	-- or not: a row that appeared with its sentence pushed every button below
+	-- it down the moment it was needed, which is the window moving out from
+	-- under the mouse that just clicked it. See Note() for what it says.
+	--
+	-- There is no all-off button. Each row below starts with its own way
+	-- back, Off and Normal, and /comfy stop still does both at once.
 	local FIX_W = 78
-	local fix = add(CreateFrame("Frame", nil, panel),
-		{ gap = 4, visible = function() return FixNote(DB()) ~= nil end })
+	local fix = add(CreateFrame("Frame", nil, panel), { gap = 4 })
 	fix:SetHeight(ROW - 4)
-	controls.fixText = Text(fix, "GameFontDisableSmall")
+	controls.fixText = Text(fix, "GameFontHighlightSmall")
 	controls.fixText:SetPoint("LEFT", fix, "LEFT", 0, 0)
 	controls.fixText:SetWordWrap(false)
 	controls.fixText:SetText("")
@@ -1226,7 +1185,7 @@ local function Build()
 	-- that can be left showing. It runs the command the note names, read at
 	-- press time so the button can never fire the previous note's fix.
 	controls.fix = Pill(fix, "Use mine", function()
-		local _, _, cmd = FixNote(DB())
+		local _, _, cmd = Note(DB())
 		if cmd then Run(cmd) end
 	end)
 	controls.fix:SetPoint("TOPRIGHT", fix, "TOPRIGHT", 0, 0)
@@ -1307,20 +1266,10 @@ local function Build()
 
 	add(Heading(panel, "Rain & Snow", "look"), { gap = 4 })
 
-	-- No on/off box here any more: Weather: Off above is the switch, and
-	-- stepping Type or Intensity turns the weather back on. While it is off,
-	-- everything in this section and Sound is inert, and a slider that moves
-	-- and does nothing is the most confusing control a window can have, so
-	-- this line says so. Appears only when it is true.
-	local offNote = add(CreateFrame("Frame", nil, panel),
-		{ gap = 2, visible = function() return not DB().enabled end })
-	offNote:SetHeight(26)
-	local offText = Text(offNote, "GameFontDisableSmall")
-	offText:SetPoint("TOPLEFT", offNote, "TOPLEFT", 0, 0)
-	offText:SetPoint("TOPRIGHT", offNote, "TOPRIGHT", 0, 0)
-	offText:SetJustifyV("TOP")
-	offText:SetText("Weather is Off, so this and Sound wait until a weather " ..
-		"is picked. The light works on its own.")
+	-- No on/off box here: Weather: Off above is the switch, its lit mark is
+	-- the readout, and stepping Type or Intensity turns the weather back on.
+	-- There used to be a line here saying so while it was off. It appeared
+	-- and vanished with the setting and shoved everything under it 28 px.
 
 	controls.weather = add(Select(panel, "Type", function(d)
 		local order, db2 = WEATHERS, DB()
@@ -1443,19 +1392,18 @@ local function Build()
 			return d.timeOffset, string.format("time %+d", d.timeOffset or 0)
 		end
 		return d.timeFixed, string.format("time %d", d.timeFixed or 21)
-	end), { visible = function()
-		local m = DB().timeMode
-		return m == "offset" or m == "fixed"
-	end })
+	end))
 	-- Title, note and command are all replaced by Refresh, which knows which of
-	-- the two settings this row is currently standing in for.
+	-- the two settings this row is currently standing in for. Greyed rather
+	-- than hidden in the two modes with no hour to set, and Strength the same
+	-- under Server time: hiding them made Normal then Dusk grow the window by
+	-- two rows and Dusk then Normal shrink it, every press.
 	Teach(controls.hour.slider, "Hour", "/comfy time +9",
 		"Move the light away from the server's own clock.")
 
 	controls.strength = add(Slider(panel, "Strength", 0, 1, 0.05, Pct,
 		function(v) Run(string.format("time strength %.2f", v)) end,
-		Back("timeStrength", "time strength")),
-		{ visible = function() return DB().timeMode ~= "off" end })
+		Back("timeStrength", "time strength")))
 	Teach(controls.strength.slider, "Strength", "/comfy time strength 0.7",
 		"How far towards that hour to grade the light.")
 

@@ -28,6 +28,12 @@ local function reads(w, label)
 	return s and s.value.text
 end
 
+-- The one line of words at the top of the window. It lives in the same row
+-- as the Use mine button, which is how a spec finds it without a name.
+local function noteOf(w)
+	return w:button("Use mine"):GetParent()._fontStrings[1]
+end
+
 it("opens on /comfyrain and closes again", function()
 	local w = H.world()
 	w.mock.slash("COMFYRAINUI", "")
@@ -297,15 +303,28 @@ it("teaches the command for whatever is under the cursor", function()
 	eq(w.env.GameTooltip:IsShown(), false, "and clears on the way out")
 end)
 
-it("hides the time-of-day controls until time of day is on", function()
+it("greys the time-of-day controls until time of day is on, and never hides them",
+function()
+	-- Hidden, they made Normal then Dusk grow the window by two rows and Dusk
+	-- then Normal shrink it, every press. "we choose a setting and it shifts
+	-- the ui a lot", 2026-10-23.
 	local w = H.world()
 	w:open()
-	eq(w:slider("Strength"):GetParent():IsShown(), false, "hidden while off")
+	local strength = w:slider("Strength"):GetParent()
+	eq(strength:IsShown(), true, "on screen while off")
+	eq(strength.active, false, "but greyed")
+	eq(w:slider("Hour"):GetParent().active, false, "and so is the hour")
+	eq(w:slider("Hour"):GetParent().value._text, "-", "which has no number to show")
 
 	choose(w, "Mode", "Fixed hour")
 	eq(w:db().timeMode, "fixed", "the mode changed")
-	eq(w:slider("Strength"):GetParent():IsShown(), true, "and the controls appeared")
-	eq(w:slider("Hold at Hour"):GetParent():IsShown(), true, "including the hour")
+	eq(strength.active, true, "and the controls came alive")
+	eq(w:slider("Hold at Hour"):GetParent().active, true, "including the hour")
+
+	choose(w, "Mode", "My PC clock")
+	eq(strength.active, true, "your own clock still has a strength")
+	eq(w:slider("Hour"):GetParent().active, false, "and no hour to set")
+	choose(w, "Mode", "Fixed hour")
 
 	w:slider("Hold at Hour"):Drag(3)
 	eq(w:db().timeFixed, 3, "which sets the hour it holds")
@@ -342,14 +361,46 @@ it("remembers where it was dragged to", function()
 	eq(w:db().ui.x, 120, "and the position")
 end)
 
-it("sizes itself to what is actually on show", function()
-	local w = H.world()
+it("holds still whatever is pressed: no row appears, vanishes or moves", function()
+	-- "we choose a setting and it shifts the ui a lot, like puts text
+	-- somewhere then moves stuff, like if we choose normal light then dusk",
+	-- 2026-10-23. Anchored at its centre, a window that changes height also
+	-- moves its top, so the button just clicked slides out from under the
+	-- mouse. Every press, mode and screen state below must leave both the
+	-- window's height and the Volume row's place exactly where they were.
+	local w = H.world({ state = { gameHour = 22, gameMinute = 0 } })
 	local p = w:open()
-	local short = p:GetHeight()
-	choose(w, "Mode", "Fixed hour")
-	gt(p:GetHeight(), short, "the window grew for the time controls")
-	choose(w, "Mode", "Server time")
-	near(p:GetHeight(), short, 1e-9, "and shrank back")
+	local volume = w:slider("Volume"):GetParent()
+	local h0, y0 = p:GetHeight(), volume._lastPoint.y
+	gt(h0, 300, "a real window to measure")
+
+	local function same(what)
+		eq(p:GetHeight(), h0, what .. ": same height")
+		eq(volume._lastPoint.y, y0, what .. ": Volume in the same place")
+	end
+	for _, label in ipairs({ "Dusk", "Normal", "Night", "Off", "Overcast",
+	                         "Storm", "Snow", "Cozy", "Normal" }) do
+		w:button(label):Click()
+		w:advance(0.5)
+		same(label)
+	end
+	for _, mode in ipairs({ "Fixed hour", "Shift by hours", "My PC clock", "Server time" }) do
+		choose(w, "Mode", mode)
+		same(mode)
+	end
+	w:button("Night"):Click()
+	w:advance(0.5)
+	ok(noteOf(w).text ~= "", "a note is up: the realm is already at 22:00")
+	same("with a note showing")
+	w.mock.state.indoors = true
+	w:advance(3.0, 0.1)
+	same("under a roof")
+
+	-- Positive control: the measurement does see a row that changes size.
+	w:button("Use mine"):GetParent():SetHeight(60)
+	w:slash("snow")
+	gt(p:GetHeight(), h0, "a taller row does grow the window")
+	lt(volume._lastPoint.y, y0, "and does push Volume down")
 end)
 
 it("is not load-bearing: the addon works with the window deleted", function()
@@ -580,25 +631,30 @@ end)
 -- Turning it off, resetting it, and handing it to somebody else
 --------------------------------------------------------------------------------
 
-it("names every change it is making to the screen, in the window", function()
+it("shows the light it is holding with the weather off", function()
 	-- From a live report: "my screen is too dark and i cant reset it easily,
 	-- like i want to turn off the changes it made but i cant". The time of day
 	-- grading has no weather attached to it, so a player who switched the
 	-- weather off and still has a dark world has nothing to connect it to.
+	-- The controls carry it now, not a sentence: Off is lit, Normal is not,
+	-- and Time of Day reads the mode and the hour.
 	local w = H.world()
 	w:slash("time 21")
 	w:slash("off")
 	w:open()
 
-	ok(w:says("Weather off"), "it says the weather is off")
-	ok(w:says("21:00"), "and names the hour the light is being held at")
+	eq(w:button("Off").mark:IsShown(), true, "the weather reads as off")
+	eq(w:button("Normal").mark:IsShown(), false, "the light does not read as normal")
+	eq(w:select("Mode").value.text, "Fixed hour", "Time of Day names the mode")
+	eq(w:slider("Hold at Hour"):GetParent().value._text, "21",
+		"and the hour the light is being held at")
 end)
 
 it("says nothing is on when nothing is on, and marks both ways back", function()
 	local w = H.world()
 	w:slash("off")
 	w:open()
-	ok(w:says("Everything off"), "the all-clear is stated, not implied")
+	eq(noteOf(w).text, "", "no sentence repeating what the buttons say")
 	eq(w:button("Off").mark:IsShown(), true, "Off is the lit weather button")
 	eq(w:button("Normal").mark:IsShown(), true, "and Normal the lit light one")
 
@@ -1151,18 +1207,54 @@ function()
 	near(t.label.colour[1], 0.62, 1e-9, "and the word goes grey")
 end)
 
--- Seen on screen 2026-10-19: "Everything off. Nothing here is to...". The
--- status line shared its row with a stop button and was sized for it. That
--- button is gone, so the line has the whole row in every state.
-it("gives the status line the whole row, on or off", function()
+-- "we choose overcast, why do we need drawing normal rain", 2026-10-23. The
+-- window used to read the settings back in a sentence under the title. The lit
+-- buttons are that readout; words are only for when the screen disagrees.
+it("says nothing the lit buttons already say", function()
 	local w = H.world()
 	w:open()
-	eq(w:says("^Drawing"):GetWidth(), 360 - 16 * 2, "the whole row with the rain on")
+	for _, label in ipairs({ "Overcast", "Storm", "Off", "Night", "Normal" }) do
+		w:button(label):Click()
+		w:advance(0.5)
+		eq(noteOf(w).text, "", "nothing written after " .. label)
+		eq(w:says("^Drawing"), nil, "and no Drawing sentence anywhere")
+	end
 
-	w:slash("stop")
-	local line = w:says("^Everything off")
-	ok(line, "the window says everything is off")
-	eq(line:GetWidth(), 360 - 16 * 2, "and the same whole row with it off")
+	-- Positive control: the line does speak when the screen disagrees.
+	w:button("Cozy"):Click()
+	w.mock.state.indoors = true
+	w:advance(3.0, 0.1)
+	contains(noteOf(w).text, "Under a roof", "it speaks under a roof")
+end)
+
+it("fits every note on its one line", function()
+	-- The line does not wrap. Same calibrated 7.0 px a character as the row
+	-- labels; the yield note shares its row with the 78 px Use mine button.
+	local PX = 7.0
+	local w = H.world({ state = { gameHour = 22, gameMinute = 0 } })
+	w:open()
+	local function fits(what)
+		local fs = noteOf(w)
+		ok(fs.text ~= "", what .. " is saying something")
+		ok(#fs.text * PX <= fs:GetWidth(),
+			what .. ": \"" .. fs.text .. "\" fits " .. fs:GetWidth() .. " px")
+	end
+	w:button("Night"):Click()
+	w:advance(0.5)
+	fits("the realm already at that hour")
+	w:button("Normal"):Click()
+	w.mock.state.indoors = true
+	w:advance(3.0, 0.1)
+	fits("heard under a roof")
+	w:slash("sound off")
+	fits("silent under a roof")
+	w.mock.state.indoors = false
+	w.mock.state.weather = { type = 1, intensity = 0.7 }
+	w.mock.cvars.weatherDensity = "3"
+	w:advance(3.0, 0.1)
+	fits("standing aside for real rain")
+	eq(w:button("Use mine"):IsShown(), true, "beside its button")
+	lt(noteOf(w):GetWidth(), 328, "which really did narrow the line")
 end)
 
 -- Reported 2026-10-19: "we reload and hear rain but dont see anything". Under
@@ -1173,7 +1265,7 @@ end)
 it("says what the screen is doing, not what the settings ask for", function()
 	local w = H.world()
 	w:open()
-	ok(w:says("^Drawing normal rain"), "outdoors it is drawing, and says so")
+	eq(noteOf(w).text, "", "outdoors it is drawing, so there is nothing to say")
 
 	w:advance(0.5)
 	w.mock.state.indoors = true
@@ -1181,17 +1273,17 @@ it("says what the screen is doing, not what the settings ask for", function()
 	eq(w:overlay():IsShown(), false, "the roof has stopped the drawing")
 	eq(w:db().enabled, true, "with the setting still on, which is the trap")
 	ok(w:says("heard, not drawn"),
-		"so the window says it is heard and not seen, rather than 'Drawing'")
+		"so the window says it is heard and not seen")
 
 	-- The positive control. If the sentence had simply been hard-wired to the
 	-- indoor wording, the assertion above would pass for the wrong reason.
 	w:slash("sound off")
-	ok(w:says("Indoors: nothing drawn"),
+	ok(w:says("Under a roof: nothing drawn"),
 		"and with the sound off too, nothing is claimed at all")
 
 	w.mock.state.indoors = false
 	w:advance(3.0, 0.1)
-	ok(w:says("^Drawing normal rain"), "back outside, it is drawing again")
+	eq(noteOf(w).text, "", "back outside, drawing again and nothing to say")
 end)
 
 it("stands the checkbox on the panel, not on a button face", function()
@@ -1638,45 +1730,34 @@ it("says why nothing is drawn when it is standing aside, not just that nothing i
 	-- not ours, and the window used to say "normal rain, not drawn".
 	local w = H.world()
 	w:open()
-	ok(w:says("^Drawing normal rain"), "drawing to begin with")
+	eq(noteOf(w).text, "", "drawing to begin with")
 
 	w.mock.state.weather = { type = 1, intensity = 0.7 }
 	w.mock.cvars.weatherDensity = "3"
 	w:advance(3.0, 0.1)
 	eq(w:overlay():IsShown(), false, "their storm has stopped ours")
 	eq(w:db().enabled, true, "with the setting still on, which is the trap")
-	ok(w:says("stood aside"), "and the window says so, in words")
+	ok(w:says("Real rain here"), "and the window says so, in words")
 
 	-- Positive control: it is the deference talking, not a hard-wired string.
 	w:slash("defer off")
 	w:advance(0.5)
-	ok(w:says("^Drawing normal rain"), "and it goes back to normal when told to")
+	eq(noteOf(w).text, "", "and it goes back to normal when told to")
 end)
 
-it("tells the window which controls are dead while the weather is off",
+it("says what Off stops and what it leaves, on the button itself",
 function()
-	-- Two sections of the window go inert when the master switch is off, and a
-	-- third does not. Nothing on screen said which was which: Darkness sits
-	-- under Weather and stops working, Time of Day sits below it and keeps
-	-- working, and a player moving the wrong one of those concludes the addon
-	-- is broken. "does the ui menus allow it to be used easily as well, im
-	-- confused", 2026-10-20.
+	-- "does the ui menus allow it to be used easily as well, im confused",
+	-- 2026-10-20: nothing said the light keeps working with the weather off.
+	-- That was a line that appeared under the heading while off, and pushed
+	-- the window around. The two buttons that switch things say it instead.
 	local w = H.world()
 	w:open()
-
-	w:slash("off")
-	local off = w:panelText()
-	contains(off, "Weather is Off, so this and Sound wait",
-		"the window says the weather controls are dead")
-	contains(off, "The light works on its own",
-		"and points at the part that is not")
-	contains(off, "Time of Day", "which is still on screen to be pointed at")
-
-	-- Only when it is true. Carrying a permanent warning about a state the
-	-- player is not in is how a window teaches people to stop reading it.
-	w:slash("on")
-	eq(w:panelText():find("Weather is Off") ~= nil, false,
-		"and the line is gone once the weather is on")
+	local _, off = w:hover(w:button("Off"))
+	contains(off, "no weather sound", "Off says the sound goes with it")
+	contains(off, "The light stays as it is", "and that the light does not")
+	local _, normal = w:hover(w:button("Normal"))
+	contains(normal, "The weather stays as it is", "Normal says the reverse")
 end)
 
 it("puts a whole look one press away", function()
@@ -1978,7 +2059,7 @@ function()
 	w:advance(0.5)
 
 	eq(w:db().timeFixed, 22, "asking for the hour it already is")
-	ok(w:says("already at that light"), "and the window says why nothing moved")
+	ok(w:says("already at that hour"), "and the window says why nothing moved")
 	eq(w:button("Use mine") and w:button("Use mine"):IsVisible() or false, false,
 		"with no button, because there is nothing to undo")
 
@@ -1989,7 +2070,7 @@ function()
 	-- and a sentence about the hour can afford to be a third of a minute late.
 	w.mock.state.gameHour = 12
 	w:advance(21, 0.5)
-	eq(w:says("already at that light"), nil, "and it goes when the hour moves")
+	eq(w:says("already at that hour"), nil, "and it goes when the hour moves")
 end)
 
 it("opens from the addon compartment without a slash command", function()
@@ -2048,5 +2129,5 @@ it("survives a client with no settings API at all", function()
 	eq(w.mock.settingsRegistered, nil, "nothing half-registered is left behind")
 
 	w:open()
-	ok(w:says("^Drawing"), "and the real window is untouched")
+	ok(w:panel():IsShown() and w:button("Cozy"), "and the real window is untouched")
 end)

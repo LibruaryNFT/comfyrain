@@ -7,6 +7,24 @@ because the client cannot be told to actually change the weather.
 Stormwind. v2 switches all audio and the drop sprite to Blizzard's own assets and stops
 the rain indoors; needs `/reload` to pick up (no new files, so no client restart).
 
+## 2026-10-23 — The window holds still, and stopped narrating
+
+"We choose a setting and it shifts the UI a lot... if we choose normal light then dusk",
+and "we choose overcast, why do we need drawing normal rain".
+
+- **Nothing appears, vanishes or moves on a press.** Hour and Strength are greyed (and
+  deaf to the mouse) in modes that do not use them instead of hidden; the "weather is
+  off" line is gone; the note row is always laid out, empty or not. The window is
+  centre-anchored, so every height change used to move its top too.
+- **The status sentence is gone.** The lit buttons are the readout. The one text line
+  now speaks only when the screen disagrees with them: under a roof, real rain (with
+  Use mine), a cutscene, or the realm already at the held hour. Each fits one line at
+  the 7.0 px/char rate.
+- New specs: one walks every button, mode, note and indoor state and asserts the window
+  height and the Volume row's y never change (positive control: a taller row does move
+  them); one asserts no note after Overcast/Storm/Off/Night/Normal.
+- `SetActive` added to `tools/api_audit.py` OURS (our row method, not client API).
+
 ## 2026-10-23 — The top of the window is two rows: Weather and Light
 
 "If we wanted no weather but wanted it day or night", the old Scenes / Light only /
