@@ -13,12 +13,13 @@ and 4 (the UI was hidden). Everything from 6 on is still to do.
 
 ## Where the buttons are
 
-Left-click the Comfy Rain minimap icon. The top of the window:
+Left-click the Comfy Rain minimap icon. Two rows at the top of the window:
 
-- **Scenes:** Cozy, Storm, Snow, Overcast
-- **Light only:** Dusk, Night
+- **Weather:** Off, Cozy, Storm, Snow, Overcast
+- **Light:** Normal, Dusk, Night
 
-Every capture names the one to click. Clicking a scene also turns the rain back on.
+Every capture names the one to click. Keep Light on Normal except for photo 10. Clicking
+a weather scene also turns the rain back on; the Light row never touches the weather.
 
 ## Before you start
 
@@ -58,7 +59,7 @@ Every capture names the one to click. Clicking a scene also turns the rain back 
 | 7 | PHOTO | anywhere | nothing | UI showing. PrintScreen (cropped to the minimap button) |
 | 8 | PHOTO | IF gates | **Snow** | Hide UI. PrintScreen |
 | 9 | CLIP 20s | IF gates | right arrow on **Intensity** until it reads **Blizzard** | Hide UI. Record 20s, stop |
-| 10 | PHOTO | anywhere | **Dusk** | optional. Hide UI. PrintScreen |
+| 10 | PHOTO | anywhere | **Off**, then **Dusk** | optional. Hide UI. PrintScreen. Then **Normal** |
 
 - **SW gates:** Valley of Heroes, statues framing the road. Same camera for 1 to 5.
 - **Gilded Rose:** the inn on the right as you enter the Trade District. Capture 6 is the
