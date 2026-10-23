@@ -155,9 +155,9 @@ it("toggles sound, gusts and indoors from the window", function()
 	local w = H.world()
 	w:open()
 	eq(w:db().sound, true, "sound starts on")
-	w:button("Sound"):Click()
+	w:button("Play sounds"):Click()
 	eq(w:db().sound, false, "the button turned it off")
-	w:button("Sound"):Click()
+	w:button("Play sounds"):Click()
 	eq(w:db().sound, true, "and on again")
 
 	-- Indoors cycles three ways rather than toggling two, because the useful
@@ -180,7 +180,7 @@ it("keeps the fine-tuning out of the window", function()
 	local w = H.world()
 	w:open()
 	ok(w:slider("Volume"), "the lookup finds a slider that is there")
-	ok(w:button("Step aside for real weather"), "and a checkbox that is there")
+	ok(w:button("Pause in real weather"), "and a checkbox that is there")
 	for _, label in ipairs({ "Drops", "Fall Speed", "Darkness", "Wind" }) do
 		eq(w:slider(label), nil, label .. " is not in the window")
 	end
@@ -191,6 +191,33 @@ it("keeps the fine-tuning out of the window", function()
 	eq(w:db().zoom, false, "the command still turns camera zoom off")
 	w:slash("speed 1.4")
 	near(w:db().speed, 1.4, 1e-9, "and still sets the fall speed")
+end)
+
+it("gives every row label room to be read whole", function()
+	-- A row label is told not to wrap and gets what is left beside the control
+	-- column, so one that is too long is cut to "Step aside for real we...",
+	-- which shipped. The mock's 5.2 px a character said it fitted. Measured
+	-- off an in-game screenshot on 2026-10-23, the client's font runs 5.8 to
+	-- 7.4 px a character ("Show rain & snow" 112 px, "Thunder" 50), so this
+	-- asks at 7.0: a proxy for the real font, not the font.
+	local PX = 7.0
+	ok(#"Step aside for real weather" * PX > 148,
+		"the rate flags the label that was cut off in the game")
+
+	local w = H.world()
+	w:open()
+	w:slash("time +9")            -- every row on screen, hidden ones included
+	local seen = 0
+	for _, f in ipairs(w.mock.frames) do
+		local l = f.label
+		if type(l) == "table" and l.wordWrap == false and l.text then
+			f:GetScript("OnSizeChanged")(f, f:GetWidth())
+			seen = seen + 1
+			ok(#l.text * PX <= l:GetWidth(), string.format(
+				"%q needs about %d px and has %d", l.text, #l.text * PX, l:GetWidth()))
+		end
+	end
+	gt(seen, 10, "and it found the rows to measure")
 end)
 
 it("cycles the volume channel rather than opening a menu", function()
@@ -1168,7 +1195,7 @@ it("stands the checkbox on the panel, not on a button face", function()
 	-- word and a box on the background.
 	local w = H.world()
 	w:open()
-	local z = w:button("Step aside for real weather")
+	local z = w:button("Pause in real weather")
 	eq(z._template, nil, "no panel-button template under it")
 	eq(z.label._lastPoint.x, 0, "the words start at the left edge of the row")
 	eq(z.box._lastPoint.relPoint, "RIGHT",
@@ -1188,7 +1215,7 @@ it("lines every checkbox and every selector up in one column", function()
 	-- Every one of these is anchored off its row's RIGHT edge, so the column
 	-- is one number per control: how far in from that edge it begins.
 	local seen = {}
-	for _, name in ipairs({ "Show rain & snow", "Step aside for real weather", "Sound", "Thunder" }) do
+	for _, name in ipairs({ "Show rain & snow", "Pause in real weather", "Play sounds", "Thunder" }) do
 		local b = w:button(name)
 		ok(b, name .. " is a checkbox in the window")
 		seen[b.box._lastPoint.x] = true

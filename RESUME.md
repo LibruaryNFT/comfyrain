@@ -22,6 +22,12 @@ are unchanged.
   and Strength; the checkbox layout tests use "Step aside". A new spec fails if any of the
   five comes back into the window.
 - Photo 4 of the shoot (window over live rain) is a redo anyway, so it gets the new window.
+- Then, from an in-game screenshot: "Step aside for real weather" was cut off to "Step aside
+  for real we...". A row label has 148 px and the client's font measured 5.8 to 7.4 px a
+  character against the mock's 5.2, so no spec saw it. Renamed **Pause in real weather**,
+  and a new spec checks every row label at 7.0 px a character (fails on the old label).
+- The Sound section's switch is first now, as Weather's is, and reads **Play sounds**
+  instead of "Sound" under a heading that already says Sound.
 
 ## 2026-10-23 — The rain falls 1.8x faster: the layers were too far away
 

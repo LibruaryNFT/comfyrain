@@ -962,8 +962,8 @@ local function FixNote(db)
 		return "Real rain here, so the game's own is showing.", "Use mine",
 			"defer off",
 			"Draw ours over the top of the game's own weather instead of " ..
-			"standing aside for it. Same as unticking Step aside for real " ..
-			"weather, further down."
+			"standing aside for it. Same as unticking Pause in real weather, " ..
+			"further down."
 	end
 	-- The addon owns what counts as "nothing", because it owns the arithmetic
 	-- that the nothing comes out of.
@@ -1403,14 +1403,25 @@ local function Build()
 	-- Sits with the look rather than with the switches, because what it changes
 	-- is what you see when the real thing is already on screen. On by default,
 	-- which is the one default that argues with the addon's own name.
-	controls.defer = add(Check(panel, "Step aside for real weather", "/comfy defer off",
+	-- "Pause in real weather", not the "Step aside for real weather" it was:
+	-- a row label gets 148 px beside the control column, the client's font
+	-- runs 6 to 7.4 px a character, and the old one came out "Step aside for
+	-- real we...". 21 characters is the most that fits.
+	controls.defer = add(Check(panel, "Pause in real weather", "/comfy defer off",
 		function() Run(DB().defer ~= false and "defer off" or "defer on") end))
-	Teach(controls.defer, "Step aside for real weather", "/comfy defer off",
+	Teach(controls.defer, "Pause in real weather", "/comfy defer off",
 		"Stand aside while the game's own rain or snow is falling. Theirs is " ..
 		"3D and stops under an arch or a bridge; ours is drawn in front of " ..
 		"the camera and cannot. Where the real thing exists, it wins.")
 
 	add(Heading(panel, "Sound", "sound"), { gap = 4 })
+
+	-- The switch first, as in Weather: it is the control that can make every
+	-- other one in the section do nothing. And not plain "Sound" under a
+	-- heading that already says Sound, for the same reason the weather switch
+	-- is not plain "Weather".
+	controls.sound = add(Check(panel, "Play sounds", "/comfy sound off",
+		function() Run(DB().sound and "sound off" or "sound on") end))
 
 	controls.volume = add(Slider(panel, "Volume", 0, 1, 0.05, Pct,
 		function(v) Run(string.format("volume %.2f", v)) end,
@@ -1418,12 +1429,9 @@ local function Build()
 	Teach(controls.volume.slider, "Volume", "/comfy volume 0.5",
 		"ComfyRain's weather only. Your game volume is untouched.")
 
-	-- One checkbox per row, which is what the client does. These two shared a
-	-- row while the box was on the left of its label and the window was 330
-	-- wide; a box in the right-hand column cannot share a row with anything,
-	-- because there is only one column.
-	controls.sound = add(Check(panel, "Sound", "/comfy sound off",
-		function() Run(DB().sound and "sound off" or "sound on") end))
+	-- One checkbox per row, which is what the client does. A box in the
+	-- right-hand column cannot share a row with anything, because there is
+	-- only one column.
 
 	controls.thunder = add(Check(panel, "Thunder", "/comfy thunder off",
 		function() Run(DB().thunder and "thunder off" or "thunder on") end))
