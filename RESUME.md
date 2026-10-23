@@ -7,6 +7,28 @@ because the client cannot be told to actually change the weather.
 Stormwind. v2 switches all audio and the drop sprite to Blizzard's own assets and stops
 the rain indoors; needs `/reload` to pick up (no new files, so no client restart).
 
+## 2026-10-23 — The rain falls 1.8x faster: the layers were too far away
+
+"The rain looks like it's falling too slow", after the pass below. Measured off the
+Stormwind clip (`/tmp/shootcode/flow2.py`, FFT cross-correlation on high-passed frames):
+near 0.89 screen heights/s against 0.92 designed, far 0.46 against 0.45. So the code did
+what it said. What it said was wrong in **level**, not ratio: far 1.05 / near 1.07 put the
+near layer at about 5.5 m, a depth nobody chose. Report 1 says the eye locks onto streaks
+1 to 5 m away. Both layers now sit at 3 m and 6 m: `LAYERS` far 1.925, near 1.954 (x1.833),
+same 2.03x screen ratio.
+
+Near layer at slider 1.0, screen heights per second: Cozy 0.71, normal rain 1.30, heavy
+1.57, Storm 1.69, snow 0.25 to 0.34, blizzard 0.30 vertical and about 3.4 along the slant.
+Cozy is back near the 0.81 that was liked originally; Storm is well under the 3.81 that was
+too fast. Lua only, so `/reload`. Both loops now repeat at about 0.51 s, still to detune.
+
+The camera-turn test measured the turn on top of the fall drift, and at the new speed the
+drift happens to land on a whole sheet. It now compares a turned world against an unturned
+twin, and fails when the yaw term is zeroed.
+
+**Shoot status:** Stormwind photos 2, 3 and 5 are good. Redo clip 1 (old speed) and photo 4
+(UI was hidden). Park the mouse in a corner; it is in every frame so far.
+
 ## 2026-10-22 — The fall speeds are derived now, not tuned by eye
 
 "It feels our rain falls too quickly" turned out to be two separate errors, and the second

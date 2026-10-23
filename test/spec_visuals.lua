@@ -255,13 +255,21 @@ end)
 it("sweeps the curtain sideways when the camera turns", function()
 	-- Yaw parallax is the single biggest tell that a sheet is 2D. Without it
 	-- the rain slides at one fixed rate no matter where the player looks.
-	local w = H.world()
-	w:advance(0.5)
-	local still = w:layers().far.texCoord[1]
-	w.mock.state.facing = 1.2
-	w:advance(0.5)
-	local turned = w:layers().far.texCoord[1]
-	ok(math.abs(((turned - still) % 1)) > 0.01, "the sheet moved with the camera")
+	--
+	-- Measured against a twin world that does not turn. Comparing one world
+	-- before and after the turn also counts the slant drift in between, and
+	-- at some fall speeds that drift lands within 0.01 of a whole sheet and
+	-- hides the turn completely. Both worlds start from the same seed, so
+	-- the camera is the only thing that differs between them.
+	local function farX(turn)
+		local w = H.world()
+		w:advance(0.5)
+		if turn then w.mock.state.facing = 1.2 end
+		w:advance(0.5)
+		return w:layers().far.texCoord[1]
+	end
+	local d = (farX(true) - farX(false)) % 1
+	ok(math.min(d, 1 - d) > 0.01, "the sheet moved with the camera")
 end)
 
 it("fades the bottom of the rain layers but not the mist", function()

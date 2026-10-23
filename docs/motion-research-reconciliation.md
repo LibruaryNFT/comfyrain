@@ -139,6 +139,26 @@ Also outstanding from report 1, lower priority and no art dependency:
 
 - `GUST_FOLLOW` should collapse to a single short lag of about 0.7 s for rain and 0.1 s for
   snow, not 6.0 / 2.2 / 1.0 per layer.
-- Near and far loop at 1.07 and 1.05, which is a repeat period of about 0.94 s for both.
+- Near and far loop at 1.954 and 1.925, which is a repeat period of about 0.51 s for both.
   Two layers finding the loop at the same instant is the periodicity tell. Detune one.
 - First person adds up to 20% fall rate (`ZOOM_RATE`). There is no physical reason for it.
+
+## Addendum 2026-10-23: the layer depth
+
+Report 1 (lines 263-270) says the motion the eye reads is the nearest long streaks, 1 to 5
+m away, which move 2 to 5 times faster on screen than anything past 10 m. The pass above
+fixed every ratio and left the **level** where it was: far 1.05 / near 1.07 put the near
+layer at about 5.5 m (`H/s = v / (1.125 z)` on the 58.7 degree vertical field of view).
+
+A capture of the shipped pass measured near 0.89 H/s against 0.92 designed and far 0.46
+against 0.45, so the implementation was faithful and the complaint "too slow" was about
+depth. `LAYERS` now puts the layers at 3 m and 6 m: far 1.925, near 1.954, a uniform x1.833
+that leaves the 2.03x streak ratio and every per-intensity ratio above untouched.
+
+| Near layer, slider 1.0 | Before (5.5 m) | Now (3 m) |
+|---|---|---|
+| Cozy (light rain) | 0.39 | 0.71 |
+| Normal rain | 0.71 | 1.30 |
+| Storm (monsoon) | 0.92 | 1.69 |
+| Normal snow | 0.16 | 0.30 |
+| Blizzard, along the slant | 1.86 | 3.4 |
