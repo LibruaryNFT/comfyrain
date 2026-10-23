@@ -446,10 +446,10 @@ local baseAlpha = { near = 0, far = 0, mist = 0 }
 local baseGloom = 0
 -- Two fade lengths, because a fade is answering two different questions.
 -- Walking under an awning is weather leaving the sky and wants the slow one.
--- Pressing Turn It All Off is a button, and a button that takes most of a
--- second to do anything reads as a button that did not work: "we clicked turn
--- it all off and it didnt change quick enough". Anything the player switched
--- deliberately gets the short one.
+-- Pressing Off is a button, and a button that takes most of a second to do
+-- anything reads as a button that did not work: "we clicked turn it all off
+-- and it didnt change quick enough", said of the old Turn It All Off button.
+-- Anything the player switched deliberately gets the short one.
 local FADE_WALK, FADE_SWITCH = 0.7, 0.12
 local fade, fadeTarget, fadeTime = 1, 1, FADE_WALK
 -- What db.enabled was at the last Refresh, which is how the switch is told
@@ -564,8 +564,7 @@ local SECTION_ORDER = { "look", "sound", "time" }
 --
 -- Two KINDS, and the split is the design. A "weather" preset writes the same
 -- nine look-and-sound keys every time and never touches the clock; a "light"
--- preset writes the clock and switches the weather off, and never touches a
--- look key. Within a kind the key set is identical on purpose: setting seven
+-- preset writes the clock and nothing else. Within a kind the key set is identical on purpose: setting seven
 -- keys here and eight there leaves one setting behind from the last press, and
 -- two presses of the same button then give two different screens.
 --
@@ -616,19 +615,19 @@ local PRESETS = {
 	          scale = 0, speed = 1.0, gloom = 2.0, gust = 1.0,
 	          sound = true, thunder = false } },
 
-	-- Light only. These turn the weather OFF, because the request they answer
-	-- is "night and day without weather": somebody who wants the hour changed
-	-- and nothing falling. The grade is a ratio against the realm clock, so
-	-- both of these are no-ops on a realm already at that hour, which is
-	-- correct and is why the window names the held hour underneath.
+	-- Light. These leave the weather exactly as it was. They used to switch it
+	-- off, to answer "night without rain" in one press, and that made the
+	-- window's two rows secretly one: pressing Night after Storm threw the
+	-- storm away. Night without rain is now Weather: Off plus Light: Night,
+	-- two presses that each do one thing. The grade is a ratio against the
+	-- realm clock, so both of these are no-ops on a realm already at that
+	-- hour, which is correct and is why the window names the held hour.
 	{ key = "dusk", label = "Dusk", kind = "light",
-	  blurb = "golden hour, warm and low, with no weather at all",
-	  set = { enabled = false, timeMode = "fixed", timeFixed = 19,
-	          timeStrength = 0.9 } },
+	  blurb = "golden hour, warm and low",
+	  set = { timeMode = "fixed", timeFixed = 19, timeStrength = 0.9 } },
 	{ key = "night", label = "Night", kind = "light",
-	  blurb = "late and cold-blue, with no weather at all",
-	  set = { enabled = false, timeMode = "fixed", timeFixed = 22,
-	          timeStrength = 1.0 } },
+	  blurb = "late and cold-blue",
+	  set = { timeMode = "fixed", timeFixed = 22, timeStrength = 1.0 } },
 }
 local PRESET_BY_KEY = {}
 for _, p in ipairs(PRESETS) do PRESET_BY_KEY[p.key] = p end
@@ -2211,7 +2210,7 @@ local function Help()
 	print("  |cffffd100/comfy ui|r - open the settings window, which has all of this in it")
 	print("  |cffffd100/comfy|r - toggle; |cffffd100/comfy on|r and |cffffd100/comfy off|r say which")
 	print("  |cffffd100/comfy preset cozy||storm||snow||overcast|r - a whole look in one go")
-	print("  |cffffd100/comfy preset dusk||night|r - just the light, with no weather at all")
+	print("  |cffffd100/comfy preset dusk||night|r - just the light; the weather stays as it is")
 	print("  |cffffd100/comfy rain||snow|r - which weather to draw")
 	print("  |cffffd100/comfy light||normal||heavy|r - intensity")
 	print("  |cffffd100/comfy monsoon|r, |cffffd100/comfy blizzard|r - the top of each, weather included")
@@ -2291,13 +2290,13 @@ local function HandleSlash(input, source)
 		StartBed()
 		ScheduleLightning()
 		UpdateTimeOfDay()
-		-- A light preset leaves a dark screen with no rain on it, which is the
-		-- one state this addon has already been reported for. It does not get
-		-- to arrive without naming its own off switch.
+		-- A light preset can leave a dark screen with no rain on it, which is
+		-- the one state this addon has already been reported for. It does not
+		-- get to arrive without naming its own off switch.
 		msg("|cff66ff66" .. p.label .. "|r - " .. p.blurb ..
 		    (p.kind == "light"
 		     and ". |cffffd100/comfy time off|r for the server's own light again."
-		     or ". Every slider below it still works."))
+		     or "."))
 	elseif cmd == "auto" then
 		-- Follow the realm's own weather if it is telling us anything. This is
 		-- a one-shot match, not a mode: C_Weather is a poll with no event, and

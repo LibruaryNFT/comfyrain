@@ -372,10 +372,10 @@ local function Title(s)
 end
 
 -- The player's word for each section, which is not always the code's. The
--- Weather section is `look` internally because it owns every visual setting,
--- and a button reading "Reset Look" under a heading reading "Weather" is the
--- window talking to itself.
-local RESET_LABEL = { look = "Weather" }
+-- Rain & Snow section is `look` internally because it owns every visual
+-- setting, and a button reading "Reset Look" under a heading reading
+-- "Rain & Snow" is the window talking to itself.
+local RESET_LABEL = { look = "Rain & Snow" }
 
 --------------------------------------------------------------------------------
 -- The control column
@@ -997,20 +997,12 @@ local function Refresh()
 
 	local weather = ComfyRainAPI.Weather[db.weather] or ComfyRainAPI.Weather.rain
 
-	-- The tick carries the state and the label never moves. It used to read
-	-- "Weather on" when it was on and "Weather off" when it was off, which is
-	-- a checkbox arguing with itself: a ticked box labelled "Weather off" can
-	-- be read as off, or as "off is ticked", and the two are opposites.
-	-- "should be the same button but the checkbox turns it on or off",
-	-- 2026-10-19.
-	controls.power:SetOn(db.enabled)
-
 	-- Light up the scene the settings currently ARE, and only while they are
-	-- exactly it. Without this, pressing Night and then Cozy looks like Cozy
-	-- replaced Night rather than combining with it, because the two kinds
-	-- write disjoint settings and both stay true. The highlight drops off on
-	-- the first slider move, which is also the honest answer: a scene plus one
-	-- edit is not that scene any more.
+	-- exactly it. One mark per row at most, because the two rows write
+	-- disjoint settings: Night and Cozy are both lit at once, which is the
+	-- answer to "is it raining, and what time is it". Off and Normal mark the
+	-- same way, so a row with nothing lit means the selectors below have it
+	-- somewhere no button names, and a scene plus one edit is not that scene.
 	for _, entry in ipairs(controls.presets or {}) do
 		local on = true
 		for k, v in pairs(entry.set) do
@@ -1088,15 +1080,6 @@ local function Refresh()
 	local phrase, colour = StatusPhrase(db)
 	controls.status:SetText(phrase)
 	controls.status:SetTextColor(colour[1], colour[2], colour[3])
-	-- Hidden when there is nothing left to stop, so the button is never a lie:
-	-- if it is on screen, pressing it changes something.
-	if db.enabled or db.timeMode ~= "off" then
-		controls.stop:Show()
-		controls.status:SetWidth(controls.statusNarrow)
-	else
-		controls.stop:Hide()
-		controls.status:SetWidth(controls.statusWide)
-	end
 
 	local note, fixLabel, fixCmd, fixNote = FixNote(db)
 	-- Cleared rather than just hidden. A hidden row still holds its last
@@ -1212,28 +1195,17 @@ local function Build()
 	-- The state line comes before any control, because the first question
 	-- somebody opens this window with is "what is this doing to my screen", and
 	-- the answer has to be readable without understanding a single widget below
-	-- it. The stop button sits on the same line so the answer and the undo are
-	-- never in different parts of the window.
+	-- it. The undo is the first button of each row under it: Off and Normal.
+	-- There is no all-off button any more. It sat beside two rows that each
+	-- had their own way back, and three ways to turn things off read as three
+	-- different kinds of off. /comfy stop still does both at once.
 	local state = add(CreateFrame("Frame", nil, panel), { gap = 9 })
 	state:SetHeight(ROW)
-	local STOP_W = 110
 	controls.status = Text(state, "GameFontHighlightSmall")
 	controls.status:SetPoint("LEFT", state, "LEFT", 0, 0)
 	controls.status:SetWordWrap(false)
 	controls.status:SetText("")
-	-- Two widths, because the button beside it comes and goes. One fixed
-	-- width sized for the button being there is how "Everything off. Nothing
-	-- here is touching your screen." got cut to "Nothing here is to..." on the
-	-- one screen where the button is hidden and the whole row was free.
-	controls.statusWide = WIDTH - PAD * 2
-	controls.statusNarrow = WIDTH - PAD * 2 - STOP_W - 8
-
-	controls.stop = Pill(state, "Turn It All Off", function() Run("stop") end)
-	controls.stop:SetPoint("TOPRIGHT", state, "TOPRIGHT", 0, 0)
-	controls.stop:SetWidth(STOP_W)
-	Teach(controls.stop, "Turn It All Off", "/comfy stop",
-		"Weather, sound and the light grading, all off in one press. " ..
-		"Your settings are kept; this is a switch, not a reset.")
+	controls.status:SetWidth(WIDTH - PAD * 2)
 
 	-- Directly under the state line and above everything else, because it is
 	-- the answer to "I pressed that and nothing happened" and anybody with
@@ -1260,31 +1232,55 @@ local function Build()
 	controls.fix:SetPoint("TOPRIGHT", fix, "TOPRIGHT", 0, 0)
 	controls.fix:SetWidth(FIX_W)
 
-	-- Scenes, before any heading, because this row is the answer to the only
-	-- question most people open the window with. Fifteen controls is a mixing
-	-- desk, and a mixing desk is the right thing to have and the wrong thing
-	-- to be handed first: the sliders stay exactly where they are, but nobody
-	-- has to touch four of them to find out what a storm looks like.
+	-- Two rows before any heading, because they answer the only two questions
+	-- most people open the window with: what weather, and what light. Each row
+	-- owns one thing and starts with its own way back, so "no rain, but night"
+	-- is Weather: Off and Light: Night, two presses that each do what they
+	-- say. The light row used to switch the weather off as a side effect, and
+	-- an all-off button sat beside both; "if we wanted no weather but wanted
+	-- it day or night" was not answerable by reading the buttons, 2026-10-23.
 	--
 	-- Built from ComfyRainAPI.Presets rather than from a list here, so adding a
 	-- scene is one table entry in the addon and the window follows. Each press
 	-- is the typed command, like every other control in this file.
-	-- One row per kind, and the slot width is a fixed quarter rather than a
-	-- share of however many buttons that row has. A two-button row stretched
-	-- to fill the window would be two buttons twice the size of the four above
-	-- them, which reads as "these are the important ones" and they are not.
+	-- The slot is a fixed fifth rather than a share of however many buttons a
+	-- row has. A three-button row stretched to fill the window would be three
+	-- buttons nearly twice the size of the five above them, which reads as
+	-- "these are the important ones" and they are not.
+	--
+	-- No Day. The light grade can darken and tint, but brightening is an ADD
+	-- quad capped at LIFT_CAP and the sky keeps its stars, so a Day button on a
+	-- night realm would barely move. Normal is the honest one: the game's own
+	-- clock, which is daylight whenever the realm is in it.
+	local OFF = {
+		weather = { label = "Off", cmd = "off", command = "/comfy off",
+			set = { enabled = false },
+			note = "No rain, no snow, no weather sound. The light stays as it is." },
+		light = { label = "Normal", cmd = "time off", command = "/comfy time off",
+			set = { timeMode = "off" },
+			note = "The game's own day and night. The weather stays as it is." },
+	}
 	local scenes = (ComfyRainAPI and ComfyRainAPI.Presets) or {}
-	local slot, rows, order = (WIDTH - PAD * 2) / 4, {}, {}
+	local slot, byKind, order = (WIDTH - PAD * 2) / 5, {}, {}
 	for _, p in ipairs(scenes) do
 		local kind = p.kind or "weather"
-		if not rows[kind] then rows[kind] = {} order[#order + 1] = kind end
-		table.insert(rows[kind], p)
+		if not byKind[kind] then
+			byKind[kind] = { OFF[kind] }
+			order[#order + 1] = kind
+		end
+		local verb = (kind == "light")
+			and "Changes the light and nothing else: "
+			or "A whole weather in one press: "
+		table.insert(byKind[kind], { label = p.label, cmd = "preset " .. p.key,
+			command = "/comfy preset " .. p.key, set = p.set,
+			note = verb .. p.blurb .. ". " .. (kind == "light"
+				and "The weather stays as it is."
+				or "The light stays as it is.") })
 	end
-	-- A caption per row, because the second row behaves differently from the
-	-- first in a way the labels cannot carry: Dusk and Night switch the
-	-- weather OFF. Not "Weather" and "Light", which would put a third thing
-	-- called Weather on screen above a heading that is already called that.
-	local CAPTION = { weather = "Scenes", light = "Light only" }
+	-- Named for what each row changes. The section headed Rain & Snow below
+	-- is the long form of the first row and Time of Day the long form of the
+	-- second, so neither caption repeats a heading.
+	local CAPTION = { weather = "Weather", light = "Light" }
 	controls.presets = {}
 	for ri, kind in ipairs(order) do
 		local cap = add(CreateFrame("Frame", nil, panel), { gap = ri == 1 and 6 or 5 })
@@ -1295,8 +1291,8 @@ local function Build()
 
 		local row = add(CreateFrame("Frame", nil, panel), { gap = 1 })
 		row:SetHeight(ROW)
-		for i, p in ipairs(rows[kind]) do
-			local b = Pill(row, p.label, function() Run("preset " .. p.key) end)
+		for i, e in ipairs(byKind[kind]) do
+			local b = Pill(row, e.label, function() Run(e.cmd) end)
 			b:SetPoint("TOPLEFT", row, "TOPLEFT", slot * (i - 1), 0)
 			b:SetWidth(slot - 3)
 			b.mark = Fill(b, { 0.45, 1.00, 0.45, 0.85 }, "OVERLAY")
@@ -1304,59 +1300,18 @@ local function Build()
 			b.mark:SetPoint("BOTTOMLEFT", b, "BOTTOMLEFT", 3, 2)
 			b.mark:SetPoint("BOTTOMRIGHT", b, "BOTTOMRIGHT", -3, 2)
 			b.mark:Hide()
-			-- What the marker compares against, which is not always the whole
-			-- preset. `enabled` is the one key both kinds write, and a light
-			-- scene is still the light scene after a weather scene switches
-			-- the rain back on - that composition is the point of the split.
-			local match = {}
-			for k, v in pairs(p.set) do
-				if not (p.kind == "light" and k == "enabled") then match[k] = v end
-			end
-			controls.presets[#controls.presets + 1] = { button = b, set = match }
-			Teach(b, p.label, "/comfy preset " .. p.key,
-				(kind == "light"
-				 and ("Changes the light and nothing else, with the weather " ..
-				      "switched off: " .. p.blurb ..
-				      ". Press a weather scene afterwards to have both.")
-				 or ("Sets the weather, the intensity, the visibility, the " ..
-				     "speed, the darkness, the wind and the thunder in one " ..
-				     "press: " .. p.blurb ..
-				     ". Everything below stays adjustable afterwards.")))
-		end
-		-- The light row's own undo, in the slot the two buttons leave empty.
-		-- Without it the only way back from Night is the Mode selector at the
-		-- very bottom of the window, which is a long way to go to put the sun
-		-- back and is not where anybody looks.
-		if kind == "light" then
-			local back = Pill(row, "Server Light", function() Run("time off") end)
-			back:SetPoint("TOPLEFT", row, "TOPLEFT", slot * #rows[kind], 0)
-			back:SetWidth(slot * 2 - 3)
-			Teach(back, "Server Light", "/comfy time off",
-				"Hand the light back to the server's own day and night. " ..
-				"Leaves the weather exactly as it is.")
+			controls.presets[#controls.presets + 1] = { button = b, set = e.set }
+			Teach(b, e.label, e.command, e.note)
 		end
 	end
 
-	add(Heading(panel, "Weather", "look"), { gap = 4 })
+	add(Heading(panel, "Rain & Snow", "look"), { gap = 4 })
 
-	-- The master switch first, because it is the one control in the section
-	-- that can make every other one in it do nothing. A Check is a full row of
-	-- its own now, so it is added directly rather than parked inside a spacer
-	-- frame; Relayout gives it the width and OnSizeChanged does the rest.
-	-- Not plain "Weather": the heading above it and the rain/snow selector
-	-- below it are both already called that, and three things with one name in
-	-- 330 pixels is worse than a slightly longer label.
-	controls.power = add(Check(panel, "Show rain & snow", "/comfy", function()
-		Run(DB().enabled and "off" or "on")
-	end))
-
-	-- Everything in Weather and Sound is inert while that box is unticked, and
-	-- a slider that moves and does nothing is the most confusing control a
-	-- window can have. Time of Day is the exception and is the whole reason
-	-- this line exists: it draws on its own, so a player who wants their own
-	-- clock and no rain has somewhere to go instead of concluding the addon is
-	-- broken. Appears only when it is true, so the window is unchanged for
-	-- anyone actually using the weather.
+	-- No on/off box here any more: Weather: Off above is the switch, and
+	-- stepping Type or Intensity turns the weather back on. While it is off,
+	-- everything in this section and Sound is inert, and a slider that moves
+	-- and does nothing is the most confusing control a window can have, so
+	-- this line says so. Appears only when it is true.
 	local offNote = add(CreateFrame("Frame", nil, panel),
 		{ gap = 2, visible = function() return not DB().enabled end })
 	offNote:SetHeight(26)
@@ -1364,8 +1319,8 @@ local function Build()
 	offText:SetPoint("TOPLEFT", offNote, "TOPLEFT", 0, 0)
 	offText:SetPoint("TOPRIGHT", offNote, "TOPRIGHT", 0, 0)
 	offText:SetJustifyV("TOP")
-	offText:SetText("Weather and Sound below do nothing while this is off. " ..
-		"Time of Day still works on its own.")
+	offText:SetText("Weather is Off, so this and Sound wait until a weather " ..
+		"is picked. The light works on its own.")
 
 	controls.weather = add(Select(panel, "Type", function(d)
 		local order, db2 = WEATHERS, DB()

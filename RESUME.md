@@ -7,6 +7,26 @@ because the client cannot be told to actually change the weather.
 Stormwind. v2 switches all audio and the drop sprite to Blizzard's own assets and stops
 the rain indoors; needs `/reload` to pick up (no new files, so no client restart).
 
+## 2026-10-23 — The top of the window is two rows: Weather and Light
+
+"If we wanted no weather but wanted it day or night", the old Scenes / Light only /
+Server Light / Turn It All Off / Show rain & snow set could not answer by reading it.
+
+- **Weather:** [Off] [Cozy] [Storm] [Snow] [Overcast]. **Light:** [Normal] [Dusk] [Night].
+  Each row owns one thing and leaves the other alone; night with no rain is Off + Night.
+  Both rows are fifths of the width. Off runs `/comfy off`, Normal `/comfy time off`.
+- **Dusk and Night no longer write `enabled = false`.** That side effect is what made
+  Storm then Night throw the storm away. The disjoint-keys spec has no `enabled`
+  exception any more.
+- **Removed:** the Turn It All Off pill (`/comfy stop` still works and is in help), the
+  Server Light pill (now Normal), the "Show rain & snow" checkbox (Off is the switch;
+  stepping Type or Intensity turns the weather back on). The status line has the whole row.
+- The section heading Weather is now **Rain & Snow** ("Reset Rain & Snow"), so the top
+  caption is the only thing called Weather.
+- No Day button, still: brightening is capped at LIFT_CAP and the sky keeps its stars.
+  Normal gives the realm's own daylight when it is day.
+- Shoot card: photo 4 is a redo anyway; the header's button list needs the new rows.
+
 ## 2026-10-23 — The settings window lost its five tuning controls
 
 "We shouldn't allow a user to change the settings of the rain, that's too granular... if
