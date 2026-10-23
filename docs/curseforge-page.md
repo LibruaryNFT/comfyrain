@@ -205,11 +205,11 @@ master copy; convert it to `<h2>`, `<p>`, `<ul>/<li>`, `<hr>`, `<strong>`, `<cod
 | Item | Status |
 |---|---|
 | Project avatar / icon | Done at creation: `docs/logo.png` |
-| Gallery images | Done: `docs/preview1.jpg`, `preview2.jpg`, `preview3.jpg` |
+| Gallery images | **Re-shoot.** The three on the page show the art from before 2026-10-22. Plan and shot list: `docs/curseforge-gallery-plan.md` |
 | Moderation approval | Approved 2026-10-20 |
 | `## X-Curse-Project-ID` | Done, `1756622`, in the TOC |
 | `CF_API_KEY` secret | Outstanding. Until it exists every upload here is manual |
-| Launch GIF | Done: `docs/preview.gif` |
+| Launch GIF | **Re-shoot**, same reason. The plan calls for three GIFs, not one |
 | v1.0.0 as Release | 4 November |
 
 ### The 2MB image ceiling
