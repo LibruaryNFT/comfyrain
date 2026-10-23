@@ -7,6 +7,29 @@ because the client cannot be told to actually change the weather.
 Stormwind. v2 switches all audio and the drop sprite to Blizzard's own assets and stops
 the rain indoors; needs `/reload` to pick up (no new files, so no client restart).
 
+## 2026-10-23 — Testing while the beta is down: retail's free tier
+
+"beta isnt available to test on... we dont have an active retail subscription, is there
+any way we can test more or do screenshots".
+
+- **Beta offline since 13:02 today** (wowforeverstatus.com, control: 1425 of 1580 samples
+  online over 72h). It was down Oct 21 12:40 to Oct 22 07:18 and came back.
+  `forever-watch.service` started 13:12 to chime when it returns (10h cap).
+- **Retail is free to level 20 with no subscription** (Starter, or Veteran for lapsed
+  accounts), and Blizzard says addons work on it. This account reached retail character
+  select on 2026-08-25 (`_retail_/Logs/Connection.log`).
+- Retail is the same engine as Forever (`Wow.exe`, D3D12), so its screenshots are ground
+  truth for how our art and blend modes draw. They say nothing about Forever-only API or
+  the realm's weather.
+- Installed with `./install.sh _retail_`. Appended `SET checkAddonVersion "0"` to
+  `_retail_/WTF/Config.wtf` (backup at `/tmp/retail-config.bak` this session), because
+  interface 16001 is out of date there. Retail runs RenderScale 0.65, weatherDensity 0.
+- **`/comfy probe shots` is 13 shots now**: every intensity of both weathers, then dusk
+  and night. The spec checks each shot photographs the state its name says (mutation
+  tested: a mislabelled light snow fails it). Files land in `_retail_/Screenshots`, the
+  manifest in `ComfyRainDB.probe.shots` after `/reload`.
+- Open: compare those shots against `tools/perceive.py`'s renders, pair by pair.
+
 ## 2026-10-23 — Weather, Time of Day, Sound; "Hide when game rains"
 
 "i dont think we are even able to pause in real weather... that doesnt make sense to me

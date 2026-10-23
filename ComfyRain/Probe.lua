@@ -833,11 +833,18 @@ end
 -- an artifact of an empty folder rather than an observation.
 --------------------------------------------------------------------------------
 
+-- Every intensity of both weathers, in order, because tools/perceive.py makes
+-- a claim about each neighbouring pair and these are the pictures that check
+-- it. Light snow and heavy rain each looked like their neighbour in game while
+-- the numbers said otherwise.
 local SHOTS = {
 	{ "control-off",          { "off" } },
-	{ "rain-normal-day",      { "rain", "normal", "time 12" } },
+	{ "rain-light-day",       { "rain", "light", "time 12" } },
+	{ "rain-normal-day",      { "normal" } },
+	{ "rain-heavy-day",       { "heavy" } },
 	{ "rain-monsoon-day",     { "monsoon" } },
-	{ "snow-normal-day",      { "snow", "normal" } },
+	{ "snow-light-day",       { "snow", "light" } },
+	{ "snow-normal-day",      { "normal" } },
 	{ "snow-heavy-day",       { "heavy" } },
 	{ "snow-blizzard-day",    { "blizzard" } },
 	{ "snow-blizzard-dusk",   { "time 19" } },
