@@ -14,27 +14,33 @@ the rain indoors; needs `/reload` to pick up (no new files, so no client restart
    `CURSEFORGE_API_TOKEN` in flowconnect-434715. It answered 200 on
    `wow.curseforge.com/api/game/versions` (a bogus token gets 403). The `v1.0.0` tag
    now uploads to CurseForge as well as GitHub.
-3. **Retail in game** (Justin's): `/console scriptErrors 1`, `/comfy status`,
-   `/comfy probe shots`, `/reload`. Then compare `_retail_/Screenshots` against the
-   perceive.py renders and read `ComfyRainDB.probe.shots`. Gallery shots per PR #19.
+3. Done 2026-10-23: retail loads, `/comfy status` answers, C_Weather reads the server's
+   rain and Blizzard's sound FileDataIDs play (section "It loads on retail too"). The
+   probe screenshots and the gallery re-shoot (PR #19) are optional, not launch gates.
 4. #3 (does weatherDensity 0 stop the engine lightning) needs a real storm. It does not
    block launch.
 5. Tag `v1.0.0` from `main` on 4 November, then check the file landed on CurseForge.
    The publish step has no CurseForge check of its own (only GitHub), so that check is by hand.
-6. Listing (Justin's, after item 3 passes): upload `docs/logo.png` as the avatar and paste
-   `docs/curseforge-description.html` into the description's source view. It adds a
-   "Which WoW" section: Forever and Retail, Classic not yet. CHANGELOG and README say the same.
+6. Done 2026-10-24, all read back from the public page: the description has the "Which
+   WoW" section (Forever and Retail, Classic not yet), the flat logo is the avatar
+   (`avatars/2143/963`), and Roleplay and Artwork are listed. Those two categories were
+   planned in `docs/curseforge-page.md` but had never been set; until now the page listed
+   only Audio & Video.
 7. CurseForge accepts both tags (checked 2026-10-24 via its API): Forever `1.60.1` and Retail
    `12.1.5`. Retail 12.1.7 is on the PTR (`wowt` 12.1.7.70493); add `120107` to the TOC when
    it goes live, or retail players see the addon as out of date.
+8. **The page is Forever-only until the next upload.** Its one file, 0.9.2-alpha from
+   20 Oct, is tagged Forever 1.60.1 alone, so the Retail listing in the CurseForge app
+   does not show the addon. Any tag pushed now is tagged both from the TOC. Proposed: a
+   `v1.0.0-beta1` tag now, which also proves the CurseForge upload before launch day.
+   Waiting on Justin's go, because it publishes.
 
 Icon: redrawn 2026-10-23 ("can we get a non-ai looking logo"), approved the same day
 ("flat drop is fine then"). One flat drop drawn from
 geometry by `build/make_icon_tga.py`, which also writes `docs/logo.png` and the 400px
 `docs/avatar.png`. The icon is round in the file now, and the square colour backing
 behind it, which showed dark corners outside the minimap ring, is now a round texture.
-**Justin's:** upload `docs/logo.png` as the CurseForge project avatar, because there is
-no API for it. The in-game icon needs a full client restart to show, not `/reload`.
+Uploaded as the CurseForge avatar 2026-10-24 (item 6). The in-game icon needs a full client restart to show, not `/reload`.
 
 ## 2026-10-23 — One addon for every flavour: the window adapts, Classic still unlisted
 

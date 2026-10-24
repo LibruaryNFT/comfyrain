@@ -223,12 +223,13 @@ WYSIWYG box.
 
 | Item | Status |
 |---|---|
-| Project avatar / icon | Redrawn 2026-10-23 as flat vector art; the new `docs/logo.png` still has to be uploaded |
+| Project avatar / icon | Done 2026-10-24: flat `docs/logo.png`, read back from the public page |
 | Gallery images | Done: `docs/preview1.jpg`, `preview2.jpg`, `preview3.jpg` |
 | Moderation approval | Approved 2026-10-20 |
 | `## X-Curse-Project-ID` | Done, `1756622`, in the TOC |
 | `CF_API_KEY` secret | Done 2026-10-23, verified against the CurseForge API. Tags upload automatically |
-| Description | Re-paste `docs/curseforge-description.html` after the retail test passes: it adds the Which WoW section |
+| Description | Done 2026-10-24: Which WoW section live |
+| Additional categories | Done 2026-10-24: Roleplay and Artwork |
 | Launch GIF | Done: `docs/preview.gif` |
 | v1.0.0 as Release | 4 November |
 
