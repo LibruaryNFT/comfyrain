@@ -1,0 +1,34 @@
+<h2>What it does</h2>
+<p>World of Warcraft decides when it rains. The server picks the weather, it picks it per zone, and plenty of zones never get any. Comfy Rain gives you the switch: rain or snow wherever you are, for as long as you want it.</p>
+<p>It is built for ambience. If you spend time sitting in Goldshire, fishing in Stranglethorn, or running a roleplay night, this is the weather the game would not give you.</p>
+<h2>Which WoW</h2>
+<p>Works on <strong>WoW Forever</strong> and <strong>Retail</strong>. The Classic versions (Classic Era, Mists of Pandaria Classic, Anniversary) are not supported yet.</p>
+<h2>Features</h2>
+<ul>
+<li><strong>Rain and snow</strong>, four intensities each, from a drizzle up to a monsoon or a whiteout blizzard</li>
+<li><strong>Weather audio</strong> built from the game's own sound files, layered so it does not loop obviously, with distant thunder</li>
+<li><strong>Wind</strong> that gusts, moving the rain, the sound and the light together rather than on a timer</li>
+<li><strong>Time of day</strong>, hold the world at dusk or run it on your own clock instead of the realm's</li>
+<li><strong>Indoors handling</strong>, it fades down under a roof instead of raining on the ceiling, and it knows places like Ironforge have no sky even when the game says otherwise</li>
+<li><strong>A settings panel</strong> with a minimap button, everything previews live, no Apply button</li>
+<li><strong>Shareable settings</strong>, export your setup as one line of text and send it to someone</li>
+</ul>
+<h2>Using it</h2>
+<p>Click the minimap button, or type <code>/comfyrain</code>. Everything is in the panel.</p>
+<p>Every control in the panel also shows the slash command it just ran, so if you prefer typing you pick the commands up by using the window. <code>/comfy</code> on its own turns the weather on and off.</p>
+<h2>Real storms</h2>
+<p>When the server sends an actual storm, Comfy Rain stands aside and lets it fall. The game's own rain is 3D, so it stops under an arch or a bridge the way rain should, and where the real thing exists it is the better of the two.</p>
+<h2>What it is, honestly</h2>
+<p>Comfy Rain draws a screen-space overlay: scrolling layers of rain in front of the camera, with the frame dimmed behind them. Addons are not allowed near the game's 3D weather, its particles, its lighting or its sky. So:</p>
+<ul>
+<li>It looks right when you are looking at the world.</li>
+<li>It cannot put rain outside a window while you stand indoors. There is one overlay and no way to ask the client which pixels are sky, so indoors it fades to a faint wash instead.</li>
+<li>Indoor detection is a guess, and it is sometimes wrong. The client answers for the whole zone object you are standing in, not for the patch of ground above your head, so open courtyards, awnings, bridges and cave mouths are where it gets it backwards. <code>/comfy indoors off</code> makes it stop caring, and <code>/comfy bug</code> captures the coordinates if you find a spot that reads wrong.</li>
+<li>It cannot change the sky, the clouds or the fog.</li>
+<li>It does not make puddles, wet the ground, or stop you drowning.</li>
+</ul>
+<p>Three textured quads and a timer. No combat log parsing, no unit scanning, no taint, and it stops drawing entirely when the weather is off.</p>
+<h2>Found a problem?</h2>
+<p>Type <code>/comfy bug</code>. It writes one line carrying your settings, where you were standing and what the addon was doing, already selected and ready to copy. Paste it into an issue at <a href="https://github.com/LibruaryNFT/comfyrain/issues">github.com/LibruaryNFT/comfyrain/issues</a>, or leave it in the comments here. The addon sends nothing anywhere.</p>
+<h2>Free and open source</h2>
+<p>MIT licensed. The code is on GitHub: read it, fork it, take what you like.</p>
