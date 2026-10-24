@@ -7,6 +7,27 @@ because the client cannot be told to actually change the weather.
 Stormwind. v2 switches all audio and the drop sprite to Blizzard's own assets and stops
 the rain indoors; needs `/reload` to pick up (no new files, so no client restart).
 
+## 2026-10-23 — It loads on retail too: one TOC line, `16001, 120105`
+
+"can this addon work on all versions of wow... get it to work on retail so i can properly
+take screenshots".
+
+- **`## Interface: 16001, 120105`**, one line, no second TOC. Forever honours comma lists:
+  Auctionator ships `120105, 16001, ...` and loaded in the beta with out-of-date addons
+  off. A `_Mainline.toc` was avoided because the Forever binary also knows the Mainline
+  suffix and which one it prefers next to a bare TOC is unmeasured. `spec_boot` fails if
+  either number drops out.
+- **API check per client** (`tools/api_audit.py --exe`): retail 12.1.5.70575 and
+  `_forever_` both 0 missing. Classic Era 1.15.9 is missing 4, all pcall-guarded
+  (C_Weather, PlaySoundWithOptions among them), so it would probably run, but nobody can
+  test it without a sub, so it is not listed. MoP Classic and Anniversary are not
+  installed here: unknown.
+- **CurseForge will tag releases Retail as well as Forever.** Read from packager v2.6.1
+  `release.sh`: `toc_to_type` maps each Interface value on its own, `16???` to forever
+  and anything unmatched to retail.
+- Open: confirm in game that retail lists it as current (not "out of date"), and that the
+  Blizzard sound FileDataIDs play there or the bundled oggs take over.
+
 ## 2026-10-23 — Testing while the beta is down: retail's free tier
 
 "beta isnt available to test on... we dont have an active retail subscription, is there
@@ -21,9 +42,10 @@ any way we can test more or do screenshots".
 - Retail is the same engine as Forever (`Wow.exe`, D3D12), so its screenshots are ground
   truth for how our art and blend modes draw. They say nothing about Forever-only API or
   the realm's weather.
-- Installed with `./install.sh _retail_`. Appended `SET checkAddonVersion "0"` to
-  `_retail_/WTF/Config.wtf` (backup at `/tmp/retail-config.bak` this session), because
-  interface 16001 is out of date there. Retail runs RenderScale 0.65, weatherDensity 0.
+- Installed with `./install.sh _retail_`. The TOC lists retail's interface now (section
+  above), so no client setting is needed; the `checkAddonVersion` override that was
+  briefly in `_retail_/WTF/Config.wtf` is gone. Retail runs RenderScale 0.65,
+  weatherDensity 0.
 - **`/comfy probe shots` is 13 shots now**: every intensity of both weathers, then dusk
   and night. The spec checks each shot photographs the state its name says (mutation
   tested: a mislabelled light snow fails it). Files land in `_retail_/Screenshots`, the

@@ -1,4 +1,4 @@
-## Interface: 16001
+## Interface: 16001, 120105
 ## Title: Comfy Rain
 ## Notes: Rain or snow on demand, anywhere, for as long as you want - scrolling storm layers, a dimmed world, Blizzard's own weather loops and distant thunder. |cff888888/comfyrain|r
 ## Author: LibruaryNFT
