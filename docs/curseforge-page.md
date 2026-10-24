@@ -58,8 +58,9 @@ Addons
 
 ## Description
 
-Set the editor to **Markdown**, not WYSIWYG, then paste this. (CurseForge offers both;
-it does not take BBCode.)
+This Markdown is the master copy, but do not paste it. The editor's `</>` source view
+takes HTML: run `tools/cf_description.py` and paste `docs/curseforge-description.html`
+(see "The description editor takes HTML" below).
 
 ```
 ## What it does

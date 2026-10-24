@@ -6,7 +6,8 @@ pasted there renders as literal ## and - characters. The Markdown in
 curseforge-page.md stays the master copy; this writes the HTML a person pastes,
 so the conversion is never done by hand.
 
-Handles exactly what the description uses: ## headings, - bullets, paragraphs,
+Handles exactly what the description uses: ## headings (with an <hr> before
+every one but the first, as on the live page), - bullets, paragraphs,
 **bold**, `code` and [links](url). Anything else is a new construct and should
 be added here before it goes in the description.
 
@@ -41,6 +42,10 @@ def convert(md):
     for para in re.split(r"\n\s*\n", md.strip()):
         lines = para.splitlines()
         if lines[0].startswith("## "):
+            # The live page has a rule between sections, hand-added when it was
+            # first pasted. Leaving it out would quietly strip them on re-paste.
+            if out:
+                out.append("<hr>")
             out.append(f"<h2>{inline(lines[0][3:])}</h2>")
             lines = lines[1:]
             if not lines:
