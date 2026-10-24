@@ -2081,3 +2081,56 @@ it("survives a client with no settings API at all", function()
 	w:open()
 	ok(w:panel():IsShown() and w:select("Type"), "and the real window is untouched")
 end)
+
+-- Classic Era, MoP Classic and TBC Anniversary have neither C_Weather nor
+-- C_Sound.PlaySoundWithOptions: the Era binary and Blizzard's API docs for all
+-- three agree (issue #20). This is the addon booted the way they would boot it.
+local function classicWorld()
+	local w = H.world({ loaded = false })
+	w.env.C_Weather = nil
+	w.env.C_Sound.PlaySoundWithOptions = nil
+	w:load()
+	return w
+end
+
+it("leaves out Volume and Hide when game rains where the client cannot do them", function()
+	local w = classicWorld()
+	w:open()
+	eq(w:slider("Volume"), nil, "no volume slider without a gain control")
+	eq(w:button("Hide when game rains"), nil, "no hide box without C_Weather")
+	ok(w:button("Play sounds") and w:button("Thunder"), "the rest of Sound is still there")
+	ok(w:select("Type") and w:select("Mode"), "and so are Weather and Time of Day")
+	-- A refresh with both controls absent, which is where a nil would bite.
+	w:slash("snow")
+	eq(#w.mock.errors, 0, "errors with the two controls absent")
+end)
+
+it("says why on a client without them, instead of quietly doing nothing", function()
+	-- Control: the full client lists both commands in its help.
+	local full = H.world()
+	full:slash("help")
+	gt(#full.mock.printedMatching("/comfy auto"), 0, "help lists auto where it works")
+	gt(#full.mock.printedMatching("/comfy volume"), 0, "and volume")
+
+	local w = classicWorld()
+	w:slash("help")
+	eq(#w.mock.printedMatching("/comfy auto"), 0, "help leaves out auto")
+	eq(#w.mock.printedMatching("/comfy volume"), 0, "and volume")
+
+	local vol, defer = w:db().volume, w:db().defer
+	w:slash("auto")
+	gt(#w.mock.printedMatching("does not tell addons its weather, so there is nothing"), 0,
+		"auto says the game will not say")
+	eq(#w.mock.printedMatching("reports no weather here"), 0, "rather than claiming a clear sky")
+	w:slash("volume 0.2")
+	gt(#w.mock.printedMatching("no volume control"), 0, "volume points at the game's slider")
+	eq(w:db().volume, vol, "and stores nothing that would drive nothing")
+	w:slash("defer off")
+	gt(#w.mock.printedMatching("cannot see the game's rain"), 0, "defer says why")
+	eq(w:db().defer, defer, "and leaves the setting alone")
+
+	local played = 0
+	for _, s in ipairs(w.mock.sounds) do if s.file then played = played + 1 end end
+	gt(played, 0, "the rain is still heard, through the plain call")
+	eq(#w.mock.errors, 0, "errors")
+end)

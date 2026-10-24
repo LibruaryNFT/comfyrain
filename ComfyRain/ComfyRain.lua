@@ -1055,6 +1055,14 @@ local function RealWeather()
 	return WEATHER_NAME[t] or tostring(t), info.intensity or 0
 end
 
+-- Classic Era, MoP Classic and TBC Anniversary have no C_Weather at all: the
+-- Era binary and Blizzard's API docs for all three agree (issue #20). There the
+-- addon cannot see the game's weather, so the two things built on seeing it,
+-- standing aside and /comfy auto, say so instead of answering "no weather".
+local function ReadsGameWeather()
+	return type(C_Weather) == "table" and type(C_Weather.GetCurrentWeather) == "function"
+end
+
 -- The client will not draw Blizzard's weather at all unless these two are up.
 -- weatherDensity 0 means "never", and environment detail 1 culls it as well.
 local DENSITY_CVARS = { weatherDensity = 3, graphicsEnvironmentDetail = 2 }
@@ -1818,6 +1826,11 @@ local function OptionsPlay()
 	return optionsPlay
 end
 
+-- Without the options call there is no gain control at all: PlaySoundFile
+-- takes no volume and plays at the channel's own level. The Classic clients
+-- are in that position (issue #20), so a volume setting would drive nothing.
+local function SetsVolume() return OptionsPlay() ~= nil end
+
 local function Play(file, volume)
 	local ok, handle
 	local opts = volume and OptionsPlay()
@@ -2230,12 +2243,16 @@ local function Help()
 	print("  |cffffd100/comfy light||normal||heavy|r - intensity")
 	print("  |cffffd100/comfy monsoon|r, |cffffd100/comfy blizzard|r - the top of each, weather included")
 	print("  |cffffd100/comfy cycle|r - step up through the intensities, for a keybind")
-	print("  |cffffd100/comfy auto|r - match whatever the server says the weather is here")
+	if ReadsGameWeather() then
+		print("  |cffffd100/comfy auto|r - match whatever the server says the weather is here")
+	end
 	print("  |cffffd100/comfy alpha <0-1.5>|r - how visible it is")
 	print("  |cffffd100/comfy speed <0.2-3>|r - how fast it falls")
 	print("  |cffffd100/comfy dim <0-2>|r - how much it darkens the world (0 = off, 2 = as dark as it goes)")
 	print("  |cffffd100/comfy gust <0-2>|r - how much the wind comes and goes (0 = dead calm)")
-	print("  |cffffd100/comfy volume <0-1>|r - how loud, on top of the game's own slider")
+	if SetsVolume() then
+		print("  |cffffd100/comfy volume <0-1>|r - how loud, on top of the game's own slider")
+	end
 	print("  |cffffd100/comfy time local|r - make it look like YOUR clock, not the server's")
 	print("  |cffffd100/comfy time +9|r, |cffffd100/comfy time 21|r, |cffffd100/comfy time off|r")
 	print("  |cffffd100/comfy indoors on||off|r - draw it inside buildings too")
@@ -2316,6 +2333,10 @@ local function HandleSlash(input, source)
 		-- Follow the realm's own weather if it is telling us anything. This is
 		-- a one-shot match, not a mode: C_Weather is a poll with no event, and
 		-- a ticker on it would cost more than it is worth.
+		if not ReadsGameWeather() then
+			msg("this version of WoW does not tell addons its weather, so there is nothing to match.")
+			return
+		end
 		local real = RealWeather()
 		if not real or real == "none" then
 			msg("the server reports no weather here, so there is nothing to match.")
@@ -2400,6 +2421,11 @@ local function HandleSlash(input, source)
 			or  "the server's own weather loops are audible again.")
 	elseif cmd == "volume" or cmd == "vol" then
 		local v = Num(arg)
+		if not SetsVolume() then
+			msg("this version of WoW gives addons no volume control, so the game's own " ..
+			    db.channel .. " slider sets how loud the weather is.")
+			return
+		end
 		if not v then msg("usage: /comfy volume 0.5  (0 is silent)") return end
 		db.volume = math.max(0, math.min(1, v))
 		-- Gain is baked in at play time, so the running clips keep their old
@@ -2411,6 +2437,11 @@ local function HandleSlash(input, source)
 		msg(db.minimap and "minimap button shown." or
 			"minimap button hidden. |cffffd100/comfyrain|r still opens the window.")
 	elseif cmd == "defer" or cmd == "yield" then
+		if not ReadsGameWeather() then
+			msg("this version of WoW does not tell addons its weather, so Comfy Rain " ..
+			    "cannot see the game's rain to hide for it.")
+			return
+		end
 		db.defer = (arg ~= "off")
 		-- Re-seeded rather than left to the ticker, so turning it on while
 		-- standing in a storm takes effect now instead of in a second.
@@ -2793,6 +2824,9 @@ ComfyRainAPI = {
 	-- press goes back through Command like every other control, so the row of
 	-- scenes cannot drift away from what /comfy preset does.
 	Presets      = PRESETS,
+	-- What this client lets the addon do. The window leaves out a control that
+	-- would do nothing here rather than show one that silently fails.
+	Can          = { volume = SetsVolume, gameWeather = ReadsGameWeather },
 	-- What is happening RIGHT NOW, as opposed to what the settings ask for.
 	-- The window had no way to tell the two apart and so said "Drawing normal
 	-- rain." while standing in a doorway drawing nothing, which is exactly

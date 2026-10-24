@@ -917,12 +917,12 @@ local function Refresh()
 		"How hard it comes down. " ..
 		table.concat(weather.order, ", ") .. ".")
 
-	controls.volume:Set(db.volume)
+	if controls.volume then controls.volume:Set(db.volume) end
 
 	controls.sound:SetOn(db.sound)
 	-- ~= false, not a plain read: this one defaults to ON, so an absent key
 	-- and an explicit false are different answers.
-	controls.defer:SetOn(db.defer ~= false)
+	if controls.defer then controls.defer:SetOn(db.defer ~= false) end
 	-- Rain has lightning, snow has gusts, and the row must say which.
 	controls.thunder:SetOn(db.thunder)
 	controls.thunder:SetLabel(weather.flash and "Thunder" or "Gusts")
@@ -1158,13 +1158,17 @@ local function Build()
 	-- weather", which reads as pausing the game's weather, and no addon can
 	-- touch that. A row label gets 148 px beside the control column, the
 	-- client's font runs 6 to 7.4 px a character, so 21 characters at most.
-	controls.defer = add(Check(panel, "Hide when game rains", "/comfy defer off",
-		function() Run(DB().defer ~= false and "defer off" or "defer on") end))
-	Teach(controls.defer, "Hide when game rains", "/comfy defer off",
-		"Hides Comfy Rain while the game's own rain or snow is falling, and " ..
-		"brings it back when that stops. It cannot stop the game's weather; " ..
-		"no addon can. Theirs is 3D and stops under a bridge, ours cannot, " ..
-		"so where theirs falls it wins.")
+	-- Left out on a client that cannot read its own weather (the Classic ones,
+	-- issue #20): there the box would tick and nothing would ever hide.
+	if ComfyRainAPI.Can.gameWeather() then
+		controls.defer = add(Check(panel, "Hide when game rains", "/comfy defer off",
+			function() Run(DB().defer ~= false and "defer off" or "defer on") end))
+		Teach(controls.defer, "Hide when game rains", "/comfy defer off",
+			"Hides Comfy Rain while the game's own rain or snow is falling, and " ..
+			"brings it back when that stops. It cannot stop the game's weather; " ..
+			"no addon can. Theirs is 3D and stops under a bridge, ours cannot, " ..
+			"so where theirs falls it wins.")
+	end
 
 	-- Time of Day sits with Weather because it is the other half of what you
 	-- see. Sound goes last.
@@ -1217,11 +1221,15 @@ local function Build()
 	controls.sound = add(Check(panel, "Play sounds", "/comfy sound off",
 		function() Run(DB().sound and "sound off" or "sound on") end))
 
-	controls.volume = add(Slider(panel, "Volume", 0, 1, 0.05, Pct,
-		function(v) Run(string.format("volume %.2f", v)) end,
-		Back("volume", "volume")))
-	Teach(controls.volume.slider, "Volume", "/comfy volume 0.5",
-		"ComfyRain's weather only. Your game volume is untouched.")
+	-- Left out where the client gives addons no gain control (issue #20): the
+	-- slider would move and the sound would stay exactly as loud.
+	if ComfyRainAPI.Can.volume() then
+		controls.volume = add(Slider(panel, "Volume", 0, 1, 0.05, Pct,
+			function(v) Run(string.format("volume %.2f", v)) end,
+			Back("volume", "volume")))
+		Teach(controls.volume.slider, "Volume", "/comfy volume 0.5",
+			"ComfyRain's weather only. Your game volume is untouched.")
+	end
 
 	-- One checkbox per row, which is what the client does. A box in the
 	-- right-hand column cannot share a row with anything, because there is

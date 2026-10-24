@@ -7,6 +7,25 @@ because the client cannot be told to actually change the weather.
 Stormwind. v2 switches all audio and the drop sprite to Blizzard's own assets and stops
 the rain indoors; needs `/reload` to pick up (no new files, so no client restart).
 
+## 2026-10-23 — One addon for every flavour: the window adapts, Classic still unlisted
+
+"can we make one addon to work for all of them and change the ui for classic".
+
+- **Same zip everywhere.** On a client without `PlaySoundWithOptions` the Volume
+  slider is left out of the window. On one without `C_Weather`, Hide when game rains is
+  left out. `/comfy volume`, `/comfy defer` and `/comfy auto` say why instead of doing
+  nothing, and help drops the lines. Exposed as `ComfyRainAPI.Can`. Two `spec_ui`
+  specs boot a "Classic world" with both removed, and use the full client as control.
+- **Everything else the window uses exists on all three Classic branches.** Checked in
+  Gethe/wow-ui-source, with `live` as control: BackdropTemplate, UIPanelButtonTemplate,
+  the two texture paths, Settings.RegisterCanvasLayoutCategory and RegisterAddOnCategory,
+  CreateColor and SetBackdrop. The addon compartment is retail-only. It is only TOC
+  lines there, so Classic ignores them and the minimap button still works.
+- **Not in the TOC yet.** Listing a flavour is one edit:
+  `11509` (Era 1.15.9), `50504` (MoP 5.5.4) and `20506` (Anniversary 2.5.6), all read from
+  the branch heads. It waits for one in-game load, which needs game time. One sub
+  covers all three. Issue #20.
+
 ## 2026-10-23 — It loads on retail too: one TOC line, `16001, 120105`
 
 "can this addon work on all versions of wow... get it to work on retail so i can properly

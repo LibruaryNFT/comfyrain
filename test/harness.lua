@@ -544,6 +544,9 @@ local EXPECTED_UNMOCKED = {
 	-- has one is unverified and the client is gone, so the no-API path is the
 	-- one that must be proven harmless.
 	Settings = true,
+	-- Same again: modelled by default, removed in the Classic world (spec_ui),
+	-- because Classic Era, MoP Classic and TBC Anniversary have none (issue #20).
+	C_Weather = true,
 }
 
 -- Client globals the addon read that nothing modelled. Sorted, for a message.
