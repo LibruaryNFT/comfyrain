@@ -18,10 +18,13 @@ take screenshots".
   suffix and which one it prefers next to a bare TOC is unmeasured. `spec_boot` fails if
   either number drops out.
 - **API check per client** (`tools/api_audit.py --exe`): retail 12.1.5.70575 and
-  `_forever_` both 0 missing. Classic Era 1.15.9 is missing 4, all pcall-guarded
-  (C_Weather, PlaySoundWithOptions among them), so it would probably run, but nobody can
-  test it without a sub, so it is not listed. MoP Classic and Anniversary are not
-  installed here: unknown.
+  `_forever_` both 0 missing. Classic Era 1.15.9 is missing C_Weather and
+  PlaySoundWithOptions. Blizzard's API docs (Gethe/wow-ui-source; control: `live` and
+  `forever` have both, and the docs agree with the Era binary) show MoP Classic and TBC
+  Anniversary lack the same two. On those three, the addon would load, but the volume
+  slider would be dead, Hide when game rains would never fire, and `/comfy auto` would
+  always say no weather. Untestable without a sub, so they are not listed. Fixes and the
+  gate are in issue #20.
 - **CurseForge will tag releases Retail as well as Forever.** Read from packager v2.6.1
   `release.sh`: `toc_to_type` maps each Interface value on its own, `16???` to forever
   and anything unmatched to retail.
