@@ -31,7 +31,8 @@ Makes it rain or snow anywhere in the game, with weather sounds, wind and thunde
 
 ## Logo
 
-Required. 512x512, rendered rather than upscaled from the 64px in-game icon:
+Required. 512x512, drawn by `build/make_icon_tga.py --logo docs/logo.png`, the same
+script that draws the 64px in-game icon:
 
 ```
 docs/logo.png
@@ -204,7 +205,7 @@ master copy; convert it to `<h2>`, `<p>`, `<ul>/<li>`, `<hr>`, `<strong>`, `<cod
 
 | Item | Status |
 |---|---|
-| Project avatar / icon | Done at creation: `docs/logo.png` |
+| Project avatar / icon | Redrawn 2026-10-23 as flat vector art; the new `docs/logo.png` still has to be uploaded |
 | Gallery images | Done: `docs/preview1.jpg`, `preview2.jpg`, `preview3.jpg` |
 | Moderation approval | Approved 2026-10-20 |
 | `## X-Curse-Project-ID` | Done, `1756622`, in the TOC |

@@ -21,8 +21,12 @@ the rain indoors; needs `/reload` to pick up (no new files, so no client restart
    block launch.
 5. Tag `v1.0.0` from `main` on 4 November, then check the file landed on CurseForge.
 
-Icon: kept. It was approved 2026-10-20. The noisy texture inside the drops only shows
-at 512, and it reads as clean drops at 160 and 64, the sizes players see.
+Icon: redrawn 2026-10-23 ("can we get a non-ai looking logo"). One flat drop drawn from
+geometry by `build/make_icon_tga.py`, which also writes `docs/logo.png` and the 400px
+`docs/avatar.png`. The icon is round in the file now, and the square colour backing
+behind it, which showed dark corners outside the minimap ring, is now a round texture.
+**Justin's:** upload `docs/logo.png` as the CurseForge project avatar, because there is
+no API for it. The in-game icon needs a full client restart to show, not `/reload`.
 
 ## 2026-10-23 — One addon for every flavour: the window adapts, Classic still unlisted
 

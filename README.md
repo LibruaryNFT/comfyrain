@@ -108,8 +108,8 @@ MIT. See [LICENSE](LICENSE).
 
 The rain and snow sheets and the fallback audio are generated from the scripts in
 `build/` — rasterised from an optical model of a raindrop rather than lifted from the
-client's art. The addon icon is cut from `docs/logo.png`, which is original art made for
-this project. Nothing of Blizzard's is redistributed.
+client's art. The addon icon and `docs/logo.png` are drawn from geometry by
+`build/make_icon_tga.py`. Nothing of Blizzard's is redistributed.
 
 Comfy Rain does play several of Blizzard's own weather and thunder sounds, by FileDataID.
 Those files are already on your disk as part of the game; the addon just asks the client
