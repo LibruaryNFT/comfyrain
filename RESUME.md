@@ -42,6 +42,29 @@ geometry by `build/make_icon_tga.py`, which also writes `docs/logo.png` and the 
 behind it, which showed dark corners outside the minimap ring, is now a round texture.
 Uploaded as the CurseForge avatar 2026-10-24 (item 6). The in-game icon needs a full client restart to show, not `/reload`.
 
+## 2026-10-24 — Should it be Comfy Rain at all? A research prompt, and what the day/night ask really is
+
+"the big ask everyone wants is actually the day night stuff... does it make any sense to
+rebrand the addon and rename it... dont want to pigeon hole ourselves into just rain".
+Prompt: `docs/rebrand-research-prompt.md`. Nothing renamed; that waits on the reports.
+
+What the demand turned out to be, read 2026-10-24:
+
+| Source | Score | What it asks for | Can a screen grade do it |
+|---|---|---|---|
+| r/wowforever 1x8tnda "Skyboxes" (seen 10-18) | ~516 up | better sky **art**: Retail skyboxes, volumetric clouds | no, no skybox API |
+| Blizzard forums, OCE "perpetual midnight" (09-28) | 71 likes | daylight in Australian evenings, or a client toggle | barely: brightening, lift capped 0.13 |
+| forever-bugs #424 (10-22, open) | 10 thumbs-up | per-region clock, shorter cycle, or client offset | same, brightening |
+
+- **The loudest clock ask is the direction the renderer is weakest at.** What it does well
+  (hold dusk or night, darken to a later clock) matches the "mood" want, which nobody above
+  measured. The prompt makes the researcher size that separately.
+- Reddit blocks both curl (403) and WebFetch here; the Reddit score is from the thread as
+  pasted on 10-18, not re-read.
+- The two earlier rename rationales contradict each other on whether the CurseForge title
+  carries search (Duskfall: no, the subtitle does; Comfy Rain: yes). The prompt asks for a
+  positive-control test of what CurseForge, its app and WowUp index.
+
 ## 2026-10-23 — One addon for every flavour: the window adapts, Classic still unlisted
 
 "can we make one addon to work for all of them and change the ui for classic".
@@ -2339,9 +2362,11 @@ midnight at lunchtime. `/rain time local` grades the screen towards your own clo
 - **Day to night works; night to day barely does.** Darkening is a multiply and multiplies are
   free. Brightening needs ADD, which lifts the black level without restoring contrast, and the
   skybox keeps its stars and its absent sun regardless. The lift is capped at 0.13 so it never
-  turns the screen to milk. An Australian on a US realm wanting their evening is the good
-  direction; wanting daylight at realm-midnight is not, and that is a hard limit, not a tuning
-  problem.
+  turns the screen to milk. **Corrected 2026-10-24:** an Australian wanting their evening is
+  the bad direction, not the good one. forever-bugs #424 reports Oceanic layers on US Pacific
+  time in the 21 October stress test, so an Australian's 19:00 to 23:00 is realm 01:00 to
+  05:00, and their evening means brightening. The good direction is holding dusk or night
+  while the realm is in daylight. Night to day is a hard limit, not a tuning problem.
 - Measured grades: realm 13:00 showing 22:00 → dim (0.34, 0.40, 0.66); realm noon showing 19:00
   → dim (1.00, 0.74, 0.55); realm 22:00 showing 13:00 → dim unchanged, lift 0.130.
 
