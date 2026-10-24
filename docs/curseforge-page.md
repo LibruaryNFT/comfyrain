@@ -224,13 +224,13 @@ WYSIWYG box.
 | Item | Status |
 |---|---|
 | Project avatar / icon | Done 2026-10-24: flat `docs/logo.png`, read back from the public page |
-| Gallery images | Done: `docs/preview1.jpg`, `preview2.jpg`, `preview3.jpg` |
+| Gallery images | **Re-shoot.** The three on the page show the art from before 2026-10-22, and are captioned with their filenames. Plan, shot list and captions: `docs/curseforge-gallery-plan.md` |
 | Moderation approval | Approved 2026-10-20 |
 | `## X-Curse-Project-ID` | Done, `1756622`, in the TOC |
 | `CF_API_KEY` secret | Done 2026-10-23, verified against the CurseForge API. Tags upload automatically |
 | Description | Done 2026-10-24: Which WoW section live |
 | Additional categories | Done 2026-10-24: Roleplay and Artwork |
-| Launch GIF | Done: `docs/preview.gif` |
+| Launch GIF | **Re-shoot**, same reason. The plan calls for three GIFs, not one |
 | v1.0.0 as Release | 4 November |
 
 ### The 2MB image ceiling
