@@ -1,4 +1,4 @@
-You are advising the developer of a free, open-source World of Warcraft addon that is already published under one name and is now being second-guessed. The question is whether to rename, rebrand or reorganise it so it is not boxed in as "a rain addon", given that players seem to be asking loudest for something next to it: control over day and night. We need a decision we can act on before 4 November 2026, backed by evidence, not a branding essay.
+You are advising the developer of a free, open-source World of Warcraft addon that is already published under one name and is now being second-guessed. The question is whether to rename, rebrand or reorganise it so it is not boxed in as "a rain addon", given that players seem to be asking loudest for something next to it: control over day and night. Whatever we choose has to stay worth installing after Blizzard fixes the things players are complaining about, so a name or structure built on a gap Blizzard could close in one patch is the wrong answer. We need a decision we can act on before 4 November 2026, backed by evidence, not a branding essay.
 
 Everything under "What is true today" was checked by us on the date given. Treat it as fact unless you find a source that contradicts it, and if you do, say so explicitly and cite it. Everything under "What we want answered" is an open question, not a premise.
 
@@ -11,7 +11,7 @@ Everything under "What is true today" was checked by us on the date given. Treat
 - What it does:
   - Rain or snow anywhere, four intensities each, drawn as a screen-space overlay: scrolling texture layers in front of the camera, with the frame dimmed behind them.
   - Weather audio built from the game's own sound files, with wind gusts and distant thunder.
-  - Fades down indoors, and stands aside while the game's own rain or snow is falling.
+  - Fades down indoors. By default it hides its own overlay while the game's own rain or snow is falling, because Blizzard's rain is 3D and stops under roofs and bridges, so where the real thing exists it is better. The design already assumes Blizzard's version wins wherever Blizzard provides one.
   - Time of Day: a colour grade over the whole screen. Modes are Off, My PC clock, Shift by hours and Fixed hour, plus a Strength slider. It is its own layer and works with the rain switched off.
   - A settings window (with a minimap button) whose sections are, in order: Weather, Time of Day, Sound. Settings can be shared as one line of text; six scene presets exist as slash commands.
 - First-install defaults: rain on at normal intensity, sound on, Time of Day off.
@@ -74,12 +74,18 @@ Each rename moved the folder, the saved variables and the slash commands. The ad
    For each, give the effect on discovery, the cost, how reversible it is, and the evidence. An earlier round of research concluded "one addon, not two", but that question was weather visuals against audio, not weather against light.
 6. **If a new name wins, propose a shortlist of at most five.** Each must be understood and spelled correctly after hearing it once. It must not name a single weather type, and must not promise something we cannot deliver (no "day" or "sun"). It must not contain "ever", and must not collide with an existing WoW addon. Check each against CurseForge search and say which control you ran.
 7. **How do we describe Time of Day without overpromising?** Players asked for real skyboxes and real daylight. Give wording that sells what it actually does (a dusk or night hold, a local-clock grade) and heads off the "it is just a filter" comment. Say whether leading with it is a reputational risk.
-8. **What if Blizzard fixes it?** forever-bugs #424 is open. How likely is a per-region clock, a shorter cycle or a client toggle, and what signals would tell us it is coming? If Blizzard ships one, what is left of the feature?
+8. **Is the addon still worth installing after Blizzard fixes things?** Assume Blizzard keeps improving Forever after launch. For each fix below, say how likely it is, what signals would show it is coming, and what of our addon is still useful once it ships:
+   - a per-region clock for Oceania, a shorter day/night cycle, or a client-side time-of-day option (forever-bugs #424 is open);
+   - updated skyboxes or volumetric clouds;
+   - more weather, more often, in more zones, or any player-facing weather option.
+
+   Then name the part of the addon that survives all three, if any part does. Tell us whether the name and structure you recommend rest on that part, or on a gap Blizzard could close.
 
 ## How to answer
 
 - Lead with a verdict of at most five sentences: rename or not, restructure or not, and what to do before 4 November.
-- Then one table of the options from question 5, with cost, reversibility and evidence.
+- Then one table of the options from question 5, with cost, reversibility, evidence, and what is left of each option after the fixes in question 8.
+- Every name in question 6 must also say what it still means after those fixes. Do not recommend a name or structure whose main selling point is a gap Blizzard could close in a patch.
 - Then a demand table: source, link, date, score, what is asked (a, b or c), and whether a screen colour grade can deliver it.
 - Cite every factual claim with a link and the date you saw it. Upvotes on a request are evidence of a want, not of installs; say which one you are reporting.
 - If a search finds nothing, say what positive control you ran first. "I found no addon that does X" is only useful if the same method finds addons that do Y.
