@@ -65,6 +65,35 @@ What the demand turned out to be, read 2026-10-24:
   carries search (Duskfall: no, the subtitle does; Comfy Rain: yes). The prompt asks for a
   positive-control test of what CurseForge, its app and WowUp index.
 
+Reports in: `docs/rebrand-research-report-1.md` (full) and `-report-2.md` (a progress note,
+about two thirds done). Both say **do not rename before 4 Nov**. What was checked here,
+2026-10-24:
+
+- **CurseForge website search indexes the summary, not the description.** Two positive
+  controls: "weather sounds" returns Comfy Rain (words only in its summary), "accessory
+  reminders" returns keyboardturner's Weather (words only in its summary). "stranglethorn",
+  only in our description, does not return us. So the summary is where Time of Day has to be
+  named. App and API search not tested.
+- **Forever has a `Gamma` CVar but no `SetGamma` function.** The binary holds "Gamma
+  correction. Range: [0.3 - 2.8]", `Brightness`, `Contrast`, and `SetDeviceGammaRamp()`;
+  control strings `GetGameTime`, `SetCVar`, `GetCVar` all hit. Report 2's two "gamma
+  addons" are DayNight (136 downloads, 2015, used `SetGamma`, fullscreen only) and
+  Nightlight (674, 2020). Neither proves anything on Forever. Untested in game: whether
+  `SetCVar("Gamma", x)` works from an addon, whether it also dims the UI, whether it writes
+  to Config.wtf. This is the only route that could brighten, so it gets tested before any
+  Time of Day copy promises more than darkening.
+- **Time of Day already has a Forever competitor.** Cinematic (SapoAC, 8.6K downloads,
+  updated 2026-10-23, Forever listed) does a time-of-day tint "from moonlit blue to dawn pink
+  to golden hour" on game time or a custom clock. Weather (keyboardturner, 2.9K, Forever)
+  does indoor weather sounds and a rain tint. Two new Forever weather addons, both tiny:
+  Weather Forever Seasons (102 downloads, 10-21) and Azeroth Alive (19, Retail only, 10-20).
+- **Blizzard is adding weather.** Kaivax, 2026-09-23, "Increased Weather Effects", coming
+  to the beta (us.forums.blizzard.com thread 2359491).
+- **Not found:** report 2's lead number, an r/classicwow "Blizzard, Please Fix WoW's
+  Day/Night Cycle" at 1,024 votes. WebSearch finds that exact title only as a TikTok (65
+  likes). Its other Reddit scores (Snowy Weather 1.1K, 73, 17) are unchecked; Reddit blocks
+  both fetch routes here.
+
 ## 2026-10-23 — One addon for every flavour: the window adapts, Classic still unlisted
 
 "can we make one addon to work for all of them and change the ui for classic".
