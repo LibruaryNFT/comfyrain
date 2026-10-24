@@ -7,6 +7,8 @@ zone, and a lot of zones never get any. Comfy Rain is the switch the game does n
 type `/comfy` and it is raining, in Durotar, in Elwynn, at the top of a mountain, on the
 deck of the boat. Type it again and it stops.
 
+Works on WoW Forever and Retail. The Classic versions are not supported yet (issue #20).
+
 It knows when to get out of the way. If the server sends a real storm, Comfy Rain stands
 aside and lets it fall: the game's own rain is 3D, so it stops under an arch or a bridge
 the way rain should, and where the real thing exists it is simply the better of the two.

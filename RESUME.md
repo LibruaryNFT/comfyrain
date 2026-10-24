@@ -20,6 +20,13 @@ the rain indoors; needs `/reload` to pick up (no new files, so no client restart
 4. #3 (does weatherDensity 0 stop the engine lightning) needs a real storm. It does not
    block launch.
 5. Tag `v1.0.0` from `main` on 4 November, then check the file landed on CurseForge.
+   The publish step has no CurseForge check of its own (only GitHub), so that check is by hand.
+6. Listing (Justin's, after item 3 passes): upload `docs/logo.png` as the avatar and paste
+   `docs/curseforge-description.html` into the description's source view. It adds a
+   "Which WoW" section: Forever and Retail, Classic not yet. CHANGELOG and README say the same.
+7. CurseForge accepts both tags (checked 2026-10-24 via its API): Forever `1.60.1` and Retail
+   `12.1.5`. Retail 12.1.7 is on the PTR (`wowt` 12.1.7.70493); add `120107` to the TOC when
+   it goes live, or retail players see the addon as out of date.
 
 Icon: redrawn 2026-10-23 ("can we get a non-ai looking logo"), approved the same day
 ("flat drop is fine then"). One flat drop drawn from

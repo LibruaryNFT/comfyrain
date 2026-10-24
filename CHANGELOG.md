@@ -2,7 +2,7 @@
 
 ## 1.0.0
 
-First release, for World of Warcraft: Forever.
+First release, for World of Warcraft: Forever and Retail.
 
 - Rain and snow on demand, anywhere, for as long as you want, on top of whatever
   weather the server is running.

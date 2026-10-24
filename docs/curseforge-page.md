@@ -68,6 +68,10 @@ World of Warcraft decides when it rains. The server picks the weather, it picks 
 
 It is built for ambience. If you spend time sitting in Goldshire, fishing in Stranglethorn, or running a roleplay night, this is the weather the game would not give you.
 
+## Which WoW
+
+Works on **WoW Forever** and **Retail**. The Classic versions (Classic Era, Mists of Pandaria Classic, Anniversary) are not supported yet.
+
 ## Features
 
 - **Rain and snow**, four intensities each, from a drizzle up to a monsoon or a whiteout blizzard
@@ -208,8 +212,9 @@ output before packaging. GitHub Actions stays the single packager.
 
 The `</>` source view is HTML. Markdown pasted into it survives as literal text inside
 `<p>` tags: the `##` and `-` characters render on the page. The Markdown above is the
-master copy; convert it to `<h2>`, `<p>`, `<ul>/<li>`, `<hr>`, `<strong>`, `<code>` and
-`<a>` before pasting, and paste into the source view rather than the WYSIWYG box.
+master copy. `python3 tools/cf_description.py` writes it as HTML to
+`docs/curseforge-description.html`; paste that into the source view rather than the
+WYSIWYG box.
 
 ---
 
@@ -221,7 +226,8 @@ master copy; convert it to `<h2>`, `<p>`, `<ul>/<li>`, `<hr>`, `<strong>`, `<cod
 | Gallery images | Done: `docs/preview1.jpg`, `preview2.jpg`, `preview3.jpg` |
 | Moderation approval | Approved 2026-10-20 |
 | `## X-Curse-Project-ID` | Done, `1756622`, in the TOC |
-| `CF_API_KEY` secret | Outstanding. Until it exists every upload here is manual |
+| `CF_API_KEY` secret | Done 2026-10-23, verified against the CurseForge API. Tags upload automatically |
+| Description | Re-paste `docs/curseforge-description.html` after the retail test passes: it adds the Which WoW section |
 | Launch GIF | Done: `docs/preview.gif` |
 | v1.0.0 as Release | 4 November |
 
