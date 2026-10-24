@@ -21,7 +21,8 @@ the rain indoors; needs `/reload` to pick up (no new files, so no client restart
    block launch.
 5. Tag `v1.0.0` from `main` on 4 November, then check the file landed on CurseForge.
 
-Icon: redrawn 2026-10-23 ("can we get a non-ai looking logo"). One flat drop drawn from
+Icon: redrawn 2026-10-23 ("can we get a non-ai looking logo"), approved the same day
+("flat drop is fine then"). One flat drop drawn from
 geometry by `build/make_icon_tga.py`, which also writes `docs/logo.png` and the 400px
 `docs/avatar.png`. The icon is round in the file now, and the square colour backing
 behind it, which showed dark corners outside the minimap ring, is now a round texture.
