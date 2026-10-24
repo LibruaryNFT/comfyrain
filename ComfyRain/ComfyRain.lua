@@ -1904,10 +1904,28 @@ local function CurrentBed()
 	return b.id, b.len
 end
 
+-- The game's own on/off switches, as opposed to its sliders. With one of these
+-- off the client refuses every clip, the bundled one as much as Blizzard's, so
+-- a refusal says nothing about whether Blizzard's loop exists. Treating it as
+-- if it did is what put a live retail client on the bundled bed with its sound
+-- switched off (2026-10-23), and the switch to the bundled bed lasts the whole
+-- session, so a Ctrl-S mute in the rain cost the under-layer until /reload.
+local CHANNEL_SWITCH = {
+	Ambience = "Sound_EnableAmbience", SFX = "Sound_EnableSFX", Music = "Sound_EnableMusic",
+}
+local function GameSoundOff()
+	if GetCVar("Sound_EnableAllSound") == "0" then return true end
+	local switch = CHANNEL_SWITCH[db.channel]
+	return switch ~= nil and GetCVar(switch) == "0"
+end
+
 local function PlayBedClip()
 	if not ShouldRain() or not db.sound then return end
 	local file, len = CurrentBed()
 	if not SlotPlay(bedSlot, file, BedVolume(1)) then
+		-- Keep the loop's clock running and try again next pass, so the bed
+		-- comes back on its own within one clip length of the sound coming on.
+		if GameSoundOff() then return SlotLoop(bedSlot, len, PlayBedClip) end
 		if not bedFallback then
 			bedFallback = true
 			msg("the client would not play Blizzard's " .. W().label ..
@@ -2212,7 +2230,8 @@ local function Status()
 		db.enabled and "|cff66ff66on|r" or "|cffff6666off|r",
 		db.intensity, W().label, db.scale, db.speed, db.gloom,
 		db.sound and "on" or "off",
-		bedFallback and " |cffff9900(bundled audio)|r" or "",
+		(db.sound and GameSoundOff()) and " |cffff9900(but the game's sound is switched off)|r"
+			or bedFallback and " |cffff9900(bundled audio)|r" or "",
 		W().flash and "thunder" or "gusts",
 		db.thunder and "on" or "off",
 		IndoorMode(),
