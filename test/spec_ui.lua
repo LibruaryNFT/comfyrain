@@ -647,6 +647,26 @@ it("centres the icon on the ring's hole, not on the button", function()
 	end
 end)
 
+-- "it seems the icon is square maybe and bleeds out the circle", 2026-10-23.
+-- The backing was a SetColorTexture square relying on SetMask to round it, and
+-- a live client masked the picture but not the colour fill: four dark corners
+-- outside the ring. Wider than the hole is fine; square is not.
+it("puts nothing square under the ring", function()
+	local w = H.world()
+	w.env.ComfyRain_Minimap()
+	local b = w.env.ComfyRainMinimapButton
+
+	local seen = 0
+	for _, t in ipairs(b._textures) do
+		if t.layer == "ARTWORK" or t.layer == "BACKGROUND" then
+			seen = seen + 1
+			eq(t.colour, nil, "no flat colour fill, which no mask is sure to round")
+			ok(t.texture, "every layer is a file, round in the file itself")
+		end
+	end
+	eq(seen, 2, "the backing and the picture were both checked")
+end)
+
 --------------------------------------------------------------------------------
 -- Turning it off, resetting it, and handing it to somebody else
 --------------------------------------------------------------------------------

@@ -1536,6 +1536,7 @@ local minimap
 -- it: the tooltip and the panel both name the weather in words, and an icon
 -- that changes under the player is a worse readout than one they can learn.
 local ROUND_MASK = "Interface\\CharacterFrame\\TempPortraitAlphaMask"
+local ROUND_BACK = "Interface\\Minimap\\UI-Minimap-Background"
 local ICON_ART = "Interface\\AddOns\\ComfyRain\\icon"
 
 -- The hole in MiniMap-TrackingBorder is NOT centred on the button. With the
@@ -1576,19 +1577,23 @@ local function BuildIcon(button)
 	-- half-extracted zip, a packager that dropped a TGA - a bare button in the
 	-- ring is indistinguishable from a broken addon, and a warm disc is still
 	-- recognisably this one.
+	--
+	-- A round texture, not a masked colour fill. SetMask rounds a file texture
+	-- but left a SetColorTexture square alone on a live client, and its four
+	-- dark corners showed outside the brass: "it seems the icon is square maybe
+	-- and bleeds out the circle", 2026-10-23. The disc LibDBIcon uses is round
+	-- in the file, so there is nothing for a client to fail to apply.
 	local back = button:CreateTexture(nil, "BACKGROUND")
 	back:SetSize(ICON_SIZE, ICON_SIZE)
 	back:SetPoint("CENTER", HOLE_X, HOLE_Y)
-	back:SetColorTexture(0.13, 0.10, 0.09, 1)
-	pcall(back.SetMask, back, ROUND_MASK)
+	back:SetTexture(ROUND_BACK)
 	icon.back = back
 
 	local art = button:CreateTexture(nil, "ARTWORK")
 	art:SetSize(ICON_SIZE, ICON_SIZE)
 	art:SetPoint("CENTER", HOLE_X, HOLE_Y)
-	-- Rounds the square render off inside the ring. Without it the corners
-	-- show, and the brass covers all four of them anyway, so it is allowed to
-	-- fail on a client that does not have SetMask.
+	-- The art is round in the file now, with transparent corners, so this only
+	-- softens its edge. It is allowed to fail on a client without SetMask.
 	pcall(art.SetMask, art, ROUND_MASK)
 	icon.art = art
 	icon.button = button
