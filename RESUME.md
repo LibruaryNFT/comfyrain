@@ -25,8 +25,14 @@ take screenshots".
 - **CurseForge will tag releases Retail as well as Forever.** Read from packager v2.6.1
   `release.sh`: `toc_to_type` maps each Interface value on its own, `16???` to forever
   and anything unmatched to retail.
-- Open: confirm in game that retail lists it as current (not "out of date"), and that the
-  Blizzard sound FileDataIDs play there or the bundled oggs take over.
+- **It did not run on retail before this.** Gotfrag (Sargeras) was in the world 15:38 to
+  15:42 today with `ComfyRain: enabled` in `AddOns.txt`, and no `ComfyRain.lua` was
+  written to `SavedVariables` (the beta, same declaration, writes one every session).
+  That was with interface 16001 only, so the out-of-date gate is the likely cause;
+  unproven.
+- Open: next retail login, `/comfy status` answers or it does not. If not, it is a load
+  error and `/console scriptErrors 1` will show it. Then check the Blizzard sound
+  FileDataIDs play there or the bundled oggs take over.
 
 ## 2026-10-23 — Testing while the beta is down: retail's free tier
 
