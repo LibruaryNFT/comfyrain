@@ -7,19 +7,19 @@ because the client cannot be told to actually change the weather.
 Stormwind. v2 switches all audio and the drop sprite to Blizzard's own assets and stops
 the rain indoors; needs `/reload` to pick up (no new files, so no client restart).
 
-## Before 4 November (checked 2026-10-23)
+## Before 4 November (checked 2026-10-24 UTC)
 
-1. **Merge PR #21** (`ui/fewer-rain-controls`, 22 commits, closes #11, contains #18).
-   Justin's: no standing merge authority on this repo, because no branch protection.
-2. **CurseForge token.** The repo has 0 Actions secrets, and GCP has no CurseForge
-   token. Without one, the `v1.0.0` tag publishes to GitHub only. The packager reads
-   `CF_API_KEY` or `CF_API_TOKEN`; the token comes from
-   authors.curseforge.com, settings, API tokens. Justin's, because it needs his login.
-3. **Retail in game**: `/comfy status` answers, the 13-shot sweep, and gallery shots
-   (PR #19 plan).
+1. Done: PR #21 merged as `30e2630` (closed #11); #18 closed as redundant. Main CI green.
+2. Done: CurseForge token. Repo secret `CF_API_KEY` is set, and the GCP copy is
+   `CURSEFORGE_API_TOKEN` in flowconnect-434715. It answered 200 on
+   `wow.curseforge.com/api/game/versions` (a bogus token gets 403). The `v1.0.0` tag
+   now uploads to CurseForge as well as GitHub.
+3. **Retail in game** (Justin's): `/console scriptErrors 1`, `/comfy status`,
+   `/comfy probe shots`, `/reload`. Then compare `_retail_/Screenshots` against the
+   perceive.py renders and read `ComfyRainDB.probe.shots`. Gallery shots per PR #19.
 4. #3 (does weatherDensity 0 stop the engine lightning) needs a real storm. It does not
    block launch.
-5. Tag `v1.0.0` from `main`.
+5. Tag `v1.0.0` from `main` on 4 November, then check the file landed on CurseForge.
 
 Icon: kept. It was approved 2026-10-20. The noisy texture inside the drops only shows
 at 512, and it reads as clean drops at 160 and 64, the sizes players see.
