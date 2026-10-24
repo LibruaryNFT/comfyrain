@@ -42,6 +42,34 @@ an overlay addon can show, because the reader's objection is "is this actually d
 anything". Same camera, same spot, addon off and on. We get it for free - the toggle is
 one slash command.
 
+## Words go in the caption, not on the image
+
+Checked 2026-10-24 by opening the actual image files from five galleries: BetterBlizzPlates,
+DialogueUI, Narcissus, Immersion and Dynamic Weather. **None of them put text, arrows or
+titles on the picture.** Every image is a clean in-game shot, and the explaining is done in
+CurseForge's caption field, which shows under each image (the pencil on each tile in the
+Media tab). DialogueUI's before/after is two bare panels side by side; "Before and After"
+is its caption, not a label on the image. BetterBlizzPlates captions read like
+"Totem Indicator with Icon+Glow, all configurable."
+
+The big names barely bother: Details and Leatrix Plus have one gallery image each, and
+DynamicCam has none. A new addon has no name to lean on, so it needs the gallery more.
+
+Our three live images are captioned with their filenames (`preview1.jpg`), which is the
+"uncaptioned" look this doc calls weak in Dynamic Weather. Caption every image:
+
+| # | Caption |
+|---|---|
+| 1 | A thunderstorm over Stormwind. The rain, the wind and the lightning are all Comfy Rain. |
+| 2 | A blizzard in Dun Morogh, with the snow blowing on the wind. |
+| 3 | Light rain at dusk. The weather the game would not give you. |
+| 5 | Same spot, same moment: Comfy Rain off on the left, heavy rain on the right. |
+| 4 | Gentle snow in town. |
+| 7 | Time of Day holds the world at dusk, whatever the realm clock says. |
+| 6 | Every setting in one window, previewed live behind it. Hover a control to see its slash command. |
+
+Fix the place names once the frames exist; the caption names where it was shot.
+
 ## The shoot
 
 Nine frames. Numbers 1, 2 and 5 are the ones that do the work.
