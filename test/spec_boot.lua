@@ -231,6 +231,27 @@ it("reports the build this client actually claims", function()
 	eq(iface, 16001, "interface number")
 end)
 
+it("declares Forever and retail in one TOC line", function()
+	-- "could we get it to work on retail", 2026-10-23. One comma list rather
+	-- than a ComfyRain_Mainline.toc beside this one: Forever's binary knows
+	-- the Mainline, Forever and Camelot suffixes and nothing on disk says
+	-- which it prefers. A comma list is read the same by both, and Forever is
+	-- known to honour one: Auctionator ships "120105, 16001, ..." in a single
+	-- TOC and loaded in the beta with out-of-date addons switched off.
+	-- Dropping 16001 from this line is the addon failing to load at launch.
+	local dir = (debug.getinfo(1, "S").source:match("@(.*/)") or "./")
+	local fh = io.open(dir .. "../ComfyRain/ComfyRain.toc", "r")
+	ok(fh ~= nil, "could read the TOC")
+	local toc = fh:read("*a")
+	fh:close()
+	local line = toc:match("##%s*Interface:%s*([^\r\n]+)")
+	ok(line, "the TOC has an Interface line")
+	local listed = {}
+	for n in line:gmatch("%d+") do listed[tonumber(n)] = true end
+	ok(listed[16001], "WoW Forever, 1.60")
+	ok(listed[120105], "retail, 12.1.5")
+end)
+
 it("prints no pipe the client will eat as an escape code", function()
 	-- From a screenshot of the live help list: "/comfy light|normal|heavy"
 	-- rendered as "/comfy light" then a line break then "ormaleavy". The pipe

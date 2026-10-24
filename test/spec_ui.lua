@@ -28,6 +28,12 @@ local function reads(w, label)
 	return s and s.value.text
 end
 
+-- The one line of words at the top of the window. It lives in the same row
+-- as the Use mine button, which is how a spec finds it without a name.
+local function noteOf(w)
+	return w:button("Use mine"):GetParent()._fontStrings[1]
+end
+
 it("opens on /comfyrain and closes again", function()
 	local w = H.world()
 	w.mock.slash("COMFYRAINUI", "")
@@ -155,9 +161,9 @@ it("toggles sound, gusts and indoors from the window", function()
 	local w = H.world()
 	w:open()
 	eq(w:db().sound, true, "sound starts on")
-	w:button("Sound"):Click()
+	w:button("Play sounds"):Click()
 	eq(w:db().sound, false, "the button turned it off")
-	w:button("Sound"):Click()
+	w:button("Play sounds"):Click()
 	eq(w:db().sound, true, "and on again")
 
 	-- Indoors cycles three ways rather than toggling two, because the useful
@@ -172,17 +178,52 @@ it("toggles sound, gusts and indoors from the window", function()
 	eq(w:db().indoors, "dim", "and back round")
 end)
 
-it("switches the camera-zoom response from the window", function()
-	-- The one setting whose effect a player cannot see without moving the
-	-- camera, which is exactly why it needs to be visible in the window rather
-	-- than living only behind a slash command nobody will find.
+it("keeps the fine-tuning out of the window", function()
+	-- "we shouldnt allow a user to change the settings of the rain, thats too
+	-- granular". The scenes and the intensity set all five of these, and the
+	-- fall speeds are derived from drop physics, so a slider for each was five
+	-- ways to un-derive them in a window meant to be unintimidating.
 	local w = H.world()
 	w:open()
-	eq(w:db().zoom, true, "on by default")
-	w:button("Follow camera zoom"):Click()
-	eq(w:db().zoom, false, "the button turned it off")
-	w:button("Follow camera zoom"):Click()
-	eq(w:db().zoom, true, "and on again")
+	ok(w:slider("Volume"), "the lookup finds a slider that is there")
+	ok(w:button("Hide when game rains"), "and a checkbox that is there")
+	for _, label in ipairs({ "Drops", "Fall Speed", "Darkness", "Wind" }) do
+		eq(w:slider(label), nil, label .. " is not in the window")
+	end
+	eq(w:button("Follow camera zoom"), nil, "nor is the camera-zoom switch")
+
+	-- Still settings underneath: the scenes write them and the commands reach them.
+	w:slash("zoom off")
+	eq(w:db().zoom, false, "the command still turns camera zoom off")
+	w:slash("speed 1.4")
+	near(w:db().speed, 1.4, 1e-9, "and still sets the fall speed")
+end)
+
+it("gives every row label room to be read whole", function()
+	-- A row label is told not to wrap and gets what is left beside the control
+	-- column, so one that is too long is cut to "Step aside for real we...",
+	-- which shipped. The mock's 5.2 px a character said it fitted. Measured
+	-- off an in-game screenshot on 2026-10-23, the client's font runs 5.8 to
+	-- 7.4 px a character ("Show rain & snow" 112 px, "Thunder" 50), so this
+	-- asks at 7.0: a proxy for the real font, not the font.
+	local PX = 7.0
+	ok(#"Step aside for real weather" * PX > 148,
+		"the rate flags the label that was cut off in the game")
+
+	local w = H.world()
+	w:open()
+	w:slash("time +9")            -- every row on screen, hidden ones included
+	local seen = 0
+	for _, f in ipairs(w.mock.frames) do
+		local l = f.label
+		if type(l) == "table" and l.wordWrap == false and l.text then
+			f:GetScript("OnSizeChanged")(f, f:GetWidth())
+			seen = seen + 1
+			ok(#l.text * PX <= l:GetWidth(), string.format(
+				"%q needs about %d px and has %d", l.text, #l.text * PX, l:GetWidth()))
+		end
+	end
+	gt(seen, 10, "and it found the rows to measure")
 end)
 
 it("cycles the volume channel rather than opening a menu", function()
@@ -201,17 +242,18 @@ end)
 it("applies a slider as it moves, and clamps where the parser clamps", function()
 	local w = H.world()
 	w:open()
-	local s = w:slider("Drops")
-	ok(s, "the visibility slider exists")
+	local s = w:slider("Volume")
+	ok(s, "the volume slider exists")
 
 	s:Drag(0.5)
-	near(w:db().scale, 0.5, 1e-9, "dragging applied it")
-	near(w:layers().far:GetAlpha(), 0.35, 1e-9, "and the rain actually got fainter")
+	near(w:db().volume, 0.5, 1e-9, "dragging applied it")
 
-	-- The slider's own ceiling and the command parser's have to be the same
-	-- number, or the window offers a value the addon will refuse.
+	-- The slider's own ends and the command parser's have to be the same
+	-- numbers, or the window offers a value the addon will refuse.
 	s:Drag(99)
-	near(w:db().scale, 1.5, 1e-9, "clamped at the same 1.5 the parser uses")
+	near(w:db().volume, 1.0, 1e-9, "clamped at the same 1.0 the parser uses")
+	s:Drag(-5)
+	near(w:db().volume, 0, 1e-9, "and floored at the same 0")
 end)
 
 it("follows a typed command while it is open", function()
@@ -221,7 +263,8 @@ it("follows a typed command while it is open", function()
 	w:slash("blizzard")
 	eq(reads(w, "Type"), "Snow", "the window moved with the command")
 	eq(reads(w, "Intensity"), "Blizzard", "both selectors did")
-	near(w:slider("Darkness"):GetValue(), w:db().gloom, 1e-9, "sliders too")
+	w:slash("volume 0.30")
+	near(w:slider("Volume"):GetValue(), 0.30, 1e-9, "sliders too")
 end)
 
 it("does not type a command back at itself when it refreshes", function()
@@ -260,15 +303,28 @@ it("teaches the command for whatever is under the cursor", function()
 	eq(w.env.GameTooltip:IsShown(), false, "and clears on the way out")
 end)
 
-it("hides the time-of-day controls until time of day is on", function()
+it("greys the time-of-day controls until time of day is on, and never hides them",
+function()
+	-- Hidden, they made Off then Dusk grow the window by two rows and Dusk
+	-- then Off shrink it, every press. "we choose a setting and it shifts
+	-- the ui a lot", 2026-10-23.
 	local w = H.world()
 	w:open()
-	eq(w:slider("Strength"):GetParent():IsShown(), false, "hidden while off")
+	local strength = w:slider("Strength"):GetParent()
+	eq(strength:IsShown(), true, "on screen while off")
+	eq(strength.active, false, "but greyed")
+	eq(w:slider("Hour"):GetParent().active, false, "and so is the hour")
+	eq(w:slider("Hour"):GetParent().value._text, "-", "which has no number to show")
 
 	choose(w, "Mode", "Fixed hour")
 	eq(w:db().timeMode, "fixed", "the mode changed")
-	eq(w:slider("Strength"):GetParent():IsShown(), true, "and the controls appeared")
-	eq(w:slider("Hold at Hour"):GetParent():IsShown(), true, "including the hour")
+	eq(strength.active, true, "and the controls came alive")
+	eq(w:slider("Hold at Hour"):GetParent().active, true, "including the hour")
+
+	choose(w, "Mode", "My PC clock")
+	eq(strength.active, true, "your own clock still has a strength")
+	eq(w:slider("Hour"):GetParent().active, false, "and no hour to set")
+	choose(w, "Mode", "Fixed hour")
 
 	w:slider("Hold at Hour"):Drag(3)
 	eq(w:db().timeFixed, 3, "which sets the hour it holds")
@@ -287,11 +343,11 @@ it("resets the settings and keeps the evidence", function()
 	w:db().calib = { { zone = "Elwynn" } }
 	w:open()
 	choose(w, "Type", "Snow")
-	w:slider("Drops"):Drag(0.3)
+	w:slider("Volume"):Drag(0.3)
 
 	w:button("Reset All"):Click()
 	eq(w:db().weather, "rain", "weather back to default")
-	near(w:db().scale, 1.0, 1e-9, "alpha back to default")
+	near(w:db().volume, 1.0, 1e-9, "volume back to default")
 	eq(#w:db().calib, 1, "the calibration log is untouched")
 end)
 
@@ -305,14 +361,66 @@ it("remembers where it was dragged to", function()
 	eq(w:db().ui.x, 120, "and the position")
 end)
 
-it("sizes itself to what is actually on show", function()
-	local w = H.world()
+it("holds still whatever is pressed: no row appears, vanishes or moves", function()
+	-- "we choose a setting and it shifts the ui a lot, like puts text
+	-- somewhere then moves stuff, like if we choose normal light then dusk",
+	-- 2026-10-23. Anchored at its centre, a window that changes height also
+	-- moves its top, so the button just clicked slides out from under the
+	-- mouse. Every press, mode and screen state below must leave both the
+	-- window's height and the Volume row's place exactly where they were.
+	local w = H.world({ state = { gameHour = 22, gameMinute = 0 } })
 	local p = w:open()
-	local short = p:GetHeight()
-	choose(w, "Mode", "Fixed hour")
-	gt(p:GetHeight(), short, "the window grew for the time controls")
-	choose(w, "Mode", "Server time")
-	near(p:GetHeight(), short, 1e-9, "and shrank back")
+	local volume = w:slider("Volume"):GetParent()
+	local h0, y0 = p:GetHeight(), volume._lastPoint.y
+	gt(h0, 300, "a real window to measure")
+
+	local function same(what)
+		eq(p:GetHeight(), h0, what .. ": same height")
+		eq(volume._lastPoint.y, y0, what .. ": Volume in the same place")
+	end
+	for _, t in ipairs({ "Snow", "Off", "Rain" }) do
+		choose(w, "Type", t)
+		w:advance(0.5)
+		same("Type " .. t)
+	end
+	for _, i in ipairs({ "Heavy", "Monsoon", "Light" }) do
+		choose(w, "Intensity", i)
+		w:advance(0.5)
+		same("Intensity " .. i)
+	end
+	for _, mode in ipairs({ "Fixed hour", "Shift by hours", "My PC clock", "Off" }) do
+		choose(w, "Mode", mode)
+		same(mode)
+	end
+	w:slash("preset night")
+	w:advance(0.5)
+	ok(noteOf(w).text ~= "", "a note is up: the realm is already at 22:00")
+	same("with a note showing")
+	w.mock.state.indoors = true
+	w:advance(3.0, 0.1)
+	same("under a roof")
+
+	-- Positive control: the measurement does see a row that changes size.
+	w:button("Use mine"):GetParent():SetHeight(60)
+	w:slash("snow")
+	gt(p:GetHeight(), h0, "a taller row does grow the window")
+	lt(volume._lastPoint.y, y0, "and does push Volume down")
+end)
+
+it("reads Weather, then Time of Day, then Sound, top to bottom", function()
+	-- "we might want time of day after rain & snow, maybe rename that to
+	-- weather", 2026-10-23. The two sections that change what you see sit
+	-- together; sound is the other sense, so it goes last.
+	local w = H.world()
+	w:open()
+	local function y(text)
+		local fs = w:says("^" .. text .. "$")
+		ok(fs, text .. " is a heading in the window")
+		return fs:GetParent()._lastPoint.y
+	end
+	local weather, time, sound = y("Weather"), y("Time of Day"), y("Sound")
+	gt(weather, time, "Time of Day sits under Weather")
+	gt(time, sound, "and Sound under Time of Day")
 end)
 
 it("is not load-bearing: the addon works with the window deleted", function()
@@ -543,43 +651,57 @@ end)
 -- Turning it off, resetting it, and handing it to somebody else
 --------------------------------------------------------------------------------
 
-it("names every change it is making to the screen, in the window", function()
+it("shows the light it is holding with the weather off", function()
 	-- From a live report: "my screen is too dark and i cant reset it easily,
 	-- like i want to turn off the changes it made but i cant". The time of day
 	-- grading has no weather attached to it, so a player who switched the
 	-- weather off and still has a dark world has nothing to connect it to.
+	-- The controls carry it now, not a sentence: Type reads Off, and Time of
+	-- Day reads the mode and the hour.
 	local w = H.world()
 	w:slash("time 21")
 	w:slash("off")
 	w:open()
 
-	ok(w:says("Weather off"), "it says the weather is off")
-	ok(w:says("21:00"), "and names the hour the light is being held at")
+	eq(reads(w, "Type"), "Off", "the weather reads as off")
+	eq(reads(w, "Mode"), "Fixed hour", "Time of Day names the mode")
+	eq(w:slider("Hold at Hour"):GetParent().value._text, "21",
+		"and the hour the light is being held at")
 end)
 
-it("says nothing is on when nothing is on, and hides the stop button", function()
+it("says nothing is on when nothing is on, and both selectors read Off", function()
 	local w = H.world()
 	w:slash("off")
 	w:open()
-	ok(w:says("Everything off"), "the all-clear is stated, not implied")
-
-	local stop = w:button("Turn It All Off")
-	eq(stop:IsShown(), false, "nothing left to stop, so no button to press")
+	eq(noteOf(w).text, "", "no sentence repeating what the selectors say")
+	eq(reads(w, "Type"), "Off", "Type reads Off")
+	eq(reads(w, "Mode"), "Off", "and so does Time of Day")
 
 	w:slash("on")
-	ok(stop:IsShown(), "and it comes back the moment something is on")
+	eq(reads(w, "Type"), "Rain", "and Type names the weather the moment it is on")
 end)
 
-it("turns off the weather AND the light in one press", function()
+it("turns off the weather AND the light from their own sections", function()
+	-- There is no all-off button. Type and Mode each start with Off, and
+	-- /comfy stop is still the one-line version for people who type.
 	local w = H.world()
 	w:slash("time 21")
 	w:open()
 	ok(w:db().enabled, "weather on to start with")
+	eq(w:button("Turn It All Off"), nil, "and no third kind of off")
 
-	w:button("Turn It All Off"):Click()
+	choose(w, "Type", "Off")
 	eq(w:db().enabled, false, "the weather stopped")
-	eq(w:db().timeMode, "off", "and so did the light grading")
+	eq(w:db().timeMode, "fixed", "and Off left the light alone")
+	choose(w, "Mode", "Off")
+	eq(w:db().timeMode, "off", "until Time of Day's Off handed it back")
 	eq(w:tod():IsShown(), false, "nothing is left over the world")
+
+	w:slash("time 21")
+	w:slash("on")
+	w:slash("stop")
+	eq(w:db().enabled, false, "/comfy stop still does the weather")
+	eq(w:db().timeMode, "off", "and the light, in one line")
 end)
 
 it("keeps the settings when it stops: it is a switch, not a reset", function()
@@ -756,34 +878,29 @@ end
 
 it("the number beside a slider puts just that slider back", function()
 	-- Reset Look already exists and takes the whole section with it. The case
-	-- this is for is "the darkness is wrong and everything else is how I want
+	-- this is for is "the volume is wrong and everything else is how I want
 	-- it", which the section button cannot do without collateral.
 	local w = H.world()
-	w:slash("dim 1.80")
-	w:slash("alpha 0.40")
-	w:slash("gust 0.20")
+	w:slash("volume 0.30")
+	w:slash("time local")
+	w:slash("time strength 0.40")
 
-	local btn = valueOf(w, "Darkness")
+	local btn = valueOf(w, "Volume")
 	btn:Click()
 
-	near(w:db().gloom, 1.0, 1e-9, "darkness went back to its default")
-	near(w:db().scale, 0.40, 1e-9, "visibility was not touched")
-	near(w:db().gust, 0.20, 1e-9, "and neither was wind")
+	near(w:db().volume, 1.0, 1e-9, "volume went back to its default")
+	near(w:db().timeStrength, 0.40, 1e-9, "strength was not touched")
 end)
 
 it("looks up the default by db key, not by the slider's name", function()
-	-- Visibility writes `scale` through the `alpha` command and Darkness writes
-	-- `gloom` through `dim`. Two of the seven sliders have a label, a key and a
-	-- verb that are all different words, so a reset that guessed any of them
-	-- from the others would silently reset the wrong thing or nothing.
+	-- Strength writes `timeStrength` through `time strength`: a label, a key
+	-- and a verb that are three different words, so a reset that guessed any
+	-- of them from the others would silently reset the wrong thing or nothing.
 	local w = H.world()
-	w:slash("alpha 0.10")
-	valueOf(w, "Drops"):Click()
-	near(w:db().scale, 1.0, 1e-9, "Visibility reset the scale key")
-
-	w:slash("dim 0.10")
-	valueOf(w, "Darkness"):Click()
-	near(w:db().gloom, 1.0, 1e-9, "Darkness reset the gloom key")
+	w:slash("time local")
+	w:slash("time strength 0.10")
+	valueOf(w, "Strength"):Click()
+	near(w:db().timeStrength, 1.0, 1e-9, "Strength reset the timeStrength key")
 end)
 
 it("brightens the number that has moved and greys the ones that have not", function()
@@ -793,24 +910,23 @@ it("brightens the number that has moved and greys the ones that have not", funct
 	-- gold numbers down one side of the window was most of what "the weird
 	-- tellow is offputting" was pointing at.
 	local w = H.world()
-	local _, text = valueOf(w, "Wind")
+	local _, text = valueOf(w, "Volume")
 	eq(text.colour[1] < 0.8, true, "grey while it sits on the default")
 
-	w:slash("gust 0.25")
-	local _, moved = valueOf(w, "Wind")
+	w:slash("volume 0.25")
+	local _, moved = valueOf(w, "Volume")
 	near(moved.colour[1], 1.00, 1e-9, "white once it has moved")
 	near(moved.colour[2], 1.00, 1e-9, "white, not a colour of ours")
 	near(moved.colour[3], 1.00, 1e-9, "on all three channels")
 
-	valueOf(w, "Wind"):Click()
-	local _, back = valueOf(w, "Wind")
+	valueOf(w, "Volume"):Click()
+	local _, back = valueOf(w, "Volume")
 	eq(back.colour[1] < 0.8, true, "and grey again after the reset")
 end)
 
 it("every slider starts grey on a fresh profile", function()
 	local w = H.world()
-	for _, label in ipairs({ "Drops", "Fall Speed", "Darkness",
-	                         "Wind", "Volume" }) do
+	for _, label in ipairs({ "Volume", "Strength" }) do
 		local _, text = valueOf(w, label)
 		eq(text.colour[1] < 0.8, true, label .. " is grey on a fresh profile")
 	end
@@ -943,7 +1059,7 @@ end)
 it("dresses its buttons in the client's own panel-button art", function()
 	local w = H.world()
 	w:open()
-	local b = w:button("Turn It All Off")
+	local b = w:button("Commands")
 	ok(b, "the button is there")
 	eq(b._template, "UIPanelButtonTemplate", "wearing Blizzard's own button")
 	ok(b:GetFontString(), "and the template's font string, not one we drew")
@@ -952,7 +1068,7 @@ end)
 it("still draws a usable button on a client without that template", function()
 	local w = H.world({ uiTemplates = { "BackdropTemplate", "UIPanelCloseButton" } })
 	w:open()
-	local b = w:button("Turn It All Off")
+	local b = w:button("Commands")
 	ok(b, "the button still exists")
 	eq(b._template, nil, "built bare instead")
 	ok(b:GetFontString(), "with a label of our own")
@@ -979,20 +1095,6 @@ it("shows one value at a time, with an arrow either side of it", function()
 	-- that the row cycles will click the middle of it first.
 	s.well:Click()
 	eq(w:db().intensity, "heavy", "pressing the value steps it forward")
-end)
-
-it("puts the weather's picture in the well beside its name", function()
-	-- The one icon left in the window. Rain and snow are the only pair a
-	-- player picks between by shape rather than by reading, and the whole
-	-- reason FrostShock won over the better-looking ChillingBlast: two icons
-	-- that reduce to the same thing at 14px are worse than none.
-	local w = H.world()
-	w:open()
-	local s = w:select("Type")
-	ok(s.icon:IsShown(), "rain has a picture")
-	local rain = s.icon.texture
-	choose(w, "Type", "Snow")
-	ok(s.icon.texture ~= rain, "and snow does not wear the same one")
 end)
 
 it("draws arrows a client has the art for, and letters when it has not", function()
@@ -1031,7 +1133,7 @@ end)
 it("uses the client's slider knob, and draws one when the art is absent", function()
 	local w = H.world()
 	w:open()
-	local thumb = w:slider("Drops")._thumb
+	local thumb = w:slider("Volume")._thumb
 	ok(thumb and thumb.texture and thumb.texture:find("UI%-SliderBar%-Button"),
 		"the metal knob from the game's own options")
 
@@ -1041,7 +1143,7 @@ it("uses the client's slider knob, and draws one when the art is absent", functi
 	-- is a slider nobody can find. So this one is asked about.
 	local bare = H.world({ artPaths = {} })
 	bare:open()
-	local drawn = bare:slider("Drops")._thumb
+	local drawn = bare:slider("Volume")._thumb
 	ok(drawn and drawn.colour, "a drawn knob when the client has not got the file")
 	eq(#bare.mock.errors, 0, "and no error for art it did not have")
 end)
@@ -1051,45 +1153,45 @@ it("comes up on a client with none of it: no templates, no art", function()
 	local p = w:open()
 	ok(p and p:IsShown(), "the window still opens")
 	eq(p.GetBackdrop, nil, "with no backdrop, no close button and no stone")
-	ok(w:button("Turn It All Off"), "the buttons are still buttons")
-	ok(w:slider("Drops"), "and the sliders are still sliders")
+	ok(w:button("Commands"), "the buttons are still buttons")
+	ok(w:slider("Volume"), "and the sliders are still sliders")
 	choose(w, "Type", "Snow")
 	eq(w:db().weather, "snow", "and clicking one still runs its command")
 	eq(#w.mock.errors, 0, "and nothing was thrown at the client")
 end)
 
---------------------------------------------------------------------------------
--- The weather icons
---------------------------------------------------------------------------------
---
--- Same rule as the furniture above: the path is referenced, the file is not
--- shipped. What is worth specifying here is the part that is easy to break by
--- "improving" it later. There is no rain icon in this game - the whole 2.27M
--- file catalogue was searched, not just the classic range - so Rain borrows
--- IceStorm, whose shards lose their detail at 14px and leave slanted streaks.
--- Snow is FrostShock rather than the prettier ChillingBlast because
--- ChillingBlast reduces to a white diagonal slash at that size, which is the
--- same shape as the rain icon beside it. Telling rain from snow is the one job
--- this row has.
-
-it("gives the Weather selector a picture, and only that one", function()
-	-- Thunder and Gusts carried icons too until 2026-10-19. The client's own
-	-- Options window has no pictures on anything, matching it was the ask, and
-	-- a bolt beside a tick was two widgets saying one thing.
+it("puts no picture anywhere, Type included", function()
+	-- "maybe we dont need icons for type", 2026-10-23. The client's own
+	-- Options window has none, and the word in the well already says it.
 	local w = H.world()
 	w:open()
-	ok(w:select("Type").icon:IsShown(), "the weather has one")
-	eq(w:button("Thunder").icon, nil, "and nothing else in the window does")
+	local s = w:select("Type")
+	eq(s.icon, nil, "no picture beside Rain")
+	eq(s.value._lastPoint.point, "CENTER", "and the word is centred in the well")
+	eq(s.value.text, "Rain", "and it is the word that says which")
+	eq(w:button("Thunder").icon, nil, "and nothing else in the window has one")
+	choose(w, "Type", "Snow")
+	eq(s.value.text, "Snow", "Snow too")
+	local function spellIcon()
+		for _, f in ipairs(w.mock.frames) do
+			for _, tex in ipairs(f._textures or {}) do
+				if type(tex.texture) == "string"
+					and tex.texture:find("Interface\\Icons\\", 1, true) then
+					return true
+				end
+			end
+		end
+		return false
+	end
+	eq(spellIcon(), false, "no spell icon drawn anywhere")
+	-- Positive control: the same scan sees one when there is one.
+	s.well:CreateTexture(nil, "ARTWORK"):SetTexture("Interface\\Icons\\Spell_Frost_IceStorm")
+	eq(spellIcon(), true, "the scan finds a spell icon when one is drawn")
 end)
 
-it("draws no picture and no hole on a client without the icon files", function()
-	-- A path this flavour lacks draws nothing, so a well laid out for a
-	-- picture would show an off-centre word with a gap beside it.
+it("falls back cleanly on a client without the checkbox art", function()
 	local w = H.world({ artPaths = {} })
 	w:open()
-	local s = w:select("Type")
-	eq(s.icon:IsShown(), false, "no picture was drawn")
-	eq(s.value._lastPoint.point, "CENTER", "and the word is centred in the well")
 	eq(w:button("Thunder").lamp:IsShown(), true, "the checkbox falls back to a lamp")
 	eq(w:button("Thunder").label._lastPoint.x, 0, "with the label still at the row's left edge")
 	choose(w, "Type", "Snow")
@@ -1110,22 +1212,57 @@ function()
 	near(t.label.colour[1], 0.62, 1e-9, "and the word goes grey")
 end)
 
--- Seen on screen 2026-10-19: "Everything off. Nothing here is to...". The
--- status line had one fixed width, sized to leave room for the Turn It All
--- Off button - and that button is hidden in exactly the state that produces
--- the longest sentence the window ever shows, so the row was free and the
--- sentence was cut anyway.
-it("gives the status line the whole row once there is nothing left to stop", function()
+-- "we choose overcast, why do we need drawing normal rain", 2026-10-23. The
+-- window used to read the settings back in a sentence under the title. The lit
+-- buttons are that readout; words are only for when the screen disagrees.
+it("says nothing the selectors already say", function()
 	local w = H.world()
 	w:open()
-	local narrow = w:says("^Drawing"):GetWidth()
-	eq(w:button("Turn It All Off"):IsShown(), true, "the button is there to make room for")
+	for _, step in ipairs({ { "Type", "Snow" }, { "Intensity", "Heavy" },
+	                        { "Type", "Off" }, { "Mode", "Fixed hour" },
+	                        { "Mode", "Off" } }) do
+		choose(w, step[1], step[2])
+		w:advance(0.5)
+		local what = step[1] .. " " .. step[2]
+		eq(noteOf(w).text, "", "nothing written after " .. what)
+		eq(w:says("^Drawing"), nil, "and no Drawing sentence anywhere")
+	end
 
-	w:slash("stop")
-	local line = w:says("^Everything off")
-	ok(line, "the window says everything is off")
-	eq(w:button("Turn It All Off"):IsShown(), false, "and the button has gone")
-	gt(line:GetWidth(), narrow, "so the sentence gets the room the button was holding")
+	-- Positive control: the line does speak when the screen disagrees.
+	choose(w, "Type", "Rain")
+	w.mock.state.indoors = true
+	w:advance(3.0, 0.1)
+	contains(noteOf(w).text, "Under a roof", "it speaks under a roof")
+end)
+
+it("fits every note on its one line", function()
+	-- The line does not wrap. Same calibrated 7.0 px a character as the row
+	-- labels; the yield note shares its row with the 78 px Use mine button.
+	local PX = 7.0
+	local w = H.world({ state = { gameHour = 22, gameMinute = 0 } })
+	w:open()
+	local function fits(what)
+		local fs = noteOf(w)
+		ok(fs.text ~= "", what .. " is saying something")
+		ok(#fs.text * PX <= fs:GetWidth(),
+			what .. ": \"" .. fs.text .. "\" fits " .. fs:GetWidth() .. " px")
+	end
+	w:slash("preset night")
+	w:advance(0.5)
+	fits("the realm already at that hour")
+	choose(w, "Mode", "Off")
+	w.mock.state.indoors = true
+	w:advance(3.0, 0.1)
+	fits("heard under a roof")
+	w:slash("sound off")
+	fits("silent under a roof")
+	w.mock.state.indoors = false
+	w.mock.state.weather = { type = 1, intensity = 0.7 }
+	w.mock.cvars.weatherDensity = "3"
+	w:advance(3.0, 0.1)
+	fits("standing aside for real rain")
+	eq(w:button("Use mine"):IsShown(), true, "beside its button")
+	lt(noteOf(w):GetWidth(), 328, "which really did narrow the line")
 end)
 
 -- Reported 2026-10-19: "we reload and hear rain but dont see anything". Under
@@ -1136,7 +1273,7 @@ end)
 it("says what the screen is doing, not what the settings ask for", function()
 	local w = H.world()
 	w:open()
-	ok(w:says("^Drawing normal rain"), "outdoors it is drawing, and says so")
+	eq(noteOf(w).text, "", "outdoors it is drawing, so there is nothing to say")
 
 	w:advance(0.5)
 	w.mock.state.indoors = true
@@ -1144,17 +1281,17 @@ it("says what the screen is doing, not what the settings ask for", function()
 	eq(w:overlay():IsShown(), false, "the roof has stopped the drawing")
 	eq(w:db().enabled, true, "with the setting still on, which is the trap")
 	ok(w:says("heard, not drawn"),
-		"so the window says it is heard and not seen, rather than 'Drawing'")
+		"so the window says it is heard and not seen")
 
 	-- The positive control. If the sentence had simply been hard-wired to the
 	-- indoor wording, the assertion above would pass for the wrong reason.
 	w:slash("sound off")
-	ok(w:says("Indoors: nothing drawn"),
+	ok(w:says("Under a roof: nothing drawn"),
 		"and with the sound off too, nothing is claimed at all")
 
 	w.mock.state.indoors = false
 	w:advance(3.0, 0.1)
-	ok(w:says("^Drawing normal rain"), "back outside, it is drawing again")
+	eq(noteOf(w).text, "", "back outside, drawing again and nothing to say")
 end)
 
 it("stands the checkbox on the panel, not on a button face", function()
@@ -1164,7 +1301,7 @@ it("stands the checkbox on the panel, not on a button face", function()
 	-- word and a box on the background.
 	local w = H.world()
 	w:open()
-	local z = w:button("Follow camera zoom")
+	local z = w:button("Hide when game rains")
 	eq(z._template, nil, "no panel-button template under it")
 	eq(z.label._lastPoint.x, 0, "the words start at the left edge of the row")
 	eq(z.box._lastPoint.relPoint, "RIGHT",
@@ -1184,7 +1321,7 @@ it("lines every checkbox and every selector up in one column", function()
 	-- Every one of these is anchored off its row's RIGHT edge, so the column
 	-- is one number per control: how far in from that edge it begins.
 	local seen = {}
-	for _, name in ipairs({ "Show rain & snow", "Follow camera zoom", "Sound", "Thunder" }) do
+	for _, name in ipairs({ "Hide when game rains", "Play sounds", "Thunder" }) do
 		local b = w:button(name)
 		ok(b, name .. " is a checkbox in the window")
 		seen[b.box._lastPoint.x] = true
@@ -1198,7 +1335,7 @@ it("lines every checkbox and every selector up in one column", function()
 	end
 	local n = 0
 	for _ in pairs(seen) do n = n + 1 end
-	eq(n, 1, "all nine controls start at the same x, not " .. n .. " columns")
+	eq(n, 1, "all eight controls start at the same x, not " .. n .. " columns")
 end)
 
 --------------------------------------------------------------------------------
@@ -1508,31 +1645,25 @@ it("keeps gold for headings and the status line, and off every control", functio
 	lt(heading.colour[3], 0.3, "with no blue in it")
 end)
 
-it("keeps the master switch's label still and lets the tick carry the state",
+it("has one weather switch, Type: Off, and the selectors turn it back on",
 function()
-	-- "checkboxes shouldnt work like whatever u did, weather off or on
-	-- shouldnt work like that, should be the same button but the checkbox
-	-- turns it on or off", 2026-10-19.
-	--
-	-- The label used to flip between "Weather on" and "Weather off" with the
-	-- setting, which makes the row unreadable: a ticked box next to the words
-	-- "Weather off" is either off, or it is on and the label is describing
-	-- what the box does, and nothing on screen says which. A checkbox already
-	-- has somewhere to put its state. The words are the name of the thing.
+	-- "if we wanted no weather but wanted it day or night", 2026-10-23. The
+	-- weather used to be switched by a checkbox under its own heading, by an
+	-- all-off button, as a side effect of Dusk and Night, and then by an Off
+	-- button in a row of scenes. Now it is the first step of Type.
 	local w = H.world()
 	w:open()
+	eq(w:button("Show rain & snow"), nil, "the checkbox is gone")
+	ok(w:button("Hide when game rains"), "while the section's other checkbox is not")
 
-	local b = w:button("Show rain & snow")
-	ok(b, "the master switch is there with the weather on")
-	eq(b.on, true, "and it is ticked")
-
-	w:slash("off")
-	local off = w:button("Show rain & snow")
-	ok(off, "and it is still called the same thing with the weather off")
-	eq(off.on, false, "with the tick gone, which is the whole readout")
-
-	ok(not w:button("Weather off"), "there is no second label hiding anywhere")
-	ok(not w:button("Weather on"), "and no first one either")
+	choose(w, "Type", "Off")
+	eq(w:db().enabled, false, "Off switches the weather off")
+	choose(w, "Type", "Snow")
+	eq(w:db().enabled, true, "and stepping Type is a way back on")
+	eq(w:db().weather, "snow", "to the weather it reads")
+	choose(w, "Type", "Off")
+	w:select("Intensity").right:Click()
+	eq(w:db().enabled, true, "so is stepping Intensity")
 end)
 
 it("assembles a bug report nobody has to be asked follow-up questions about", function()
@@ -1608,58 +1739,45 @@ it("says why nothing is drawn when it is standing aside, not just that nothing i
 	-- not ours, and the window used to say "normal rain, not drawn".
 	local w = H.world()
 	w:open()
-	ok(w:says("^Drawing normal rain"), "drawing to begin with")
+	eq(noteOf(w).text, "", "drawing to begin with")
 
 	w.mock.state.weather = { type = 1, intensity = 0.7 }
 	w.mock.cvars.weatherDensity = "3"
 	w:advance(3.0, 0.1)
 	eq(w:overlay():IsShown(), false, "their storm has stopped ours")
 	eq(w:db().enabled, true, "with the setting still on, which is the trap")
-	ok(w:says("stood aside"), "and the window says so, in words")
+	ok(w:says("Game rain here"), "and the window says so, in words")
 
 	-- Positive control: it is the deference talking, not a hard-wired string.
 	w:slash("defer off")
 	w:advance(0.5)
-	ok(w:says("^Drawing normal rain"), "and it goes back to normal when told to")
+	eq(noteOf(w).text, "", "and it goes back to normal when told to")
 end)
 
-it("tells the window which controls are dead while the weather is off",
-function()
-	-- Two sections of the window go inert when the master switch is off, and a
-	-- third does not. Nothing on screen said which was which: Darkness sits
-	-- under Weather and stops working, Time of Day sits below it and keeps
-	-- working, and a player moving the wrong one of those concludes the addon
-	-- is broken. "does the ui menus allow it to be used easily as well, im
-	-- confused", 2026-10-20.
+it("says what Off leaves, on the selector itself", function()
+	-- "does the ui menus allow it to be used easily as well, im confused",
+	-- 2026-10-20: nothing said the light keeps working with the weather off.
+	-- That was a line that appeared under the heading while off, and pushed
+	-- the window around. The selectors that switch things say it instead.
+	local w = H.world()
+	w:open()
+	choose(w, "Type", "Off")
+	local _, off = w:hover(w:select("Type").well)
+	contains(off, "Off leaves Time of Day as it is", "Type: Off says the light stays")
+	contains(off, "/comfy off", "and teaches the command")
+	local _, mode = w:hover(w:select("Mode").well)
+	contains(mode, "server's own day and night", "Mode: Off says it is the game's light")
+	contains(mode, "/comfy time off", "and teaches its command")
+end)
+
+it("keeps a whole look one command away", function()
+	-- The scenes were buttons from 2026-10-20 ("can we not have like quick
+	-- preset buttons") until 2026-10-23 ("do we need those presets at the top
+	-- ... im confused cause theres redundancy"). They are commands now.
 	local w = H.world()
 	w:open()
 
-	w:slash("off")
-	local off = w:panelText()
-	contains(off, "Weather and Sound below do nothing",
-		"the window says the weather controls are dead")
-	contains(off, "Time of Day still works on its own",
-		"and points at the section that is not")
-	contains(off, "Time of Day", "which is still on screen to be pointed at")
-
-	-- Only when it is true. Carrying a permanent warning about a state the
-	-- player is not in is how a window teaches people to stop reading it.
-	w:slash("on")
-	eq(w:panelText():find("Weather and Sound below") ~= nil, false,
-		"and the line is gone once the weather is on")
-end)
-
-it("puts a whole look one press away", function()
-	-- "can we not have like quick preset buttons, this is riduclous and not
-	-- user friendly at all", 2026-10-20, after a session spent dragging four
-	-- sliders to get one screenshot. The sliders are not the problem and are
-	-- all still there; arriving at them with nothing to start from was.
-	local w = H.world()
-	w:open()
-
-	local storm = w:button("Storm")
-	ok(storm, "there is a Storm button")
-	storm:Click()
+	w:slash("preset storm")
 	local db = w:db()
 	eq(db.enabled, true, "storm turns the weather on")
 	eq(db.weather, "rain", "storm is rain")
@@ -1668,9 +1786,8 @@ it("puts a whole look one press away", function()
 	gt(db.gust, 1, "and wind")
 
 	-- The one a player does not find on their own: a dark sky with nothing
-	-- falling out of it. This is the composition that took a session to
-	-- discover, and it is now a button.
-	w:button("Overcast"):Click()
+	-- falling out of it.
+	w:slash("preset overcast")
 	db = w:db()
 	eq(db.enabled, true, "overcast leaves the addon on")
 	eq(db.scale, 0, "with the drops not drawing")
@@ -1683,28 +1800,21 @@ it("leaves nothing behind from the scene before it", function()
 	-- on the second one and not on a mixture. A preset that sets eight keys
 	-- after one that set nine is how a button stops being reproducible.
 	local w = H.world()
-	w:open()
-	w:button("Storm"):Click()
-	w:button("Cozy"):Click()
+	w:slash("preset storm")
+	w:slash("preset cozy")
 	local a = {}
 	for k, v in pairs(w:db()) do a[k] = v end
 
 	local w2 = H.world()
-	w2:open()
-	w2:button("Cozy"):Click()
+	w2:slash("preset cozy")
 	for _, k in ipairs({ "enabled", "weather", "intensity", "scale", "speed",
 	                     "gloom", "gust", "sound", "thunder" }) do
 		eq(a[k], w2:db()[k], "Cozy after Storm matches Cozy from fresh: " .. k)
 	end
 end)
 
-it("teaches the command the button ran, like every other control", function()
+it("runs a scene typed, and lists the real ones for a wrong name", function()
 	local w = H.world()
-	w:open()
-	local _, tip = w:hover(w:button("Snow"))
-	contains(tip, "/comfy preset snow", "the scene button names its command")
-
-	-- And the command works typed, which is the half a button cannot prove.
 	w:slash("preset overcast")
 	eq(w:db().scale, 0, "typed preset lands the same way")
 	w:slash("preset nonsense")
@@ -1719,8 +1829,7 @@ function()
 	-- rain and starts reading as a scrolling texture. Density and dark are
 	-- what sell heavy rain, not pace.
 	local w = H.world()
-	w:open()
-	w:button("Storm"):Click()
+	w:slash("preset storm")
 	local db = w:db()
 	ok(db.speed <= 1.0, "storm does not speed the drops up past the preset")
 	lt(db.gust, 1.5, "nor swing them as hard as it did")
@@ -1728,29 +1837,40 @@ function()
 	gt(db.gloom, 1.0, "and still dark")
 end)
 
-it("changes the light on its own, with nothing falling", function()
-	-- "maybe we want just like night and day without weather", 2026-10-20.
-	-- A light preset is a different kind of thing from a weather one and
-	-- writes a disjoint set of keys, which is what lets the two compose.
+it("changes the light on its own, and night with nothing falling is two presses",
+function()
+	-- "maybe we want just like night and day without weather", 2026-10-20,
+	-- and "if we wanted no weather but wanted it day or night", 2026-10-23.
+	-- Night used to switch the weather off itself, so Storm then Night threw
+	-- the storm away. Now each owns one thing.
 	local w = H.world({ state = { gameHour = 12, gameMinute = 0 } })
 	w:open()
 
-	w:button("Night"):Click()
+	w:slash("preset storm")
+	w:slash("preset night")
 	local db = w:db()
-	eq(db.enabled, false, "night turns the weather off")
-	eq(db.timeMode, "fixed", "and holds an hour")
+	eq(db.enabled, true, "night leaves the weather on")
+	eq(db.intensity, "monsoon", "and leaves it the storm it was")
+	eq(db.timeMode, "fixed", "while holding an hour")
 	eq(db.timeFixed, 22, "a late one")
 	w:advance(1)
 	eq(w:tod():IsShown(), true, "with the grade actually up")
 	lt(w:dim().colour[1], 0.6, "and the scene darkened")
 	gt(w:dim().colour[3], w:dim().colour[1], "cooler than it is dark")
 
-	-- Composable: a weather scene on top keeps the hour, because the two kinds
-	-- never write the same key.
-	w:button("Cozy"):Click()
+	-- No weather, still night: Type: Off, and the hour stays.
+	choose(w, "Type", "Off")
+	db = w:db()
+	eq(db.enabled, false, "Off stops the weather")
+	eq(db.timeFixed, 22, "and leaves the held hour alone")
+	w:advance(1)
+	eq(w:tod():IsShown(), true, "so it is still night, with nothing falling")
+
+	-- Composable the other way too: a weather scene on top keeps the hour.
+	w:slash("preset cozy")
 	db = w:db()
 	eq(db.enabled, true, "a weather scene turns it back on")
-	eq(db.timeFixed, 22, "and leaves the held hour alone")
+	eq(db.timeFixed, 22, "still at the held hour")
 	eq(db.intensity, "light", "while setting its own look")
 end)
 
@@ -1795,52 +1915,46 @@ it("writes the same keys for every preset of the same kind", function()
 			(p.kind == "light" and light or weather)[k] = true
 		end
 	end
+	-- No exception for `enabled` any more: a light preset that switched the
+	-- weather was the bug that made the two rows one.
+	local n = 0
 	for k in pairs(light) do
-		if k ~= "enabled" then
-			eq(weather[k], nil, "no weather preset also writes " .. k)
-		end
+		n = n + 1
+		eq(weather[k], nil, "no weather preset also writes " .. k)
 	end
+	gt(n, 0, "and there were light keys to check")
+	ok(weather.enabled, "weather presets still switch the weather on")
 end)
 
-it("lights up the scene the settings currently are", function()
-	-- Pressing Night and then Cozy looks like the second replaced the first
-	-- unless something says both are still true. They are: the two kinds write
-	-- disjoint settings on purpose, and the marker is the only thing on screen
-	-- that says so.
+it("has no row of scenes: the sections are the one way to set things", function()
+	-- "do we need those presets at the top, cant we just use the rain & snow
+	-- type of ui, and then under that time of day, im confused cause theres
+	-- redundancy", 2026-10-23.
 	local w = H.world()
 	w:open()
-	local function lit(label) return w:button(label).mark:IsShown() end
-
-	w:button("Storm"):Click()
-	eq(lit("Storm"), true, "the scene just pressed is marked")
-	eq(lit("Cozy"), false, "and the ones that are not, are not")
-
-	w:button("Night"):Click()
-	eq(lit("Night"), true, "a light scene marks too")
-	eq(lit("Storm"), false, "and Night turns the weather off, so Storm is gone")
-
-	w:button("Cozy"):Click()
-	eq(lit("Cozy"), true, "a weather scene on top of a light one")
-	eq(lit("Night"), true, "leaves the light scene standing, and says so")
-
-	-- One edit and it is not that scene any more, which is the honest answer.
-	w:slash("dim 1.95")
-	eq(lit("Cozy"), false, "the marker drops on the first manual change")
+	local found = 0
+	for _, p in ipairs(w.env.ComfyRainAPI.Presets) do
+		found = found + 1
+		eq(w:button(p.label), nil, "no " .. p.label .. " button")
+	end
+	gt(found, 0, "and there were scenes to look for")
+	-- Positive control: the same lookup finds a pill that is there.
+	ok(w:button("Use mine"), "the lookup does find a button that exists")
 end)
 
-it("gives the light row its own way back", function()
-	-- Night's undo used to be the Mode selector at the very bottom of the
-	-- window, past every weather and sound control. Nobody goes looking there
-	-- for the sun.
+it("starts Type and Time of Day with Off, the way back for each", function()
 	local w = H.world()
 	w:open()
-	w:button("Night"):Click()
-	eq(w:db().timeMode, "fixed", "the light is held")
+	w:slash("preset night")
+	eq(reads(w, "Mode"), "Fixed hour", "the light is held")
+	choose(w, "Mode", "Off")
+	eq(w:db().timeMode, "off", "Mode: Off hands the light back")
+	eq(w:db().enabled, true, "without touching the weather")
 
-	local back = w:button("Server Light")
-	ok(back, "there is a way back in the same row")
-	back:Click()
-	eq(w:db().timeMode, "off", "and it hands the light back")
+	w:slash("time 21")
+	choose(w, "Type", "Off")
+	eq(w:db().enabled, false, "Type: Off stops the weather")
+	eq(w:db().timeMode, "fixed", "without touching the light")
 end)
 
 it("reads its multipliers as percentages of the default", function()
@@ -1848,10 +1962,10 @@ it("reads its multipliers as percentages of the default", function()
 	-- OF. 0 is the one value worth reading as a state rather than a quantity.
 	local w = H.world()
 	w:open()
-	w:slash("dim 1.30")
-	eq(valueOf(w, "Darkness")._text, "130%", "a multiplier reads as a percentage")
-	w:slash("alpha 0")
-	eq(valueOf(w, "Drops")._text, "Off", "and zero reads as a state")
+	w:slash("volume 0.30")
+	eq(valueOf(w, "Volume")._text, "30%", "a multiplier reads as a percentage")
+	w:slash("volume 0")
+	eq(valueOf(w, "Volume")._text, "Off", "and zero reads as a state")
 	w:slash("time 21")
 	eq(valueOf(w, "Hold at Hour")._text, "21",
 		"the one non-multiplier keeps its own units")
@@ -1871,7 +1985,7 @@ it("offers the fix beside the reason when real weather has won", function()
 	w.mock.cvars.weatherDensity = "3"
 	w:advance(3.0, 0.1)
 
-	ok(w:says("Real rain here"), "the reason is spelled out under the status")
+	ok(w:says("Game rain here"), "the reason is spelled out under the status")
 	local use = w:button("Use mine")
 	ok(use and use:IsVisible(), "and the fix is right beside it")
 
@@ -1891,11 +2005,11 @@ function()
 	local w = H.world()
 	w.mock.state.gameHour, w.mock.state.gameMinute = 22, 0
 	w:open()
-	w:button("Night"):Click()
+	w:slash("preset night")
 	w:advance(0.5)
 
 	eq(w:db().timeFixed, 22, "asking for the hour it already is")
-	ok(w:says("already at that light"), "and the window says why nothing moved")
+	ok(w:says("already at that hour"), "and the window says why nothing moved")
 	eq(w:button("Use mine") and w:button("Use mine"):IsVisible() or false, false,
 		"with no button, because there is nothing to undo")
 
@@ -1906,7 +2020,7 @@ function()
 	-- and a sentence about the hour can afford to be a third of a minute late.
 	w.mock.state.gameHour = 12
 	w:advance(21, 0.5)
-	eq(w:says("already at that light"), nil, "and it goes when the hour moves")
+	eq(w:says("already at that hour"), nil, "and it goes when the hour moves")
 end)
 
 it("opens from the addon compartment without a slash command", function()
@@ -1965,5 +2079,58 @@ it("survives a client with no settings API at all", function()
 	eq(w.mock.settingsRegistered, nil, "nothing half-registered is left behind")
 
 	w:open()
-	ok(w:says("^Drawing"), "and the real window is untouched")
+	ok(w:panel():IsShown() and w:select("Type"), "and the real window is untouched")
+end)
+
+-- Classic Era, MoP Classic and TBC Anniversary have neither C_Weather nor
+-- C_Sound.PlaySoundWithOptions: the Era binary and Blizzard's API docs for all
+-- three agree (issue #20). This is the addon booted the way they would boot it.
+local function classicWorld()
+	local w = H.world({ loaded = false })
+	w.env.C_Weather = nil
+	w.env.C_Sound.PlaySoundWithOptions = nil
+	w:load()
+	return w
+end
+
+it("leaves out Volume and Hide when game rains where the client cannot do them", function()
+	local w = classicWorld()
+	w:open()
+	eq(w:slider("Volume"), nil, "no volume slider without a gain control")
+	eq(w:button("Hide when game rains"), nil, "no hide box without C_Weather")
+	ok(w:button("Play sounds") and w:button("Thunder"), "the rest of Sound is still there")
+	ok(w:select("Type") and w:select("Mode"), "and so are Weather and Time of Day")
+	-- A refresh with both controls absent, which is where a nil would bite.
+	w:slash("snow")
+	eq(#w.mock.errors, 0, "errors with the two controls absent")
+end)
+
+it("says why on a client without them, instead of quietly doing nothing", function()
+	-- Control: the full client lists both commands in its help.
+	local full = H.world()
+	full:slash("help")
+	gt(#full.mock.printedMatching("/comfy auto"), 0, "help lists auto where it works")
+	gt(#full.mock.printedMatching("/comfy volume"), 0, "and volume")
+
+	local w = classicWorld()
+	w:slash("help")
+	eq(#w.mock.printedMatching("/comfy auto"), 0, "help leaves out auto")
+	eq(#w.mock.printedMatching("/comfy volume"), 0, "and volume")
+
+	local vol, defer = w:db().volume, w:db().defer
+	w:slash("auto")
+	gt(#w.mock.printedMatching("does not tell addons its weather, so there is nothing"), 0,
+		"auto says the game will not say")
+	eq(#w.mock.printedMatching("reports no weather here"), 0, "rather than claiming a clear sky")
+	w:slash("volume 0.2")
+	gt(#w.mock.printedMatching("no volume control"), 0, "volume points at the game's slider")
+	eq(w:db().volume, vol, "and stores nothing that would drive nothing")
+	w:slash("defer off")
+	gt(#w.mock.printedMatching("cannot see the game's rain"), 0, "defer says why")
+	eq(w:db().defer, defer, "and leaves the setting alone")
+
+	local played = 0
+	for _, s in ipairs(w.mock.sounds) do if s.file then played = played + 1 end end
+	gt(played, 0, "the rain is still heard, through the plain call")
+	eq(#w.mock.errors, 0, "errors")
 end)

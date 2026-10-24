@@ -77,12 +77,33 @@ local SNOWMIST_TEXTURE = 186229   -- Textures/WEATHER/SNOWMIST01.BLP
 -- 9 m/s and smears into streaks; snow falls at about 1, tumbles, and drifts
 -- sideways on any breeze at all, so it needs a sway term rain does not have.
 -- Rain darkens the scene. Heavy snow does too, but a blizzard does the
--- opposite: it is a whiteout, and the only way a 2D overlay can brighten the
--- world is an ADD quad, so blizzard is the one preset that uses one.
+-- opposite: it is a whiteout. A whiteout is not "the frame got brighter", it
+-- is contrast collapsing towards the sky, so the quad that does it is BLEND,
+-- not ADD. See the whiteout texture in BuildOverlay for the algebra.
 local WEATHER = {
 	rain = {
 		label   = "rain",
 		order   = { "light", "normal", "heavy", "monsoon" },
+		-- How many copies of the 512px sheet the screen gets, as a multiplier
+		-- on each layer's own tilesY. ONE number for the whole weather, and
+		-- deliberately not a per-intensity one.
+		--
+		-- It used to be per-intensity, and inverted: monsoon sat at 0.58 and
+		-- light at 1.35, so the heavier the rain the FEWER and LARGER the
+		-- streaks. Copies on screen go as tilesY squared, so monsoon drew 511
+		-- near streaks where light rain drew 2770, each of them nearly twice
+		-- as long. That is backwards. Marshall-Palmer puts about 32 visible
+		-- drops per cubic metre at 1 mm/h against 477 at 25 mm/h: heavy rain
+		-- is a far more crowded field of ordinary drops, not a few big ones.
+		-- It is also the whole reason storm read as bars drawn on the screen.
+		--
+		-- Pinned at light rain's old value so the Cozy preset is unchanged,
+		-- which is the one that already looked right. Intensity is now carried
+		-- by alpha, fall speed and gloom alone. Alpha is a real count control
+		-- rather than a brightness knob, because the sheet's drops span a wide
+		-- range of faintness: raising it brings the faint tail over the
+		-- visibility threshold, which is more drops, not brighter ones.
+		tiling  = 1.35,
 		mist    = MIST_TEXTURE,
 		mistTint = { 0.58, 0.64, 0.74 },
 		far     = MEDIA .. "rain-far.tga",
@@ -106,16 +127,38 @@ local WEATHER = {
 		oneShots = THUNDER,
 		fallbackOneShot = MEDIA .. "thunder.ogg",
 		fallbackBed = { file = MEDIA .. "rain.ogg", len = 24.0 },
+		-- The four speeds used to span 4.7x, light to monsoon. They now span
+		-- 2.37x, which is what the drop-size literature actually supports.
+		-- Terminal velocity goes as roughly the square root of diameter over
+		-- the sizes rain actually contains, and the median-volume diameter only
+		-- grows from about 0.8 mm at drizzle to 2.5 mm in a tropical downpour.
+		-- So an area-weighted fall speed moves 3.4 -> 6.2 -> 7.5 -> 8.1 m/s
+		-- across the four, and that is all the speed a downpour has over a
+		-- shower. What the eye reads as "heavier" is count, streak thickness,
+		-- gloom and slant, every one of which we already scale harder than
+		-- speed. Anchored on normal = 1.00, which is unchanged and was the one
+		-- that always looked right.
+		-- Count is the near sheet: heavy and monsoon draw denser ones, 1.8x
+		-- and 3.6x normal's drops. Every drop on the normal sheet already
+		-- shows at normal's alpha, so raising alpha only brightened the same
+		-- drops, and heavy and monsoon looked like normal (tools/perceive.py).
 		presets = {
-			light   = { mist = 0.05, far = 0.40, near = 0.35, density = 1.35, speed = 0.59, gloom = 0.18, strikeEvery = 70, bed = { id = 538983, len = 20.0 }, under = { id = 538981, len = 30.0, volume = 0.35 } },
-			normal  = { mist = 0.10, far = 0.70, near = 0.65, density = 1.00, speed = 1.00, gloom = 0.38, strikeEvery = 64, bed = { id = 538981, len = 30.0 }, under = { id = 538983, len = 20.0, volume = 0.40 } },
-			heavy   = { mist = 0.17, far = 0.95, near = 0.90, density = 0.78, speed = 1.60, gloom = 0.75, strikeEvery = 57, bed = { id = 538982, len = 25.0 }, under = { id = 538981, len = 30.0, volume = 0.45 } },
-			monsoon = { mist = 0.26, far = 1.00, near = 1.00, density = 0.58, speed = 2.76, gloom = 0.95, strikeEvery = 48, bed = { id = 538982, len = 25.0 }, under = { id = 538983, len = 20.0, volume = 0.55 } },
+			light   = { mist = 0.05, far = 0.40, near = 0.35, speed = 0.547, gloom = 0.18, strikeEvery = 70, bed = { id = 538983, len = 20.0 }, under = { id = 538981, len = 30.0, volume = 0.35 } },
+			normal  = { mist = 0.10, far = 0.70, near = 0.65, speed = 1.00, gloom = 0.38, strikeEvery = 64, bed = { id = 538981, len = 30.0 }, under = { id = 538983, len = 20.0, volume = 0.40 } },
+			heavy   = { mist = 0.17, far = 0.95, near = 0.90, speed = 1.204, gloom = 0.75, strikeEvery = 57, bed = { id = 538982, len = 25.0 }, under = { id = 538981, len = 30.0, volume = 0.45 },
+			            near_texture = MEDIA .. "rain-near-heavy.tga" },
+			monsoon = { mist = 0.26, far = 1.00, near = 1.00, speed = 1.295, gloom = 0.95, strikeEvery = 48, bed = { id = 538982, len = 25.0 }, under = { id = 538983, len = 20.0, volume = 0.55 },
+			            near_texture = MEDIA .. "rain-near-monsoon.tga" },
 		},
 	},
 	snow = {
 		label   = "snow",
 		order   = { "light", "normal", "heavy", "blizzard" },
+		-- Same fix as rain's tiling, same reason. Pinned at light snow's old
+		-- 1.20, the finest the snow sheets ever drew: normal snow gets 1.44x
+		-- the flakes at 1.2x smaller, and blizzard 3.3x the streaks at 1.8x
+		-- shorter, which is the direction a real snowfall goes.
+		tiling  = 1.20,
 		mist    = SNOWMIST_TEXTURE,
 		mistTint = { 0.80, 0.84, 0.92 },
 		far     = MEDIA .. "snow-far.tga",
@@ -134,23 +177,68 @@ local WEATHER = {
 		oneShots = GUSTS,
 		fallbackOneShot = nil,  -- nothing bundled; a missing gust costs nothing
 		fallbackBed = { file = MEDIA .. "rain.ogg", len = 24.0 },
+		-- Snow settles between 0.85 and 1.15 m/s across essentially everything
+		-- that is not graupel: a dry dendrite and a 3 mm unrimed aggregate fall
+		-- at nearly the same speed, because the aggregate gains drag as fast as
+		-- it gains mass. That is a 1.35x span, not the 2.9x we had. Blizzard
+		-- falls no faster than light snow at all - all of its speed is sideways
+		-- transport, which the slant below supplies.
+		-- Light snow draws a sheet with about half the flakes of the others.
+		-- Alpha alone is not a count control on the near sheet: 87% of its
+		-- flakes already showed at light's old 0.30, so light and normal drew
+		-- 552 and 618 flakes and differed only in brightness. Near-light at
+		-- 0.52 shows 320, each about as bright as normal's (make_snow_tga.py).
+		-- Heavy draws near-heavy, 2.2x normal's flakes, the same fix the other
+		-- way: it had been normal's flakes drawn brighter.
 		presets = {
-			light    = { mist = 0.06, far = 0.34, near = 0.30, density = 1.20, speed = 0.22, gloom = 0.26, strikeEvery = 85, bed = { id = 538985, len = 29.951 }, under = { id = 538989, len = 50.0, volume = 0.30 } },
-			normal   = { mist = 0.12, far = 0.62, near = 0.58, density = 1.00, speed = 0.36, gloom = 0.54, strikeEvery = 82, bed = { id = 538989, len = 50.0 }, under = { id = 538985, len = 29.951, volume = 0.35 } },
-			heavy    = { mist = 0.20, far = 0.88, near = 0.84, density = 0.82, speed = 0.63, gloom = 0.78, strikeEvery = 78, bed = { id = 538984, len = 40.0 }, under = { id = 538989, len = 50.0, volume = 0.40 } },
+			light    = { mist = 0.06, far = 0.34, near = 0.52, speed = 0.193, gloom = 0.26, strikeEvery = 85, bed = { id = 538985, len = 29.951 }, under = { id = 538989, len = 50.0, volume = 0.30 },
+			             near_texture = MEDIA .. "snow-near-light.tga" },
+			normal   = { mist = 0.12, far = 0.62, near = 0.58, speed = 0.227, gloom = 0.54, strikeEvery = 82, bed = { id = 538989, len = 50.0 }, under = { id = 538985, len = 29.951, volume = 0.35 } },
+			heavy    = { mist = 0.20, far = 0.88, near = 0.84, speed = 0.261, gloom = 0.78, strikeEvery = 78, bed = { id = 538984, len = 40.0 }, under = { id = 538989, len = 50.0, volume = 0.40 },
+			             near_texture = MEDIA .. "snow-near-heavy.tga" },
 			blizzard = {
-				mist = 0.30, far = 1.00, near = 1.00, density = 0.66, speed = 2.58, gloom = 0.55,
+				-- speed is the VERTICAL rate, and a blizzard's flakes settle no
+				-- faster than light snow's - so this is the same 0.227 the other
+				-- three use. Everything that makes a blizzard a blizzard lives in
+				-- the slant below: the field travels along it, at the vertical
+				-- rate times sqrt(1 + slant^2), which at 85 degrees is 11.5x.
+				-- Driving it from speed instead is how we ended up with flakes
+				-- falling four times faster than snow can fall.
+				mist = 0.30, far = 1.00, near = 1.00, speed = 0.227, gloom = 0.55,
 				bed = { id = 538984, len = 40.0 },
 				under = { id = 538989, len = 50.0, volume = 0.35 },
 				-- The gale sheet replaces the near layer: wind-driven snow is
 				-- near-horizontal streaks, which is a different sprite, not a
 				-- faster scroll of the same one.
 				near_texture = MEDIA .. "snow-gale.tga",
-				slant = 1.9, sway = 0.5, swayRate = 0.12,
-				-- A whiteout brightens. Capped hard: this is the one effect in
-				-- the addon that can make the world harder to play in, and an
-				-- addon that hides a mob is an addon that gets uninstalled.
-				whiteout = 0.05,
+				-- slant is tan(angle off vertical) on screen, exactly: the
+				-- tilesX/tilesY ratio cancels the aspect out of it. 1.9 was
+				-- therefore atan(1.9) = 62 degrees, while make_snow_tga.py
+				-- bakes the gale streaks at 78. The sheet's streaks pointed one
+				-- way and the whole sheet slid another, 16 degrees off, which
+				-- is a large part of why this read as a motion-blur filter
+				-- rather than as wind.
+				--
+				-- 11.4301 is tan(85), and make_snow_tga.py bakes the gale
+				-- streaks at 85 to match, so the travel runs along the streaks.
+				-- 62 degrees was never a gale anyway, and 78 was still shy: the
+				-- apparent angle is atan(wind / fall speed), so a flake settling
+				-- at 0.9 m/s in the 10 m/s that defines a blizzard is already at
+				-- 85. Below about 80 the eye reads it as a squall, not a storm.
+				--
+				-- sway 4.6, because sway is added to slant and the same absolute
+				-- step buys far less angle this steep: d(angle)/d(tan) is
+				-- 1/(1+tan^2), so 4.6 here is a wobble of +-2 degrees. That is
+				-- the spread blowing snow actually holds - the direction is
+				-- pinned by a wind far stronger than the settling speed, so it
+				-- varies much LESS than a calm flurry's does, not more.
+				slant = 11.4301, sway = 4.6, swayRate = 0.12,
+				-- 0.22, up from 0.05. The old number was tuned against an ADD
+				-- quad, where it was the only thing stopping the frame being
+				-- washed pale. This is a BLEND now, so it removes 22% of the
+				-- scene's contrast instead of adding brightness, and 0.05 of
+				-- that does nothing a player would notice.
+				whiteout = 0.22,
 				-- Wind over the snow bed. Two loops at once, which nothing else
 				-- in the addon needs, because this is what a blizzard sounds like.
 				wind = { id = 918050, len = 110.713 },
@@ -160,12 +248,19 @@ local WEATHER = {
 	},
 }
 
--- Yaw parallax. Turning the camera should sweep the curtain sideways; without it
--- the sheet slides at one fixed rate no matter what the camera does, which is the
+-- Yaw. Turning the camera should sweep the curtain sideways; without it the
+-- sheet slides at one fixed rate no matter what the camera does, which is the
 -- single biggest tell that this is a 2D overlay. Approximated from player facing
 -- (no camera-yaw API is exposed) over roughly the horizontal field of view.
+--
+-- There is deliberately no parallax on it. Translation falls off as 1/depth, so
+-- a near drop sweeps past faster than a far one when you STRAFE - but rotation
+-- does not. A yaw of omega moves every ray by omega, so a flake at 1 m and a
+-- flake at 30 m slide across the screen by the same angle. This used to scale
+-- the yaw by { mist 0.25, far 0.9, near 1.0 }, which sheared the three layers
+-- against each other on every turn: the depth cue said one thing, the motion
+-- said another, and the eye reads that mismatch as a texture, not as weather.
 local FOV_H = math.pi * 0.52
-local PARALLAX = { mist = 0.25, far = 0.9, near = 1.0 }
 
 -- Gusts. A constant scroll rate reads as a conveyor belt inside a minute: the
 -- eye finds the loop and the illusion is over. Real weather arrives in gusts,
@@ -283,10 +378,40 @@ local DEFAULTS = {
 
 -- tilesY is how many copies of the 512px sheet fit vertically; tilesX is derived
 -- from the screen aspect each frame so drops stay the right shape at any size.
+--
+-- The two speeds are not free. A streak is the drop's own motion smeared over
+-- the shutter, so on screen its LENGTH is velocity * exposure and its SPEED is
+-- velocity, both divided by the same depth. Divide one by the other and the
+-- depth cancels: speed/length = 1/exposure, the same number for every drop in
+-- a frame, near or far. It is the one relation a 2D sheet can get wrong while
+-- every individual element is still correct, and it is what the eye reads as
+-- "that is a texture scrolling", because a texture scrolling is exactly a
+-- field whose speed does not follow its own perspective.
+--
+-- Measured against the sheets precip.py actually generates: the median near
+-- streak is 2.03x the median far streak on screen, so near must travel 2.03x
+-- as fast on screen and no more. Screen speed is speed/tilesY, so
+-- near.speed = far.speed * 2.03 * (1.5/3.0) = far.speed * 1.015. Near was
+-- 2.30 against far 1.05, which put
+-- near at 4.38x far - a shutter of 3ms for the near layer against 8ms for the
+-- far one, in the same frame. The near layer is the one the eye tracks, so
+-- that discrepancy is most of why heavy rain here read as too fast.
+--
+-- That fixes the RATIO. The level is depth: a drop falling at v metres per
+-- second, z metres away, crosses v / (1.125 z) screen heights per second on
+-- this client's 58.7 degree vertical field of view. far 1.05 and near 1.07
+-- put the near layer at about 5.5 m, which nobody chose - it is just where
+-- the old normal-rain number happened to land. The motion the eye actually
+-- locks onto is the nearest long, high-contrast streaks, 1 to 5 m out; past
+-- 10 m a streak is a few pixels and reads as haze. So both layers move to
+-- 3 m and 6 m, x5.5/3 = 1.833, and the ratio between them is untouched.
+-- Measured off a capture before this change: near 0.89 H/s against 0.92
+-- designed, far 0.46 against 0.45, so the code was doing what it said and
+-- what it said was too far away.
 local LAYERS = {
-	{ key = "mist", tilesY = 1.1, speed = 0.09, blend = "BLEND", layer = "BACKGROUND" },
-	{ key = "far",  tilesY = 3.0, speed = 1.05, blend = "BLEND", layer = "ARTWORK"    },
-	{ key = "near", tilesY = 1.5, speed = 2.30, blend = "ADD",   layer = "ARTWORK"    },
+	{ key = "mist", tilesY = 1.1, speed = 0.09,  blend = "BLEND", layer = "BACKGROUND" },
+	{ key = "far",  tilesY = 3.0, speed = 1.925, blend = "BLEND", layer = "ARTWORK"    },
+	{ key = "near", tilesY = 1.5, speed = 1.954, blend = "ADD",   layer = "ARTWORK"    },
 }
 
 -- Camera distance at which the view counts as fully pulled back. Classic's
@@ -336,10 +461,10 @@ local baseAlpha = { near = 0, far = 0, mist = 0 }
 local baseGloom = 0
 -- Two fade lengths, because a fade is answering two different questions.
 -- Walking under an awning is weather leaving the sky and wants the slow one.
--- Pressing Turn It All Off is a button, and a button that takes most of a
--- second to do anything reads as a button that did not work: "we clicked turn
--- it all off and it didnt change quick enough". Anything the player switched
--- deliberately gets the short one.
+-- Pressing Off is a button, and a button that takes most of a second to do
+-- anything reads as a button that did not work: "we clicked turn it all off
+-- and it didnt change quick enough", said of the old Turn It All Off button.
+-- Anything the player switched deliberately gets the short one.
 local FADE_WALK, FADE_SWITCH = 0.7, 0.12
 local fade, fadeTarget, fadeTime = 1, 1, FADE_WALK
 -- What db.enabled was at the last Refresh, which is how the switch is told
@@ -454,8 +579,7 @@ local SECTION_ORDER = { "look", "sound", "time" }
 --
 -- Two KINDS, and the split is the design. A "weather" preset writes the same
 -- nine look-and-sound keys every time and never touches the clock; a "light"
--- preset writes the clock and switches the weather off, and never touches a
--- look key. Within a kind the key set is identical on purpose: setting seven
+-- preset writes the clock and nothing else. Within a kind the key set is identical on purpose: setting seven
 -- keys here and eight there leaves one setting behind from the last press, and
 -- two presses of the same button then give two different screens.
 --
@@ -465,8 +589,8 @@ local SECTION_ORDER = { "look", "sound", "time" }
 --
 -- Deliberately NOT touched by anything here: volume, channel, indoors, defer,
 -- zoom and minimap. Those are how this player likes the addon to behave rather
--- than what it looks like, and a scene button that moves them is a scene
--- button that gets pressed once.
+-- than what it looks like, and a scene that moves them is a scene that gets
+-- used once.
 --
 -- There is no "Day", and that is not an omission. Brightening is an ADD quad
 -- clamped at LIFT_CAP because it can raise the black level but cannot give
@@ -477,23 +601,23 @@ local PRESETS = {
 	{ key = "cozy", label = "Cozy", kind = "weather",
 	  blurb = "a light rain with the sound up and no thunder",
 	  set = { enabled = true, weather = "rain", intensity = "light",
-	          scale = 0.85, speed = 0.9, gloom = 0.8, gust = 0.6,
+	          scale = 0.85, speed = 1.0, gloom = 0.8, gust = 0.6,
 	          sound = true, thunder = false } },
-	-- speed 0.9, not the 1.3 this shipped with for an hour. monsoon's own
-	-- calibrated fall speed is 2.76, the highest in the table, and a multiplier
-	-- on top of it put the sheets at 3.59: past a certain rate a 2D sheet stops
-	-- reading as rain and starts reading as a scrolling texture, which is
-	-- exactly what it is. Heavy rain sells itself with density and dark, not
-	-- with pace. Same for the wind, down from 1.6.
+	-- speed 1.0, not the 0.9 that sat here, and not the 1.3 this shipped with
+	-- for an hour. Both of those were taste corrections applied on top of a
+	-- monsoon fall speed that was itself wrong by a factor of two. The
+	-- intensity table is derived now, so a preset that scales it is a preset
+	-- that un-derives it: every one of these is 1.0 and the physics stands.
+	-- Heavy rain still sells itself with density, dark and slant, not pace.
 	{ key = "storm", label = "Storm", kind = "weather",
 	  blurb = "a monsoon, dark, with the wind and the thunder in it",
 	  set = { enabled = true, weather = "rain", intensity = "monsoon",
-	          scale = 1.0, speed = 0.9, gloom = 1.5, gust = 1.2,
+	          scale = 1.0, speed = 1.0, gloom = 1.5, gust = 1.2,
 	          sound = true, thunder = true } },
 	{ key = "snow", label = "Snow", kind = "weather",
 	  blurb = "snow coming down steadily",
 	  set = { enabled = true, weather = "snow", intensity = "normal",
-	          scale = 1.0, speed = 0.8, gloom = 1.0, gust = 0.8,
+	          scale = 1.0, speed = 1.0, gloom = 1.0, gust = 0.8,
 	          sound = true, thunder = false } },
 	-- The one nobody finds on their own. scale 0 stops the drops drawing while
 	-- the darkening and the ambience carry on, so it is a heavy grey sky with
@@ -506,19 +630,19 @@ local PRESETS = {
 	          scale = 0, speed = 1.0, gloom = 2.0, gust = 1.0,
 	          sound = true, thunder = false } },
 
-	-- Light only. These turn the weather OFF, because the request they answer
-	-- is "night and day without weather": somebody who wants the hour changed
-	-- and nothing falling. The grade is a ratio against the realm clock, so
-	-- both of these are no-ops on a realm already at that hour, which is
-	-- correct and is why the window names the held hour underneath.
+	-- Light. These leave the weather exactly as it was. They used to switch it
+	-- off, to answer "night without rain" in one press, and that made the
+	-- window's two rows secretly one: pressing Night after Storm threw the
+	-- storm away. Night without rain is now /comfy off plus /comfy preset
+	-- night, two commands that each do one thing. The grade is a ratio against the
+	-- realm clock, so both of these are no-ops on a realm already at that
+	-- hour, which is correct and is why the window names the held hour.
 	{ key = "dusk", label = "Dusk", kind = "light",
-	  blurb = "golden hour, warm and low, with no weather at all",
-	  set = { enabled = false, timeMode = "fixed", timeFixed = 19,
-	          timeStrength = 0.9 } },
+	  blurb = "golden hour, warm and low",
+	  set = { timeMode = "fixed", timeFixed = 19, timeStrength = 0.9 } },
 	{ key = "night", label = "Night", kind = "light",
-	  blurb = "late and cold-blue, with no weather at all",
-	  set = { enabled = false, timeMode = "fixed", timeFixed = 22,
-	          timeStrength = 1.0 } },
+	  blurb = "late and cold-blue",
+	  set = { timeMode = "fixed", timeFixed = 22, timeStrength = 1.0 } },
 }
 local PRESET_BY_KEY = {}
 for _, p in ipairs(PRESETS) do PRESET_BY_KEY[p.key] = p end
@@ -773,7 +897,7 @@ local function UpdateTimeOfDay()
 	-- I can't turn it off" from live play 2026-10-19. The real fault there was
 	-- not the coupling, it was that a standing grade had no visible cause. It
 	-- has three now: /comfy status leads with the mode whenever it is not off,
-	-- the window names the held hour every refresh (LightPhrase in UI.lua),
+	-- the window's Time of Day reads the mode and the held hour,
 	-- and /comfy stop is the one switch that kills everything including this.
 	-- So timeMode is the only thing that decides whether the curtain draws.
 	if db.timeMode == "off" or cinematic then tod:Hide() return end
@@ -898,11 +1022,13 @@ local function ApplyAlphas()
 	local gr, gg, gb = GloomColor(g, w, db.gloom)
 	gloom:SetColorTexture(gr, gg, gb, 1)
 
-	-- The whiteout is the opposite move and only a blizzard uses it: ADD is the
-	-- only way a 2D overlay can brighten anything. Capped well below the point
-	-- where it could hide a mob, because an addon that does that gets deleted.
+	-- The whiteout is the opposite move and only a blizzard uses it: a BLEND
+	-- towards sky luminance, which takes contrast out of the frame rather than
+	-- brightness into it. See BuildOverlay for why that distinction decides the
+	-- blend mode. Capped at 0.30, a third of the scene's contrast, which is
+	-- well short of hiding anything.
 	if whiteout then
-		whiteout:SetAlpha(math.min((p.whiteout or 0) * s, 0.10))
+		whiteout:SetAlpha(math.min((p.whiteout or 0) * s, 0.30))
 	end
 end
 
@@ -927,6 +1053,14 @@ local function RealWeather()
 	if not ok or type(info) ~= "table" then return nil end
 	local t = info.weatherType or info.type or 0
 	return WEATHER_NAME[t] or tostring(t), info.intensity or 0
+end
+
+-- Classic Era, MoP Classic and TBC Anniversary have no C_Weather at all: the
+-- Era binary and Blizzard's API docs for all three agree (issue #20). There the
+-- addon cannot see the game's weather, so the two things built on seeing it,
+-- standing aside and /comfy auto, say so instead of answering "no weather".
+local function ReadsGameWeather()
+	return type(C_Weather) == "table" and type(C_Weather.GetCurrentWeather) == "function"
 end
 
 -- The client will not draw Blizzard's weather at all unless these two are up.
@@ -1465,9 +1599,17 @@ local function OnUpdate(self, elapsed)
 	local aspect = w / h
 	local weather, p = W(), Preset()
 	local rate = p.speed * db.speed * (1 + runSpeed * 0.3)
-	local density = p.density
+	-- One value for the whole weather now, not one per intensity; see the note
+	-- on tiling in WEATHER. Zoom still moves it, and should: pulling the camera
+	-- back really does put more, finer rain between you and the world. That is
+	-- perspective. Intensity is not, and no longer touches it.
+	-- Named for what it is. It was called `density` for years while being a
+	-- tiling multiplier, and a number whose name says "more rain" while its
+	-- effect is "smaller rain, quadratically less of it" is how issue #11
+	-- survived as long as it did.
+	local sheetTiling = weather.tiling
 	if db.zoom then
-		density = density * (1 + (zoomNorm - ZOOM_PIVOT) * ZOOM_RANGE)
+		sheetTiling = sheetTiling * (1 + (zoomNorm - ZOOM_PIVOT) * ZOOM_RANGE)
 		rate = rate * (1 + (1 - zoomNorm) * ZOOM_RATE)
 	end
 	local slant = p.slant or weather.slant
@@ -1512,7 +1654,7 @@ local function OnUpdate(self, elapsed)
 	end
 
 	for _, l in ipairs(LAYERS) do
-		local tiling = (l.key == "mist") and 1 or density
+		local tiling = (l.key == "mist") and 1 or sheetTiling
 		local tilesY = l.tilesY * tiling
 		local tilesX = tilesY * aspect
 		local o = offsets[l.key]
@@ -1538,7 +1680,7 @@ local function OnUpdate(self, elapsed)
 		o.y = (o.y - dy) % 1
 		-- Slant drift, plus the camera swing scaled into this layer's tiling so
 		-- every layer sweeps the same distance across the screen.
-		o.x = (o.x - dy * slant + swing * PARALLAX[l.key] * tilesX) % 1
+		o.x = (o.x - dy * slant + swing * tilesX) % 1
 		textures[l.key]:SetTexCoord(o.x, o.x + tilesX, o.y, o.y + tilesY)
 	end
 end
@@ -1591,10 +1733,27 @@ local function BuildOverlay()
 
 	-- Above the curtain, below the lightning: a blizzard washes out what is
 	-- behind it, including its own snow.
+	--
+	-- BLEND, not ADD, and the algebra is the whole argument. Koschmieder says a
+	-- whiteout is extinction plus airlight - the scene fades towards the sky's
+	-- own luminance and CONTRAST is what dies. For two samples in the frame:
+	--
+	--   BLEND  I' = (1-a)I + aL   ->   I1'-I2' = (1-a)(I1-I2)   contrast x(1-a)
+	--   ADD    I' = I + k         ->   I1'-I2' =       I1-I2    contrast x1
+	--
+	-- ADD cannot reduce contrast at all until it starts clipping highlights,
+	-- which is exactly why the old 0.05 white quad read as "someone turned the
+	-- brightness up" rather than "I cannot see through this". BLEND at 0.22
+	-- takes 22% of the contrast out of the frame, which is the effect.
+	--
+	-- Safer than the ADD it replaces, too: ADD destroys highlight detail by
+	-- clipping it, BLEND scales every level and keeps all of it. A mob at 22%
+	-- reduced contrast is dimmer against the snow but still plainly there, and
+	-- an addon that hides a mob is an addon that gets deleted.
 	whiteout = overlay:CreateTexture(nil, "ARTWORK", nil, #LAYERS + 1)
 	whiteout:SetAllPoints(overlay)
 	whiteout:SetColorTexture(0.95, 0.97, 1, 1)
-	whiteout:SetBlendMode("ADD")
+	whiteout:SetBlendMode("BLEND")
 	whiteout:SetAlpha(0)
 
 	flash = overlay:CreateTexture(nil, "OVERLAY")
@@ -1666,6 +1825,11 @@ local function OptionsPlay()
 	end
 	return optionsPlay
 end
+
+-- Without the options call there is no gain control at all: PlaySoundFile
+-- takes no volume and plays at the channel's own level. The Classic clients
+-- are in that position (issue #20), so a volume setting would drive nothing.
+local function SetsVolume() return OptionsPlay() ~= nil end
 
 local function Play(file, volume)
 	local ok, handle
@@ -2074,21 +2238,26 @@ local function Help()
 	print("  |cffffd100/comfy ui|r - open the settings window, which has all of this in it")
 	print("  |cffffd100/comfy|r - toggle; |cffffd100/comfy on|r and |cffffd100/comfy off|r say which")
 	print("  |cffffd100/comfy preset cozy||storm||snow||overcast|r - a whole look in one go")
-	print("  |cffffd100/comfy preset dusk||night|r - just the light, with no weather at all")
+	print("  |cffffd100/comfy preset dusk||night|r - just the time of day; the weather stays as it is")
 	print("  |cffffd100/comfy rain||snow|r - which weather to draw")
 	print("  |cffffd100/comfy light||normal||heavy|r - intensity")
 	print("  |cffffd100/comfy monsoon|r, |cffffd100/comfy blizzard|r - the top of each, weather included")
 	print("  |cffffd100/comfy cycle|r - step up through the intensities, for a keybind")
-	print("  |cffffd100/comfy auto|r - match whatever the server says the weather is here")
+	if ReadsGameWeather() then
+		print("  |cffffd100/comfy auto|r - match whatever the server says the weather is here")
+	end
 	print("  |cffffd100/comfy alpha <0-1.5>|r - how visible it is")
 	print("  |cffffd100/comfy speed <0.2-3>|r - how fast it falls")
 	print("  |cffffd100/comfy dim <0-2>|r - how much it darkens the world (0 = off, 2 = as dark as it goes)")
 	print("  |cffffd100/comfy gust <0-2>|r - how much the wind comes and goes (0 = dead calm)")
-	print("  |cffffd100/comfy volume <0-1>|r - how loud, on top of the game's own slider")
+	if SetsVolume() then
+		print("  |cffffd100/comfy volume <0-1>|r - how loud, on top of the game's own slider")
+	end
 	print("  |cffffd100/comfy time local|r - make it look like YOUR clock, not the server's")
 	print("  |cffffd100/comfy time +9|r, |cffffd100/comfy time 21|r, |cffffd100/comfy time off|r")
 	print("  |cffffd100/comfy indoors on||off|r - draw it inside buildings too")
 	print("  |cffffd100/comfy sound on||off|r, |cffffd100/comfy thunder on||off|r (gusts, in snow)")
+	print("  |cffffd100/comfy strike|r - one thunderclap now, instead of waiting for it")
 	print("  |cffffd100/comfy channel Ambience||SFX||Master|r - which volume slider owns it")
 	print("  |cffffd100/comfy suppress on|r - mute the server's OWN weather loop so only ours plays")
 	print("  |cffffd100/comfy zoom on||off|r - make the drops grow as the camera comes in")
@@ -2153,17 +2322,21 @@ local function HandleSlash(input, source)
 		StartBed()
 		ScheduleLightning()
 		UpdateTimeOfDay()
-		-- A light preset leaves a dark screen with no rain on it, which is the
-		-- one state this addon has already been reported for. It does not get
-		-- to arrive without naming its own off switch.
+		-- A light preset can leave a dark screen with no rain on it, which is
+		-- the one state this addon has already been reported for. It does not
+		-- get to arrive without naming its own off switch.
 		msg("|cff66ff66" .. p.label .. "|r - " .. p.blurb ..
 		    (p.kind == "light"
 		     and ". |cffffd100/comfy time off|r for the server's own light again."
-		     or ". Every slider below it still works."))
+		     or "."))
 	elseif cmd == "auto" then
 		-- Follow the realm's own weather if it is telling us anything. This is
 		-- a one-shot match, not a mode: C_Weather is a poll with no event, and
 		-- a ticker on it would cost more than it is worth.
+		if not ReadsGameWeather() then
+			msg("this version of WoW does not tell addons its weather, so there is nothing to match.")
+			return
+		end
 		local real = RealWeather()
 		if not real or real == "none" then
 			msg("the server reports no weather here, so there is nothing to match.")
@@ -2248,6 +2421,11 @@ local function HandleSlash(input, source)
 			or  "the server's own weather loops are audible again.")
 	elseif cmd == "volume" or cmd == "vol" then
 		local v = Num(arg)
+		if not SetsVolume() then
+			msg("this version of WoW gives addons no volume control, so the game's own " ..
+			    db.channel .. " slider sets how loud the weather is.")
+			return
+		end
 		if not v then msg("usage: /comfy volume 0.5  (0 is silent)") return end
 		db.volume = math.max(0, math.min(1, v))
 		-- Gain is baked in at play time, so the running clips keep their old
@@ -2259,6 +2437,11 @@ local function HandleSlash(input, source)
 		msg(db.minimap and "minimap button shown." or
 			"minimap button hidden. |cffffd100/comfyrain|r still opens the window.")
 	elseif cmd == "defer" or cmd == "yield" then
+		if not ReadsGameWeather() then
+			msg("this version of WoW does not tell addons its weather, so Comfy Rain " ..
+			    "cannot see the game's rain to hide for it.")
+			return
+		end
 		db.defer = (arg ~= "off")
 		-- Re-seeded rather than left to the ticker, so turning it on while
 		-- standing in a storm takes effect now instead of in a second.
@@ -2275,6 +2458,19 @@ local function HandleSlash(input, source)
 	elseif cmd == "thunder" then
 		db.thunder = (arg ~= "off")
 		ScheduleLightning()
+	elseif cmd == "strike" then
+		-- For recording, and for anyone who wants to show a friend. A monsoon
+		-- thunders once every 48 seconds on average, which is a long time to
+		-- stand still holding a capture. Restarts the clock as well, so the
+		-- next natural one does not land right on top of this one.
+		if not db.thunder then
+			msg("thunder is off - |cffffd100/comfy thunder on|r first")
+		elseif not ShouldRain() then
+			msg("nothing is falling right now, so there is nothing to strike")
+		else
+			Strike()
+			ScheduleLightning()
+		end
 	elseif cmd == "indoors" then
 		if arg == "on" or arg == "off" or arg == "dim" then
 			db.indoors = arg
@@ -2628,6 +2824,9 @@ ComfyRainAPI = {
 	-- press goes back through Command like every other control, so the row of
 	-- scenes cannot drift away from what /comfy preset does.
 	Presets      = PRESETS,
+	-- What this client lets the addon do. The window leaves out a control that
+	-- would do nothing here rather than show one that silently fails.
+	Can          = { volume = SetsVolume, gameWeather = ReadsGameWeather },
 	-- What is happening RIGHT NOW, as opposed to what the settings ask for.
 	-- The window had no way to tell the two apart and so said "Drawing normal
 	-- rain." while standing in a doorway drawing nothing, which is exactly

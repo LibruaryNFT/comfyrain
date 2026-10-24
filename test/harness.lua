@@ -186,11 +186,18 @@ function H.world(opts)
 		return out
 	end
 
-	-- The blizzard whiteout: the only ADD colour quad in the ARTWORK layer. The
-	-- near snow layer also adds, but it is a texture, not a colour.
+	-- The blizzard whiteout: the only colour quad in the ARTWORK layer. The
+	-- precipitation layers live there too, but they are textures, not colours.
+	--
+	-- Matched on colour alone, not on the blend mode. It used to be found as
+	-- "the ADD colour quad", which quietly made the test a test of the blend
+	-- mode: switching it to BLEND, which is what a whiteout actually is, made
+	-- this return nil and three specs fail with an index-of-nil rather than
+	-- with anything about whiteouts. A locator should find the thing, not
+	-- assert about it.
 	function w:whiteout()
 		for _, t in ipairs(self:overlay()._textures) do
-			if t.layer == "ARTWORK" and t.blend == "ADD" and t.colour then return t end
+			if t.layer == "ARTWORK" and t.colour then return t end
 		end
 	end
 
@@ -202,10 +209,14 @@ function H.world(opts)
 	-- Controls are found by the text the player reads, not by an index into a
 	-- table the panel happens to keep. A spec that clicks "Snow" is clicking
 	-- what somebody with a mouse would click.
-	function w:button(text)
+	-- nth for a label that appears more than once, in creation order: both
+	-- rows at the top of the window start with Off.
+	function w:button(text, nth)
+		local seen = 0
 		for _, f in ipairs(mock.frames) do
 			if (f._kind == "Button" or f._kind == "CheckButton") and f._text == text then
-				return f
+				seen = seen + 1
+				if seen == (nth or 1) then return f end
 			end
 		end
 	end
@@ -377,6 +388,78 @@ function H.world(opts)
 		return table.concat(out, "\n")
 	end
 
+	-- Everything a player could see or hear right now, as plain data rather
+	-- than text. snapshot() is for a reviewer reading a diff; this is for a
+	-- check that compares two settings and asks whether a person would notice
+	-- the difference, which is the question 294 green specs never asked: light
+	-- and normal snow differed in every number snapshot() prints and looked
+	-- the same in the game, 2026-10-23.
+	--
+	-- Speeds are measured, not read: two short steps with the gust held still,
+	-- the sheet's travel divided by how many copies of it the screen shows.
+	-- That makes them screen heights per second, the unit the eye judges in.
+	function w:perceivable()
+		local out = { layers = {}, sounds = {} }
+		local o = self:overlay()
+		out.shown = (o and o:IsShown() and o:GetAlpha() > 0) and true or false
+		out.alpha = o and o:GetAlpha() or 0
+		local g = self:gloom()
+		out.gloom = g and { g.colour[1], g.colour[2], g.colour[3] } or { 1, 1, 1 }
+		local wo = self:whiteout()
+		out.whiteout = wo and wo:GetAlpha() or 0
+		local tod = self:tod()
+		out.curtain = (tod and tod:IsShown()) and true or false
+		local d, l = self:dim(), self:lift()
+		out.dim = (out.curtain and d and d.colour) and { d.colour[1], d.colour[2], d.colour[3] }
+			or { 1, 1, 1 }
+		out.lift = (out.curtain and l) and l:GetAlpha() or 0
+
+		local db = self:db()
+		local gust = db and db.gust
+		if db then db.gust = 0 end
+		local layers = self:layers()
+		-- A short step, because blizzard snow crosses most of a sheet copy
+		-- sideways in a tenth of a second and the offsets wrap.
+		local DT = 0.02
+		local before = {}
+		self:advance(DT, DT)
+		for name, t in pairs(layers) do
+			before[name] = t.texCoord and { t.texCoord[1], t.texCoord[3] }
+		end
+		self:advance(DT, DT)
+		for name, t in pairs(layers) do
+			local tc, b = t.texCoord, before[name]
+			local tilesY = tc and (tc[4] - tc[3]) or 1
+			-- Offsets fall as the sheet moves down; across, it can go either way.
+			local dy = (tc and b) and ((b[2] - tc[3]) % 1) or 0
+			local dx = (tc and b) and (((b[1] - tc[1]) + 0.5) % 1 - 0.5) or 0
+			-- Both in screen heights a second: tilesX is tilesY times the
+			-- aspect, so a sheet unit across is the same fraction of tilesY.
+			local vy, vx = dy / tilesY / DT, dx / tilesY / DT
+			local tex = t:GetTexture()
+			out.layers[name] = {
+				texture = tex and tostring(tex) or nil,
+				alpha = t:GetAlpha(), blend = t.blend,
+				tilesY = tilesY, tilesX = tc and (tc[2] - tc[1]) or 1,
+				speed = math.sqrt(vx * vx + vy * vy), fall = vy,
+				tint = t.vertexColour,
+			}
+		end
+		if db then db.gust = gust end
+
+		-- What is still sounding, not what was ever started: a handle the
+		-- addon stopped, or whose file ran out, is silence.
+		for _, s in ipairs(mock.sounds) do
+			if s.ok and s.handle and mock.handles[s.handle] then
+				out.sounds[#out.sounds + 1] = {
+					file = s.file, channel = s.channel,
+					volume = s.volumeOverride or 1,
+				}
+			end
+		end
+		return out
+	end
+
 	if opts.loaded ~= false then w:load() end
 	return w
 end
@@ -461,6 +544,9 @@ local EXPECTED_UNMOCKED = {
 	-- has one is unverified and the client is gone, so the no-API path is the
 	-- one that must be proven harmless.
 	Settings = true,
+	-- Same again: modelled by default, removed in the Classic world (spec_ui),
+	-- because Classic Era, MoP Classic and TBC Anniversary have none (issue #20).
+	C_Weather = true,
 }
 
 -- Client globals the addon read that nothing modelled. Sorted, for a message.
