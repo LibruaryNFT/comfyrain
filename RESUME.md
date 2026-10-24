@@ -7,6 +7,23 @@ because the client cannot be told to actually change the weather.
 Stormwind. v2 switches all audio and the drop sprite to Blizzard's own assets and stops
 the rain indoors; needs `/reload` to pick up (no new files, so no client restart).
 
+## Before 4 November (checked 2026-10-23)
+
+1. **Merge PR #21** (`ui/fewer-rain-controls`, 22 commits, closes #11, contains #18).
+   Justin's: no standing merge authority on this repo, because no branch protection.
+2. **CurseForge token.** The repo has 0 Actions secrets, and GCP has no CurseForge
+   token. Without one, the `v1.0.0` tag publishes to GitHub only. The packager reads
+   `CF_API_KEY` or `CF_API_TOKEN`; the token comes from
+   authors.curseforge.com, settings, API tokens. Justin's, because it needs his login.
+3. **Retail in game**: `/comfy status` answers, the 13-shot sweep, and gallery shots
+   (PR #19 plan).
+4. #3 (does weatherDensity 0 stop the engine lightning) needs a real storm. It does not
+   block launch.
+5. Tag `v1.0.0` from `main`.
+
+Icon: kept. It was approved 2026-10-20. The noisy texture inside the drops only shows
+at 512, and it reads as clean drops at 160 and 64, the sizes players see.
+
 ## 2026-10-23 — One addon for every flavour: the window adapts, Classic still unlisted
 
 "can we make one addon to work for all of them and change the ui for classic".
