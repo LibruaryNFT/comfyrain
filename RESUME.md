@@ -81,8 +81,11 @@ take screenshots".
   any refusal flipped the bed to the bundled loop for the rest of the session and
   dropped the under-layer, so a Ctrl+S mute in the rain cost the layered sound until
   `/reload`. Fixed: with the game's sound switch off the bed waits and retries, and the
-  status says the sound is off. Still open: whether Blizzard's FileDataIDs play on
-  retail with sound ON. One `/comfy status` without "(bundled audio)" answers it.
+  status says the sound is off. **Blizzard's FileDataIDs play on retail.** 23:39 the same
+  night, sound back on (no `Sound_` lines left in Config.wtf, which only stores
+  non-defaults; `weatherDensity` in the same file is the grep's control), `/reload`,
+  and `/comfy status` read `sound on` with neither suffix. A refused bed prints
+  "using the bundled one" and adds "(bundled audio)", and neither appeared.
 
 ## 2026-10-23 — Testing while the beta is down: retail's free tier
 
