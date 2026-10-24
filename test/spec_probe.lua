@@ -489,14 +489,25 @@ it("photographs every weather state instead of asking somebody to describe one",
 	w:advance(90)
 
 	local shots = w.mock.screenshots
-	eq(#shots, 10, "one file per state in the sweep")
+	eq(#shots, 13, "one file per state in the sweep")
 	eq(w:db().probe.shots.order[1], "control-off", "the control is taken first")
 	eq(shots[1].enabled, false, "and it really is the weather turned off")
 
 	-- The manifest is the whole point: the files are timestamps on disk and
 	-- carry no record of what they are pictures of.
-	eq(#w:db().probe.shots.order, 10, "every shot is named in the manifest")
-	eq(w:db().probe.shots.taken["snow-blizzard-night"].index, 8, "in sweep order")
+	eq(#w:db().probe.shots.order, 13, "every shot is named in the manifest")
+	eq(w:db().probe.shots.taken["snow-blizzard-night"].index, 11, "in sweep order")
+
+	-- And each name is the truth about its picture. A sweep whose "snow-light"
+	-- is a photo of normal snow would confirm exactly the bug it exists to find.
+	for i, name in ipairs(w:db().probe.shots.order) do
+		local weather, intensity = name:match("^(%a+)%-(%a+)%-")
+		if name ~= "control-off" then
+			ok(weather and intensity, name .. " names a weather and an intensity")
+			eq(shots[i].weather .. "-" .. shots[i].intensity, weather .. "-" .. intensity,
+				name .. " photographs what it is named for")
+		end
+	end
 end)
 
 it("photographs the state it claims to, not the fade into it", function()
@@ -541,7 +552,7 @@ it("takes the pictures with the UI out of the way", function()
 	for _, shot in ipairs(w.mock.screenshots) do
 		if shot.uiHidden then hidden = hidden + 1 end
 	end
-	eq(hidden, 10, "every shot in the sweep is a clean frame")
+	eq(hidden, 13, "every shot in the sweep is a clean frame")
 	eq(w.mock.uiHidden, false, "and the UI comes back when it is done")
 end)
 

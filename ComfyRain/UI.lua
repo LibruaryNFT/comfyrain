@@ -107,30 +107,9 @@ local ART = {
 	next = "Interface\\Buttons\\UI-SpellbookIcon-NextPage-Up",
 }
 
--- The one picture left in the window, in the Weather selector. Picked by
--- rendering the candidates at 14px and looking at them, which is the size they
--- are drawn at here, not by reading their names at 64px:
---
---   rain     IceStorm's shards lose their detail on the way down and what is
---            left is slanted streaks, which is exactly what rain looks like.
---   snow     FrostShock keeps a bold white snowflake at 14px. ChillingBlast is
---            the better picture at full size and was the first choice, but it
---            dissolves into a white diagonal slash that is indistinguishable
---            from the rain icon, and telling rain from snow is the one thing
---            this picture has to do.
---
--- Worth recording because it is the kind of thing that gets "fixed" later: no
--- icon anywhere in the game depicts rain. The whole 2.27M-file catalogue was
--- searched, not just the classic range. So rain borrows a shape rather than a
--- subject, and that is deliberate.
---
--- Thunder and Gusts used to carry icons too, on their toggles. The client's
--- own Options window has no icons on anything, and matching it was the whole
--- point of the 2026-10-19 rebuild, so they went.
-local ICON = {
-	rain    = "Interface\\Icons\\Spell_Frost_IceStorm",
-	snow    = "Interface\\Icons\\Spell_Frost_FrostShock",
-}
+-- No pictures anywhere in the window, Type included. The client's own Options
+-- window has none, and the word Rain or Snow in the well already says it. The
+-- rain one was a borrowed frost spell, since no icon in the game depicts rain.
 
 -- An unknown template name raises inside CreateFrame, so each is asked for once
 -- and the answer cached. Which templates a client has cannot be read out of the
@@ -296,37 +275,6 @@ local function Pill(parent, label, onClick)
 	end
 	b:SetLabel(label)
 
-	-- An icon on the left with the label sliding over to make room. Asked about
-	-- with HasArt rather than drawn blind, because a path this flavour does not
-	-- have leaves a 14px hole where the eye expects a picture, and a centred
-	-- label with no icon beats an off-centre one with a gap.
-	function b:SetIcon(path, off)
-		if path and not HasArt(path) then path = nil end
-		if not path then
-			if self.icon then self.icon:Hide() end
-			self.label:ClearAllPoints()
-			self.label:SetPoint("CENTER")
-			self.label:SetJustifyH("CENTER")
-			return
-		end
-		if not self.icon then
-			self.icon = self:CreateTexture(nil, "ARTWORK")
-			self.icon:SetSize(14, 14)
-			self.icon:SetPoint("LEFT", self, "LEFT", 6, 0)
-		end
-		self.icon:SetTexture(path)
-		self.icon:Show()
-		-- Greying it out is how the client itself says a thing is switched off,
-		-- and it is why the Thunder button can carry a picture instead of the
-		-- little lamp: one widget says both what it is and whether it is on.
-		if self.icon.SetDesaturated then
-			pcall(self.icon.SetDesaturated, self.icon, off and true or false)
-		end
-		self.label:ClearAllPoints()
-		self.label:SetPoint("LEFT", self, "LEFT", 24, 0)
-		self.label:SetJustifyH("LEFT")
-	end
-
 	function b:SetSelected(on)
 		self.selected = on and true or false
 		if self.native then
@@ -372,9 +320,9 @@ local function Title(s)
 end
 
 -- The player's word for each section, which is not always the code's. The
--- Weather section is `look` internally because it owns every visual setting,
--- and a button reading "Reset Look" under a heading reading "Weather" is the
--- window talking to itself.
+-- Weather section is `look` internally because it owns every visual
+-- setting, and a button reading "Reset Look" under a heading reading
+-- "Weather" is the window talking to itself.
 local RESET_LABEL = { look = "Weather" }
 
 --------------------------------------------------------------------------------
@@ -565,11 +513,6 @@ local function Select(parent, label, onStep)
 	row.value = Text(well, nil, "CENTER")
 	well:SetFontString(row.value)
 
-	row.icon = well:CreateTexture(nil, "ARTWORK")
-	row.icon:SetSize(16, 16)
-	row.icon:SetPoint("LEFT", well, "LEFT", 5, 0)
-	row.icon:Hide()
-
 	row.left  = Arrow(row, -1, onStep)
 	row.left:SetPoint("RIGHT", well, "LEFT", -2, 0)
 	row.right = Arrow(row, 1, onStep)
@@ -583,21 +526,11 @@ local function Select(parent, label, onStep)
 	end)
 	row.label:SetWordWrap(false)
 
-	-- icon is a path or nil. Passing one shifts the word right to make room,
-	-- which is the only layout this widget has two of.
-	function row:SetValue(text, icon)
+	function row:SetValue(text)
 		self.value:SetText(text or "")
 		self.well:SetText(text or "")
 		self.value:ClearAllPoints()
-		if icon and HasArt(icon) then
-			self.icon:SetTexture(icon)
-			self.icon:Show()
-			self.value:SetPoint("LEFT", self.icon, "RIGHT", 4, 0)
-			self.value:SetPoint("RIGHT", self.well, "RIGHT", -5, 0)
-		else
-			self.icon:Hide()
-			self.value:SetPoint("CENTER", self.well, "CENTER", 0, 0)
-		end
+		self.value:SetPoint("CENTER", self.well, "CENTER", 0, 0)
 	end
 	row:SetValue("")
 
@@ -756,6 +689,22 @@ local function Slider(parent, label, lo, hi, step, fmt, apply, reset)
 			row.valueText:SetTextColor(1, 1, 1)
 		end
 	end
+
+	-- Greyed and deaf to the mouse when the setting it drives does nothing in
+	-- the current mode. Never hidden: a row that comes and goes moves every
+	-- row under it, and the window moving after a click reads as a glitch.
+	function row:SetActive(on)
+		self.active = on
+		s:EnableMouse(on)
+		row.value:EnableMouse(on and reset ~= nil)
+		s:SetAlpha(on and 1 or 0.35)
+		if on then
+			row.label:SetTextColor(1, 1, 1)
+		else
+			row.label:SetTextColor(DIM[1], DIM[2], DIM[3])
+			row.valueText:SetTextColor(DIM[1], DIM[2], DIM[3])
+		end
+	end
 	return row
 end
 
@@ -808,9 +757,10 @@ end
 -- Layout
 --------------------------------------------------------------------------------
 
--- Rows are stacked top-down and the window is sized to whatever is visible, so
--- hiding the time-of-day controls when the feature is off shrinks the window
--- instead of leaving a hole in it.
+-- Rows are stacked top-down and the window is sized to whatever is visible.
+-- Nothing uses `visible` any more, deliberately: every row hidden by a setting
+-- moved the rows under it when that setting changed. Kept because a row that
+-- only exists on some clients is the case it is still right for.
 local function Relayout()
 	local y = -TOP_INSET
 	for _, r in ipairs(rows) do
@@ -837,7 +787,10 @@ local CHANNELS = { "Ambience", "SFX", "Master", "Music", "Dialog" }
 -- The order the Weather and Indoors selectors step through. Intensity has no
 -- list here because its one is the weather's own `order`, which is the whole
 -- reason the top step can be called monsoon under rain and blizzard under snow.
-local WEATHERS = { "rain", "snow" }
+--
+-- Off is the first step of Type, as it is of Time of Day's Mode. There are no
+-- scene buttons above the sections any more, so this is the weather's switch.
+local WEATHERS = { "off", "rain", "snow" }
 local INDOOR_ORDER = { "off", "dim", "on" }
 
 -- Which of the game's own volume sliders each channel rides on, and the switch
@@ -884,7 +837,7 @@ end
 -- The sentence that used to be the label is now the tooltip's first line, so
 -- nothing was lost: the panel scans, and the explanation is one hover away.
 local TIME_MODES = {
-	{ key = "off",    label = "Server time", cmd = "time off",
+	{ key = "off",    label = "Off",         cmd = "time off",
 	  note = "Leave the server's own day and night alone." },
 	{ key = "local",  label = "My PC clock", cmd = "time local",
 	  note = "Light the world by your clock instead of the server's. " ..
@@ -896,97 +849,51 @@ local TIME_MODES = {
 	  note = "Hold one hour, all session. Permanent dusk." },
 }
 
--- What is still changing the screen, in one sentence.
+-- The one line of words at the top of the window, and it is usually empty.
 --
--- This exists because of a real report: "my screen is too dark and i cant reset
--- it easily, like i want to turn off the changes it made but i cant". The time
--- of day grading is the one ComfyRain effect with no weather attached to it, so
--- a player who turns the weather off and still has a dark world has no way to
--- connect the two. Naming the held hour, in the window, every refresh, is what
--- turns an unexplained dark screen into a setting with an off switch next to it.
-local function LightPhrase(db)
-	if db.timeMode == "off" then return nil end
-	if db.timeMode == "local" then return "light on your own clock" end
-	if db.timeMode == "offset" then
-		return string.format("light shifted %+g h", db.timeOffset)
-	end
-	return string.format("light held at %02d:00", db.timeFixed)
-end
-
--- The weather half of the sentence, which is not the same question as "is the
--- weather switched on".
+-- It used to be a status sentence that was always there: "Drawing normal
+-- rain, light held at 22:00." The lit buttons under it say the same thing, so
+-- pressing Overcast got "Drawing normal rain" read back to you, which is the
+-- window describing the settings to the person who just chose them. "why do
+-- we need drawing normal rain etc", 2026-10-23.
 --
--- Reported 2026-10-19: "we reload and hear rain but dont see anything". Under
--- a roof the engine counts as indoors - and that includes awnings, cave
--- mouths and most doorways - "dim" means heard and not seen, and the window
--- went on saying "Drawing normal rain." the whole time. The setting was on,
--- so the old sentence was true about the setting and a lie about the screen,
--- which is the only thing the player was looking at.
-local function WeatherPhrase(db)
-	if not db.enabled then return nil end
-	local full = db.intensity .. " " .. db.weather
+-- What is left is the case the buttons cannot show: the screen disagrees with
+-- what is lit. Under a roof, the game's own rain, a cutscene, or a held hour
+-- the realm is already at. Each is the addon working as designed while
+-- looking broken, so each is said in words, and the one with a fix gets the
+-- button beside it. The row is always there, empty or not, so a note arriving
+-- never pushes the rest of the window down.
+--
+-- Every sentence fits one line, and the one beside the button fits the 242 px
+-- the button leaves: the line does not wrap, and a reason cut off halfway is
+-- worse than no reason.
+local function Note(db)
 	local st = (ComfyRainAPI and ComfyRainAPI.State and ComfyRainAPI.State()) or {}
-	-- No State() means an addon older than this window; drawing is the honest
-	-- assumption there, because that is what every build before today did.
-	if st.drawing == false then
-		if st.cinematic then return "Paused for the cutscene" end
+	if db.enabled and st.drawing == false then
+		if st.cinematic then return "Paused for the cutscene." end
 		-- Ahead of indoors, because the two can be true at once and this is
 		-- the one the player cannot see a reason for.
-		-- Short, because the row below it carries the reason and the fix. The
-		-- status line does not wrap, so a sentence long enough to explain
-		-- itself here is a sentence that gets cut off here.
-		if st.yielding then return "Real weather here, so this stood aside" end
+		if st.yielding then
+			return "Game rain here, so ours is hidden.", "Use mine",
+				"defer off",
+				"Draw ours over the top of the game's own weather instead of " ..
+				"hiding while it falls. Same as unticking Hide when game rains, " ..
+				"further down."
+		end
+		-- Reported 2026-10-19: "we reload and hear rain but dont see anything".
+		-- Awnings, cave mouths and most doorways count as indoors.
 		if st.indoors then
 			return st.hearing
-				and "Indoors: " .. db.weather .. " heard, not drawn"
-				or  "Indoors: nothing drawn"
+				and ("Under a roof: " .. db.weather .. " heard, not drawn.")
+				or  "Under a roof: nothing drawn."
 		end
-		return full .. ", not drawn"
-	end
-	return "Drawing " .. full
-end
-
--- Why the last press appeared to do nothing, and the one button that makes it
--- do something.
---
--- Both cases below are the addon working exactly as designed while looking
--- broken: standing aside from the game's own storm is the right answer and
--- leaves the screen with no rain of ours on it, and holding 22:00 on a server
--- already at 22:00 is correctly no change at all. Somebody who just pressed
--- Storm or Night sees the same nothing either way, and the status line alone
--- only tells them the first half. The fix belongs in the row that is
--- explaining the problem, not nine controls further down the window.
-local function FixNote(db)
-	local st = (ComfyRainAPI and ComfyRainAPI.State and ComfyRainAPI.State()) or {}
-	if st.yielding then
-		return "Real rain here, so the game's own is showing.", "Use mine",
-			"defer off",
-			"Draw ours over the top of the game's own weather instead of " ..
-			"standing aside for it. Same as unticking Step aside for real " ..
-			"weather, further down."
 	end
 	-- The addon owns what counts as "nothing", because it owns the arithmetic
 	-- that the nothing comes out of.
 	if st.lightFlat then
-		return "The server is already at that light, so this adds nothing yet."
+		return "The realm is already at that hour."
 	end
 	return nil
-end
-
-local function StatusPhrase(db)
-	local light = LightPhrase(db)
-	local weather = WeatherPhrase(db)
-	if weather and light then
-		return weather .. ", " .. light .. ".", GOLD
-	elseif weather then
-		return weather .. ".", GOLD
-	elseif light then
-		-- The dangerous state, and the one that generated the report: the
-		-- weather is off, so the player believes the addon is off, and the
-		-- world is still being graded.
-		return "Weather off, but " .. light .. ".", GOLD
-	end
-	return "Everything off. Nothing here is touching your screen.", DIM
 end
 
 local function Refresh()
@@ -997,38 +904,10 @@ local function Refresh()
 
 	local weather = ComfyRainAPI.Weather[db.weather] or ComfyRainAPI.Weather.rain
 
-	-- The tick carries the state and the label never moves. It used to read
-	-- "Weather on" when it was on and "Weather off" when it was off, which is
-	-- a checkbox arguing with itself: a ticked box labelled "Weather off" can
-	-- be read as off, or as "off is ticked", and the two are opposites.
-	-- "should be the same button but the checkbox turns it on or off",
-	-- 2026-10-19.
-	controls.power:SetOn(db.enabled)
-
-	-- Light up the scene the settings currently ARE, and only while they are
-	-- exactly it. Without this, pressing Night and then Cozy looks like Cozy
-	-- replaced Night rather than combining with it, because the two kinds
-	-- write disjoint settings and both stay true. The highlight drops off on
-	-- the first slider move, which is also the honest answer: a scene plus one
-	-- edit is not that scene any more.
-	for _, entry in ipairs(controls.presets or {}) do
-		local on = true
-		for k, v in pairs(entry.set) do
-			if db[k] ~= v then on = false break end
-		end
-		-- A bar under the button rather than a tint on its label. The two
-		-- pill flavours rest at different text colours, so a tint has to know
-		-- which one it is putting back, and the one the client's own template
-		-- uses is gold - which is this window's heading colour and reserved.
-		-- A bar is also the thing that still reads on a client with no button
-		-- art at all.
-		if on then entry.button.mark:Show() else entry.button.mark:Hide() end
-	end
-
-	controls.weather:SetValue(Title(db.weather), ICON[db.weather])
-	Teach(controls.weather.well, "Type", "/comfy " .. db.weather,
-		"Rain or snow. The arrows step between them; so do /comfy rain and " ..
-		"/comfy snow.")
+	controls.weather:SetValue(db.enabled and Title(db.weather) or "Off")
+	Teach(controls.weather.well, "Type", db.enabled and ("/comfy " .. db.weather) or "/comfy off",
+		"Off, rain or snow. The arrows step between them; so do /comfy off, " ..
+		"/comfy rain and /comfy snow. Off leaves Time of Day as it is.")
 
 	-- Named for the weather it is under: the top step is monsoon in rain and
 	-- blizzard in snow, so the value shown and the command the tooltip teaches
@@ -1038,17 +917,12 @@ local function Refresh()
 		"How hard it comes down. " ..
 		table.concat(weather.order, ", ") .. ".")
 
-	controls.alpha:Set(db.scale)
-	controls.speed:Set(db.speed)
-	controls.dim:Set(db.gloom)
-	controls.gust:Set(db.gust)
-	controls.volume:Set(db.volume)
+	if controls.volume then controls.volume:Set(db.volume) end
 
 	controls.sound:SetOn(db.sound)
-	controls.zoom:SetOn(db.zoom)
 	-- ~= false, not a plain read: this one defaults to ON, so an absent key
 	-- and an explicit false are different answers.
-	controls.defer:SetOn(db.defer ~= false)
+	if controls.defer then controls.defer:SetOn(db.defer ~= false) end
 	-- Rain has lightning, snow has gusts, and the row must say which.
 	controls.thunder:SetOn(db.thunder)
 	controls.thunder:SetLabel(weather.flash and "Thunder" or "Gusts")
@@ -1087,40 +961,29 @@ local function Refresh()
 		controls.hour.slider.tipNote =
 			"Hold the light at one hour of the day and leave it there."
 		controls.hour.slider.command = "/comfy time 21"
-	end
-	controls.strength:Set(db.timeStrength)
-
-	local phrase, colour = StatusPhrase(db)
-	controls.status:SetText(phrase)
-	controls.status:SetTextColor(colour[1], colour[2], colour[3])
-	-- Hidden when there is nothing left to stop, so the button is never a lie:
-	-- if it is on screen, pressing it changes something.
-	if db.enabled or db.timeMode ~= "off" then
-		controls.stop:Show()
-		controls.status:SetWidth(controls.statusNarrow)
 	else
-		controls.stop:Hide()
-		controls.status:SetWidth(controls.statusWide)
+		-- No hour in this mode. The knob stays where it was and the number
+		-- says there is nothing to read, so the row keeps its place.
+		controls.hour.label:SetText("Hour")
+		controls.hour.value:SetText("-")
 	end
+	controls.hour:SetActive(db.timeMode == "offset" or db.timeMode == "fixed")
+	controls.strength:Set(db.timeStrength)
+	controls.strength:SetActive(db.timeMode ~= "off")
 
-	local note, fixLabel, fixCmd, fixNote = FixNote(db)
-	-- Cleared rather than just hidden. A hidden row still holds its last
-	-- sentence, and the next thing to go wrong would flash the previous
-	-- problem's text for one frame before this ran again.
+	local note, fixLabel, fixCmd, fixNote = Note(db)
 	controls.fixText:SetText(note or "")
-	if note then
-		if fixLabel then
-			controls.fix:SetLabel(fixLabel)
-			controls.fix:Show()
-			controls.fixText:SetWidth(controls.fixNarrow)
-			Teach(controls.fix, fixLabel, "/comfy " .. fixCmd, fixNote)
-		else
-			-- A note with no fix is still worth saying: "it is already that
-			-- hour on the server" has no button because there is nothing to
-			-- press, only something to understand.
-			controls.fix:Hide()
-			controls.fixText:SetWidth(controls.fixWide)
-		end
+	if fixLabel then
+		controls.fix:SetLabel(fixLabel)
+		controls.fix:Show()
+		controls.fixText:SetWidth(controls.fixNarrow)
+		Teach(controls.fix, fixLabel, "/comfy " .. fixCmd, fixNote)
+	else
+		-- A note with no fix is still worth saying: "the realm is already at
+		-- that hour" has no button because there is nothing to press, only
+		-- something to understand.
+		controls.fix:Hide()
+		controls.fixText:SetWidth(controls.fixWide)
 	end
 
 	updating = false
@@ -1214,40 +1077,22 @@ local function Build()
 		return frame
 	end
 
-	-- The state line comes before any control, because the first question
-	-- somebody opens this window with is "what is this doing to my screen", and
-	-- the answer has to be readable without understanding a single widget below
-	-- it. The stop button sits on the same line so the answer and the undo are
-	-- never in different parts of the window.
-	local state = add(CreateFrame("Frame", nil, panel), { gap = 9 })
-	state:SetHeight(ROW)
-	local STOP_W = 110
-	controls.status = Text(state, "GameFontHighlightSmall")
-	controls.status:SetPoint("LEFT", state, "LEFT", 0, 0)
-	controls.status:SetWordWrap(false)
-	controls.status:SetText("")
-	-- Two widths, because the button beside it comes and goes. One fixed
-	-- width sized for the button being there is how "Everything off. Nothing
-	-- here is touching your screen." got cut to "Nothing here is to..." on the
-	-- one screen where the button is hidden and the whole row was free.
-	controls.statusWide = WIDTH - PAD * 2
-	controls.statusNarrow = WIDTH - PAD * 2 - STOP_W - 8
-
-	controls.stop = Pill(state, "Turn It All Off", function() Run("stop") end)
-	controls.stop:SetPoint("TOPRIGHT", state, "TOPRIGHT", 0, 0)
-	controls.stop:SetWidth(STOP_W)
-	Teach(controls.stop, "Turn It All Off", "/comfy stop",
-		"Weather, sound and the light grading, all off in one press. " ..
-		"Your settings are kept; this is a switch, not a reset.")
-
-	-- Directly under the state line and above everything else, because it is
-	-- the answer to "I pressed that and nothing happened" and anybody with
-	-- that question has already stopped reading the rest of the window.
+	-- The note line, above everything else, because it is the answer to "I
+	-- pressed that and nothing happened" and anybody with that question has
+	-- already stopped reading the rest of the window. Always laid out, empty
+	-- or not: a row that appeared with its sentence pushed every button below
+	-- it down the moment it was needed, which is the window moving out from
+	-- under the mouse that just clicked it. See Note() for what it says.
+	--
+	-- There is no all-off button and no row of scenes. Off is the first step
+	-- of Type and of Time of Day's Mode, and /comfy stop does both at once.
+	-- The scenes are still /comfy preset; in the window they were a second way
+	-- to set what the sections below set, "im confused cause theres
+	-- redundancy", 2026-10-23.
 	local FIX_W = 78
-	local fix = add(CreateFrame("Frame", nil, panel),
-		{ gap = 4, visible = function() return FixNote(DB()) ~= nil end })
+	local fix = add(CreateFrame("Frame", nil, panel), { gap = 4 })
 	fix:SetHeight(ROW - 4)
-	controls.fixText = Text(fix, "GameFontDisableSmall")
+	controls.fixText = Text(fix, "GameFontHighlightSmall")
 	controls.fixText:SetPoint("LEFT", fix, "LEFT", 0, 0)
 	controls.fixText:SetWordWrap(false)
 	controls.fixText:SetText("")
@@ -1259,123 +1104,24 @@ local function Build()
 	-- that can be left showing. It runs the command the note names, read at
 	-- press time so the button can never fire the previous note's fix.
 	controls.fix = Pill(fix, "Use mine", function()
-		local _, _, cmd = FixNote(DB())
+		local _, _, cmd = Note(DB())
 		if cmd then Run(cmd) end
 	end)
 	controls.fix:SetPoint("TOPRIGHT", fix, "TOPRIGHT", 0, 0)
 	controls.fix:SetWidth(FIX_W)
 
-	-- Scenes, before any heading, because this row is the answer to the only
-	-- question most people open the window with. Fifteen controls is a mixing
-	-- desk, and a mixing desk is the right thing to have and the wrong thing
-	-- to be handed first: the sliders stay exactly where they are, but nobody
-	-- has to touch four of them to find out what a storm looks like.
-	--
-	-- Built from ComfyRainAPI.Presets rather than from a list here, so adding a
-	-- scene is one table entry in the addon and the window follows. Each press
-	-- is the typed command, like every other control in this file.
-	-- One row per kind, and the slot width is a fixed quarter rather than a
-	-- share of however many buttons that row has. A two-button row stretched
-	-- to fill the window would be two buttons twice the size of the four above
-	-- them, which reads as "these are the important ones" and they are not.
-	local scenes = (ComfyRainAPI and ComfyRainAPI.Presets) or {}
-	local slot, rows, order = (WIDTH - PAD * 2) / 4, {}, {}
-	for _, p in ipairs(scenes) do
-		local kind = p.kind or "weather"
-		if not rows[kind] then rows[kind] = {} order[#order + 1] = kind end
-		table.insert(rows[kind], p)
-	end
-	-- A caption per row, because the second row behaves differently from the
-	-- first in a way the labels cannot carry: Dusk and Night switch the
-	-- weather OFF. Not "Weather" and "Light", which would put a third thing
-	-- called Weather on screen above a heading that is already called that.
-	local CAPTION = { weather = "Scenes", light = "Light only" }
-	controls.presets = {}
-	for ri, kind in ipairs(order) do
-		local cap = add(CreateFrame("Frame", nil, panel), { gap = ri == 1 and 6 or 5 })
-		cap:SetHeight(13)
-		local capText = Text(cap, "GameFontDisableSmall")
-		capText:SetPoint("TOPLEFT", cap, "TOPLEFT", 2, 0)
-		capText:SetText(CAPTION[kind] or Title(kind))
-
-		local row = add(CreateFrame("Frame", nil, panel), { gap = 1 })
-		row:SetHeight(ROW)
-		for i, p in ipairs(rows[kind]) do
-			local b = Pill(row, p.label, function() Run("preset " .. p.key) end)
-			b:SetPoint("TOPLEFT", row, "TOPLEFT", slot * (i - 1), 0)
-			b:SetWidth(slot - 3)
-			b.mark = Fill(b, { 0.45, 1.00, 0.45, 0.85 }, "OVERLAY")
-			b.mark:SetHeight(2)
-			b.mark:SetPoint("BOTTOMLEFT", b, "BOTTOMLEFT", 3, 2)
-			b.mark:SetPoint("BOTTOMRIGHT", b, "BOTTOMRIGHT", -3, 2)
-			b.mark:Hide()
-			-- What the marker compares against, which is not always the whole
-			-- preset. `enabled` is the one key both kinds write, and a light
-			-- scene is still the light scene after a weather scene switches
-			-- the rain back on - that composition is the point of the split.
-			local match = {}
-			for k, v in pairs(p.set) do
-				if not (p.kind == "light" and k == "enabled") then match[k] = v end
-			end
-			controls.presets[#controls.presets + 1] = { button = b, set = match }
-			Teach(b, p.label, "/comfy preset " .. p.key,
-				(kind == "light"
-				 and ("Changes the light and nothing else, with the weather " ..
-				      "switched off: " .. p.blurb ..
-				      ". Press a weather scene afterwards to have both.")
-				 or ("Sets the weather, the intensity, the visibility, the " ..
-				     "speed, the darkness, the wind and the thunder in one " ..
-				     "press: " .. p.blurb ..
-				     ". Everything below stays adjustable afterwards.")))
-		end
-		-- The light row's own undo, in the slot the two buttons leave empty.
-		-- Without it the only way back from Night is the Mode selector at the
-		-- very bottom of the window, which is a long way to go to put the sun
-		-- back and is not where anybody looks.
-		if kind == "light" then
-			local back = Pill(row, "Server Light", function() Run("time off") end)
-			back:SetPoint("TOPLEFT", row, "TOPLEFT", slot * #rows[kind], 0)
-			back:SetWidth(slot * 2 - 3)
-			Teach(back, "Server Light", "/comfy time off",
-				"Hand the light back to the server's own day and night. " ..
-				"Leaves the weather exactly as it is.")
-		end
-	end
-
 	add(Heading(panel, "Weather", "look"), { gap = 4 })
 
-	-- The master switch first, because it is the one control in the section
-	-- that can make every other one in it do nothing. A Check is a full row of
-	-- its own now, so it is added directly rather than parked inside a spacer
-	-- frame; Relayout gives it the width and OnSizeChanged does the rest.
-	-- Not plain "Weather": the heading above it and the rain/snow selector
-	-- below it are both already called that, and three things with one name in
-	-- 330 pixels is worse than a slightly longer label.
-	controls.power = add(Check(panel, "Show rain & snow", "/comfy", function()
-		Run(DB().enabled and "off" or "on")
-	end))
-
-	-- Everything in Weather and Sound is inert while that box is unticked, and
-	-- a slider that moves and does nothing is the most confusing control a
-	-- window can have. Time of Day is the exception and is the whole reason
-	-- this line exists: it draws on its own, so a player who wants their own
-	-- clock and no rain has somewhere to go instead of concluding the addon is
-	-- broken. Appears only when it is true, so the window is unchanged for
-	-- anyone actually using the weather.
-	local offNote = add(CreateFrame("Frame", nil, panel),
-		{ gap = 2, visible = function() return not DB().enabled end })
-	offNote:SetHeight(26)
-	local offText = Text(offNote, "GameFontDisableSmall")
-	offText:SetPoint("TOPLEFT", offNote, "TOPLEFT", 0, 0)
-	offText:SetPoint("TOPRIGHT", offNote, "TOPRIGHT", 0, 0)
-	offText:SetJustifyV("TOP")
-	offText:SetText("Weather and Sound below do nothing while this is off. " ..
-		"Time of Day still works on its own.")
+	-- No on/off box here: Type: Off is the switch, and stepping Intensity
+	-- turns the weather back on. There used to be a line here saying so while
+	-- it was off. It appeared and vanished with the setting and shoved
+	-- everything under it 28 px.
 
 	controls.weather = add(Select(panel, "Type", function(d)
 		local order, db2 = WEATHERS, DB()
+		local now = db2.enabled and db2.weather or "off"
 		local at = 1
-		for i, n in ipairs(order) do if n == db2.weather then at = i end end
+		for i, n in ipairs(order) do if n == now then at = i end end
 		Run(order[((at - 1 + d) % #order) + 1])
 	end))
 
@@ -1387,10 +1133,9 @@ local function Build()
 		Run(w.order[((at - 1 + d) % #w.order) + 1])
 	end))
 
-	-- The db key and the command verb differ for two of these - Visibility
-	-- writes `scale` through `alpha`, Darkness writes `gloom` through `dim` -
-	-- which is exactly why the default is looked up by key rather than assumed
-	-- to match the slider's name.
+	-- The default is looked up by db key rather than assumed to match the
+	-- slider's name, because the key and the command verb do not always agree:
+	-- Strength writes `timeStrength` through `time strength`.
 	local function Back(key, verb, fmt)
 		return function()
 			local d = Defaults()[key]
@@ -1399,67 +1144,96 @@ local function Build()
 		end
 	end
 
-	controls.alpha = add(Slider(panel, "Drops", 0, 1.5, 0.05, Pct,
-		function(v) Run(string.format("alpha %.2f", v)) end,
-		Back("scale", "alpha")))
-	Teach(controls.alpha.slider, "Drops", "/comfy alpha 0.75",
-		"How much weather you see through. At 0 the drops stop drawing and " ..
-		"you keep the darkening and the sound, which is the overcast-day " ..
-		"setup.")
-
-	controls.speed = add(Slider(panel, "Fall Speed", 0.2, 3, 0.05, Pct,
-		function(v) Run(string.format("speed %.2f", v)) end,
-		Back("speed", "speed")))
-	Teach(controls.speed.slider, "Fall Speed", "/comfy speed 1.4",
-		"How fast it comes down.")
-
-	controls.dim = add(Slider(panel, "Darkness", 0, 2, 0.05, Pct,
-		function(v) Run(string.format("dim %.2f", v)) end,
-		Back("gloom", "dim")))
-	Teach(controls.dim.slider, "Darkness", "/comfy dim 0.5",
-		"How much the storm dims the world. 0 leaves the light alone, 1 is " ..
-		"what this weather is meant to look like, and past that it keeps " ..
-		"going into proper storm dark. 2 is as dark as this addon goes.")
-
-	controls.gust = add(Slider(panel, "Wind", 0, 2, 0.05, Pct,
-		function(v) Run(string.format("gust %.2f", v)) end,
-		Back("gust", "gust")))
-	Teach(controls.gust.slider, "Wind", "/comfy gust 0.5",
-		"How hard it gusts. 0 is dead calm: one fixed rate, no wind.")
-
-	-- Camera distance is the only part of the world camera an addon can read,
-	-- and it is a judgement call rather than a correctness fix, so it gets a
-	-- switch. Full width: it has no natural partner on a row.
-	controls.zoom = add(Check(panel, "Follow camera zoom", "/comfy zoom off",
-		function() Run(DB().zoom and "zoom off" or "zoom on") end))
-	Teach(controls.zoom, "Follow camera zoom", "/comfy zoom off",
-		"Drops get bigger and faster the closer the camera is, finer and " ..
-		"denser when you pull back.")
+	-- No Drops, Fall Speed, Darkness, Wind or camera-zoom controls. Each scene
+	-- and intensity already sets all five, the fall speeds are derived from
+	-- drop physics rather than taste, and five sliders under two selectors
+	-- made the window read as a control panel to be learned before the rain
+	-- could be enjoyed. The settings themselves are still there underneath:
+	-- the scenes write them, and the slash commands still reach them.
 
 	-- Sits with the look rather than with the switches, because what it changes
 	-- is what you see when the real thing is already on screen. On by default,
 	-- which is the one default that argues with the addon's own name.
-	controls.defer = add(Check(panel, "Step aside for real weather", "/comfy defer off",
-		function() Run(DB().defer ~= false and "defer off" or "defer on") end))
-	Teach(controls.defer, "Step aside for real weather", "/comfy defer off",
-		"Stand aside while the game's own rain or snow is falling. Theirs is " ..
-		"3D and stops under an arch or a bridge; ours is drawn in front of " ..
-		"the camera and cannot. Where the real thing exists, it wins.")
+	-- "Hide when game rains": what hides is ours. It was "Pause in real
+	-- weather", which reads as pausing the game's weather, and no addon can
+	-- touch that. A row label gets 148 px beside the control column, the
+	-- client's font runs 6 to 7.4 px a character, so 21 characters at most.
+	-- Left out on a client that cannot read its own weather (the Classic ones,
+	-- issue #20): there the box would tick and nothing would ever hide.
+	if ComfyRainAPI.Can.gameWeather() then
+		controls.defer = add(Check(panel, "Hide when game rains", "/comfy defer off",
+			function() Run(DB().defer ~= false and "defer off" or "defer on") end))
+		Teach(controls.defer, "Hide when game rains", "/comfy defer off",
+			"Hides Comfy Rain while the game's own rain or snow is falling, and " ..
+			"brings it back when that stops. It cannot stop the game's weather; " ..
+			"no addon can. Theirs is 3D and stops under a bridge, ours cannot, " ..
+			"so where theirs falls it wins.")
+	end
+
+	-- Time of Day sits with Weather because it is the other half of what you
+	-- see. Sound goes last.
+	add(Heading(panel, "Time of Day", "time"), { gap = 4 })
+
+	controls.timeMode = add(Select(panel, "Mode", function(d)
+		local db2, at = DB(), 1
+		for i, m in ipairs(TIME_MODES) do if m.key == db2.timeMode then at = i end end
+		Run(TIME_MODES[((at - 1 + d) % #TIME_MODES) + 1].cmd)
+	end))
+
+	controls.hour = add(Slider(panel, "Hour", -12, 23, 1, "%d", function(v)
+		if DB().timeMode == "offset" then
+			Run(string.format("time %+d", v))
+		else
+			Run(string.format("time %d", v))
+		end
+	end,
+	-- The only slider whose default moves. One control is shown for two
+	-- settings - an offset from realm time, and an absolute hour to hold at -
+	-- so "the default" is 0 in one mode and 21 in the other, and a fixed
+	-- number here would grey out the wrong one half the time.
+	function()
+		local d = Defaults()
+		if DB() and DB().timeMode == "offset" then
+			return d.timeOffset, string.format("time %+d", d.timeOffset or 0)
+		end
+		return d.timeFixed, string.format("time %d", d.timeFixed or 21)
+	end))
+	-- Title, note and command are all replaced by Refresh, which knows which of
+	-- the two settings this row is currently standing in for. Greyed rather
+	-- than hidden in the two modes with no hour to set, and Strength the same
+	-- under Off: hiding them made every step into or out of Off grow or
+	-- shrink the window by two rows.
+	Teach(controls.hour.slider, "Hour", "/comfy time +9",
+		"Move the light away from the server's own clock.")
+
+	controls.strength = add(Slider(panel, "Strength", 0, 1, 0.05, Pct,
+		function(v) Run(string.format("time strength %.2f", v)) end,
+		Back("timeStrength", "time strength")))
+	Teach(controls.strength.slider, "Strength", "/comfy time strength 0.7",
+		"How far towards that hour to grade the light.")
 
 	add(Heading(panel, "Sound", "sound"), { gap = 4 })
 
-	controls.volume = add(Slider(panel, "Volume", 0, 1, 0.05, Pct,
-		function(v) Run(string.format("volume %.2f", v)) end,
-		Back("volume", "volume")))
-	Teach(controls.volume.slider, "Volume", "/comfy volume 0.5",
-		"ComfyRain's weather only. Your game volume is untouched.")
-
-	-- One checkbox per row, which is what the client does. These two shared a
-	-- row while the box was on the left of its label and the window was 330
-	-- wide; a box in the right-hand column cannot share a row with anything,
-	-- because there is only one column.
-	controls.sound = add(Check(panel, "Sound", "/comfy sound off",
+	-- The switch first, as in Weather: it is the control that can make every
+	-- other one in the section do nothing. And not plain "Sound" under a
+	-- heading that already says Sound, for the same reason the weather switch
+	-- is not plain "Weather".
+	controls.sound = add(Check(panel, "Play sounds", "/comfy sound off",
 		function() Run(DB().sound and "sound off" or "sound on") end))
+
+	-- Left out where the client gives addons no gain control (issue #20): the
+	-- slider would move and the sound would stay exactly as loud.
+	if ComfyRainAPI.Can.volume() then
+		controls.volume = add(Slider(panel, "Volume", 0, 1, 0.05, Pct,
+			function(v) Run(string.format("volume %.2f", v)) end,
+			Back("volume", "volume")))
+		Teach(controls.volume.slider, "Volume", "/comfy volume 0.5",
+			"ComfyRain's weather only. Your game volume is untouched.")
+	end
+
+	-- One checkbox per row, which is what the client does. A box in the
+	-- right-hand column cannot share a row with anything, because there is
+	-- only one column.
 
 	controls.thunder = add(Check(panel, "Thunder", "/comfy thunder off",
 		function() Run(DB().thunder and "thunder off" or "thunder on") end))
@@ -1490,47 +1264,6 @@ local function Build()
 	Teach(controls.channel.well, "Volume follows", "/comfy channel Ambience",
 		"Which of the game's volume sliders owns the weather. Ambience keeps " ..
 		"it out of the way of music.")
-
-	add(Heading(panel, "Time of Day", "time"), { gap = 4 })
-
-	controls.timeMode = add(Select(panel, "Mode", function(d)
-		local db2, at = DB(), 1
-		for i, m in ipairs(TIME_MODES) do if m.key == db2.timeMode then at = i end end
-		Run(TIME_MODES[((at - 1 + d) % #TIME_MODES) + 1].cmd)
-	end))
-
-	controls.hour = add(Slider(panel, "Hour", -12, 23, 1, "%d", function(v)
-		if DB().timeMode == "offset" then
-			Run(string.format("time %+d", v))
-		else
-			Run(string.format("time %d", v))
-		end
-	end,
-	-- The only slider whose default moves. One control is shown for two
-	-- settings - an offset from realm time, and an absolute hour to hold at -
-	-- so "the default" is 0 in one mode and 21 in the other, and a fixed
-	-- number here would grey out the wrong one half the time.
-	function()
-		local d = Defaults()
-		if DB() and DB().timeMode == "offset" then
-			return d.timeOffset, string.format("time %+d", d.timeOffset or 0)
-		end
-		return d.timeFixed, string.format("time %d", d.timeFixed or 21)
-	end), { visible = function()
-		local m = DB().timeMode
-		return m == "offset" or m == "fixed"
-	end })
-	-- Title, note and command are all replaced by Refresh, which knows which of
-	-- the two settings this row is currently standing in for.
-	Teach(controls.hour.slider, "Hour", "/comfy time +9",
-		"Move the light away from the server's own clock.")
-
-	controls.strength = add(Slider(panel, "Strength", 0, 1, 0.05, Pct,
-		function(v) Run(string.format("time strength %.2f", v)) end,
-		Back("timeStrength", "time strength")),
-		{ visible = function() return DB().timeMode ~= "off" end })
-	Teach(controls.strength.slider, "Strength", "/comfy time strength 0.7",
-		"How far towards that hour to grade the light.")
 
 	local foot = add(CreateFrame("Frame", nil, panel))
 	foot:SetHeight(ROW)
@@ -1803,6 +1536,7 @@ local minimap
 -- it: the tooltip and the panel both name the weather in words, and an icon
 -- that changes under the player is a worse readout than one they can learn.
 local ROUND_MASK = "Interface\\CharacterFrame\\TempPortraitAlphaMask"
+local ROUND_BACK = "Interface\\Minimap\\UI-Minimap-Background"
 local ICON_ART = "Interface\\AddOns\\ComfyRain\\icon"
 
 -- The hole in MiniMap-TrackingBorder is NOT centred on the button. With the
@@ -1843,19 +1577,23 @@ local function BuildIcon(button)
 	-- half-extracted zip, a packager that dropped a TGA - a bare button in the
 	-- ring is indistinguishable from a broken addon, and a warm disc is still
 	-- recognisably this one.
+	--
+	-- A round texture, not a masked colour fill. SetMask rounds a file texture
+	-- but left a SetColorTexture square alone on a live client, and its four
+	-- dark corners showed outside the brass: "it seems the icon is square maybe
+	-- and bleeds out the circle", 2026-10-23. The disc LibDBIcon uses is round
+	-- in the file, so there is nothing for a client to fail to apply.
 	local back = button:CreateTexture(nil, "BACKGROUND")
 	back:SetSize(ICON_SIZE, ICON_SIZE)
 	back:SetPoint("CENTER", HOLE_X, HOLE_Y)
-	back:SetColorTexture(0.13, 0.10, 0.09, 1)
-	pcall(back.SetMask, back, ROUND_MASK)
+	back:SetTexture(ROUND_BACK)
 	icon.back = back
 
 	local art = button:CreateTexture(nil, "ARTWORK")
 	art:SetSize(ICON_SIZE, ICON_SIZE)
 	art:SetPoint("CENTER", HOLE_X, HOLE_Y)
-	-- Rounds the square render off inside the ring. Without it the corners
-	-- show, and the brass covers all four of them anyway, so it is allowed to
-	-- fail on a client that does not have SetMask.
+	-- The art is round in the file now, with transparent corners, so this only
+	-- softens its edge. It is allowed to fail on a client without SetMask.
 	pcall(art.SetMask, art, ROUND_MASK)
 	icon.art = art
 	icon.button = button
@@ -2054,6 +1792,7 @@ end
 BINDING_HEADER_COMFYRAIN = "Comfy Rain"
 BINDING_NAME_COMFYRAIN_TOGGLE = "Weather on or off"
 BINDING_NAME_COMFYRAIN_PANEL = "Open the settings window"
+BINDING_NAME_COMFYRAIN_STRIKE = "One thunderclap, now"
 
 -- One place that answers "something changed". A typed command has to move the
 -- window too, or the two disagree in front of the player and the window is the

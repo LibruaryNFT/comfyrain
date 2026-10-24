@@ -7,6 +7,463 @@ because the client cannot be told to actually change the weather.
 Stormwind. v2 switches all audio and the drop sprite to Blizzard's own assets and stops
 the rain indoors; needs `/reload` to pick up (no new files, so no client restart).
 
+## Before 4 November (checked 2026-10-24 UTC)
+
+1. Done: PR #21 merged as `30e2630` (closed #11); #18 closed as redundant. Main CI green.
+2. Done: CurseForge token. Repo secret `CF_API_KEY` is set, and the GCP copy is
+   `CURSEFORGE_API_TOKEN` in flowconnect-434715. It answered 200 on
+   `wow.curseforge.com/api/game/versions` (a bogus token gets 403). The `v1.0.0` tag
+   now uploads to CurseForge as well as GitHub.
+3. Done 2026-10-23: retail loads, `/comfy status` answers, C_Weather reads the server's
+   rain and Blizzard's sound FileDataIDs play (section "It loads on retail too"). The
+   probe screenshots and the gallery re-shoot (PR #19) are optional, not launch gates.
+4. #3 (does weatherDensity 0 stop the engine lightning) needs a real storm. It does not
+   block launch.
+5. Tag `v1.0.0` from `main` on 4 November, then check the file landed on CurseForge.
+   The publish step has no CurseForge check of its own (only GitHub), so that check is by hand.
+6. Done 2026-10-24, all read back from the public page: the description has the "Which
+   WoW" section (Forever and Retail, Classic not yet), the flat logo is the avatar
+   (`avatars/2143/963`), and Roleplay and Artwork are listed. Those two categories were
+   planned in `docs/curseforge-page.md` but had never been set; until now the page listed
+   only Audio & Video.
+7. CurseForge accepts both tags (checked 2026-10-24 via its API): Forever `1.60.1` and Retail
+   `12.1.5`. Retail 12.1.7 is on the PTR (`wowt` 12.1.7.70493); add `120107` to the TOC when
+   it goes live, or retail players see the addon as out of date.
+8. **The page is Forever-only until the next upload.** Its one file, 0.9.2-alpha from
+   20 Oct, is tagged Forever 1.60.1 alone, so the Retail listing in the CurseForge app
+   does not show the addon. Any tag pushed now is tagged both from the TOC. Proposed: a
+   `v1.0.0-beta1` tag now, which also proves the CurseForge upload before launch day.
+   Waiting on Justin's go, because it publishes.
+
+Icon: redrawn 2026-10-23 ("can we get a non-ai looking logo"), approved the same day
+("flat drop is fine then"). One flat drop drawn from
+geometry by `build/make_icon_tga.py`, which also writes `docs/logo.png` and the 400px
+`docs/avatar.png`. The icon is round in the file now, and the square colour backing
+behind it, which showed dark corners outside the minimap ring, is now a round texture.
+Uploaded as the CurseForge avatar 2026-10-24 (item 6). The in-game icon needs a full client restart to show, not `/reload`.
+
+## 2026-10-23 — One addon for every flavour: the window adapts, Classic still unlisted
+
+"can we make one addon to work for all of them and change the ui for classic".
+
+- **Same zip everywhere.** On a client without `PlaySoundWithOptions` the Volume
+  slider is left out of the window. On one without `C_Weather`, Hide when game rains is
+  left out. `/comfy volume`, `/comfy defer` and `/comfy auto` say why instead of doing
+  nothing, and help drops the lines. Exposed as `ComfyRainAPI.Can`. Two `spec_ui`
+  specs boot a "Classic world" with both removed, and use the full client as control.
+- **Everything else the window uses exists on all three Classic branches.** Checked in
+  Gethe/wow-ui-source, with `live` as control: BackdropTemplate, UIPanelButtonTemplate,
+  the two texture paths, Settings.RegisterCanvasLayoutCategory and RegisterAddOnCategory,
+  CreateColor and SetBackdrop. The addon compartment is retail-only. It is only TOC
+  lines there, so Classic ignores them and the minimap button still works.
+- **Not in the TOC yet.** Listing a flavour is one edit:
+  `11509` (Era 1.15.9), `50504` (MoP 5.5.4) and `20506` (Anniversary 2.5.6), all read from
+  the branch heads. It waits for one in-game load, which needs game time. One sub
+  covers all three. Issue #20.
+
+## 2026-10-23 — It loads on retail too: one TOC line, `16001, 120105`
+
+"can this addon work on all versions of wow... get it to work on retail so i can properly
+take screenshots".
+
+- **`## Interface: 16001, 120105`**, one line, no second TOC. Forever honours comma lists:
+  Auctionator ships `120105, 16001, ...` and loaded in the beta with out-of-date addons
+  off. A `_Mainline.toc` was avoided because the Forever binary also knows the Mainline
+  suffix and which one it prefers next to a bare TOC is unmeasured. `spec_boot` fails if
+  either number drops out.
+- **API check per client** (`tools/api_audit.py --exe`): retail 12.1.5.70575 and
+  `_forever_` both 0 missing. Classic Era 1.15.9 is missing C_Weather and
+  PlaySoundWithOptions. Blizzard's API docs (Gethe/wow-ui-source; control: `live` and
+  `forever` have both, and the docs agree with the Era binary) show MoP Classic and TBC
+  Anniversary lack the same two. On those three, the addon would load, but the volume
+  slider would be dead, Hide when game rains would never fire, and `/comfy auto` would
+  always say no weather. Untestable without a sub, so they are not listed. Fixes and the
+  gate are in issue #20.
+- **CurseForge will tag releases Retail as well as Forever.** Read from packager v2.6.1
+  `release.sh`: `toc_to_type` maps each Interface value on its own, `16???` to forever
+  and anything unmatched to retail.
+- **It did not run on retail before this.** Gotfrag (Sargeras) was in the world 15:38 to
+  15:42 today with `ComfyRain: enabled` in `AddOns.txt`, and no `ComfyRain.lua` was
+  written to `SavedVariables` (the beta, same declaration, writes one every session).
+  That was with interface 16001 only, so the out-of-date gate is the likely cause;
+  unproven.
+- **It loads now.** 2026-10-23 evening, retail 12.1.5.70575: `/comfy status` answered
+  and read the server's rain at 0.80 through C_Weather. The status said "(bundled
+  audio)", but `_retail_/WTF/Config.wtf` had `Sound_EnableAllSound "0"`: the game was
+  muted, so every clip was refused, Blizzard's and ours alike. That exposed a real bug:
+  any refusal flipped the bed to the bundled loop for the rest of the session and
+  dropped the under-layer, so a Ctrl+S mute in the rain cost the layered sound until
+  `/reload`. Fixed: with the game's sound switch off the bed waits and retries, and the
+  status says the sound is off. **Blizzard's FileDataIDs play on retail.** 23:39 the same
+  night, sound back on (no `Sound_` lines left in Config.wtf, which only stores
+  non-defaults; `weatherDensity` in the same file is the grep's control), `/reload`,
+  and `/comfy status` read `sound on` with neither suffix. A refused bed prints
+  "using the bundled one" and adds "(bundled audio)", and neither appeared.
+
+## 2026-10-23 — Testing while the beta is down: retail's free tier
+
+"beta isnt available to test on... we dont have an active retail subscription, is there
+any way we can test more or do screenshots".
+
+- **Beta offline since 13:02 today** (wowforeverstatus.com, control: 1425 of 1580 samples
+  online over 72h). It was down Oct 21 12:40 to Oct 22 07:18 and came back.
+  `forever-watch.service` started 13:12 to chime when it returns (10h cap).
+- **Retail is free to level 20 with no subscription** (Starter, or Veteran for lapsed
+  accounts), and Blizzard says addons work on it. This account reached retail character
+  select on 2026-08-25 (`_retail_/Logs/Connection.log`).
+- Retail is the same engine as Forever (`Wow.exe`, D3D12), so its screenshots are ground
+  truth for how our art and blend modes draw. They say nothing about Forever-only API or
+  the realm's weather.
+- Installed with `./install.sh _retail_`. The TOC lists retail's interface now (section
+  above), so no client setting is needed; the `checkAddonVersion` override that was
+  briefly in `_retail_/WTF/Config.wtf` is gone. Retail runs RenderScale 0.65,
+  weatherDensity 0.
+- **`/comfy probe shots` is 13 shots now**: every intensity of both weathers, then dusk
+  and night. The spec checks each shot photographs the state its name says (mutation
+  tested: a mislabelled light snow fails it). Files land in `_retail_/Screenshots`, the
+  manifest in `ComfyRainDB.probe.shots` after `/reload`.
+- Open: compare those shots against `tools/perceive.py`'s renders, pair by pair.
+
+## 2026-10-23 — Weather, Time of Day, Sound; "Hide when game rains"
+
+"i dont think we are even able to pause in real weather... that doesnt make sense to me
+that we can stop 3d rain", and "time of day after rain & snow, maybe rename that to weather".
+
+- **The setting never stopped the game's rain and cannot.** `db.defer` hides OUR overlay
+  while the game's own rain or snow falls. The label "Pause in real weather" read as
+  pausing theirs. Now **Hide when game rains** (20 chars, inside the 7.0 px/char spec);
+  the tooltip, the "Use mine" note ("Game rain here, so ours is hidden.") and a new README
+  row say it cannot touch the game's weather.
+- **Detection is proven live, from `SavedVariables/ComfyRain.lua` `calib`:** 2026-10-20
+  07:24:01 Elwynn, the console line `Weather changed to 1, intensity 0.674720` and
+  `C_Weather` = rain in the same second; 69 yielded/resumed switches 10-20 to 10-23
+  (Duskwood, Westfall, Riverglades, Wetlands, Stormwind), `weatherDensity` 3. Closes the
+  "not yet confirmed in a running client" notes on both sources below. The real console
+  line has a comma and **no `recID`**, unlike LibForecast's pattern.
+- Riverglades flips ours on and off every 10 s to a few minutes as you cross subzones:
+  the game's weather is per subzone. Works as built; watch for complaints.
+- **Window order is Weather, Time of Day, Sound.** Heading "Rain & Snow" is "Weather"
+  again (Reset Weather). `SECTION_ORDER` (share-string key order) is unchanged on purpose.
+  New spec pins the heading order.
+
+## 2026-10-23 — Every setting tested for a difference a player can see or hear
+
+"why do we keep mentioning things are broke ie the light snow, but you said u tested
+things, can u test things urself more thoroughly, all the things". The suite checked
+that each setting sent the renderer the right numbers; light snow did, and drew what
+normal drew. Nothing checked what the numbers looked like with the real art.
+
+- **`tools/perceive.py`** renders every choice the window offers (from
+  `test/dump_scenes.lua`) with the built art, over a dark ground and a snowfield, and
+  fails any pair a player could not tell apart. Thresholds and both negative controls
+  are in its docstring and `test/README.md`. In CI (`assets` job).
+- **`test/spec_perceive.lua`**: all 18 controls in the window, clicked, land exactly
+  where typing their command does, and somewhere other than where they started.
+- **What it found, fixed:** heavy rain, monsoon and heavy snow drew the lighter step's
+  flakes brighter, the light-snow flaw again. Each now draws a denser near sheet
+  (`rain-near-heavy`, `rain-near-monsoon`, `snow-near-heavy`): the lighter sheet plus
+  more elements from their own seeds, so every existing sheet is bit-identical. Every
+  window choice now passes: 0 pairs a player could not tell apart.
+- **check_art's size ruler was wrong, fixed.** It read straight down a pixel column, so
+  it measured where a slanted streak crossed a column (the 190px bars it was written for
+  read 73px and, at today's tiling, passed) and chained touching flakes into one (heavy
+  snow read 17% and failed). It now follows each element at its own slant and cuts
+  touching ones at deep valleys. Held against every element's true size, rasterised one
+  at a time: the bars read 187px (true 187) and fail at 28%; every current sheet reads
+  within 20% of its truth and passes. A built-in control (a 200px slanted streak whole,
+  two touching flakes split) aborts the run if the ruler breaks either way.
+- **Margin to know:** monsoon 11.6% and heavy snow 11.5% against the 12% ceiling, both
+  over their true sizes (9.6%) because dense sheets stand two elements end to end.
+- Not done: an in-game screenshot sweep (`/comfy selftest`) as ground truth for the
+  renderer model itself. Everything above trusts that perceive.py draws as WoW does.
+
+## 2026-10-23 — How other addons look native: research, nothing changed yet
+
+"can we download some addons and check how they get their UI to look more like the
+vanilla wow ui?" Read Ace3 (AceGUI widgets, behind most addon config windows), Leatrix
+Plus (a hand-built panel) and Blizzard's own UI source for this client (Gethe
+wow-ui-source, branch `forever`; `_classic_beta_` is the Forever client, iface 16001).
+
+- **Ace3 and Leatrix use the same 1.12-era art we already do**: `UI-DialogBox-Border`
+  and `-Header`, `UI-SliderBar-*`, `UI-CheckBox-Up/-Check`, `UIPanelButtonTemplate`.
+  There is no trick in them we are missing. Small things they have that we lack:
+  `UI-CheckBox-Highlight` on hover, and Ace3's Heading draws `UI-Tooltip-Border`
+  rules either side of a centred gold label.
+- **The game's own windows are `ButtonFrameTemplate` / `PortraitFrameTemplate`**, a
+  NineSlice over the `UI-Frame-Metal-*` atlases. On Forever (game type `camelot`) the
+  client ships its own art under those atlas names: `Camelot/NineSliceLayoutOverrides.lua`
+  says "the art made for Camelot doesn't match the exact size of the Mainline Standard
+  art" and re-offsets the corners. So a frame built on those templates draws Forever's
+  own window chrome, whatever that is, and keeps matching it if Blizzard changes it.
+- Also loaded on camelot per the tocs: `UIPanelCloseButtonDefaultAnchors` (28px, set by
+  `Camelot/SharedUIPanelTemplates.lua`), `MinimalSliderWithSteppersTemplate` (the Options
+  slider, arrows both sides), `UICheckButtonTemplate`, `SettingsListSectionHeaderTemplate`,
+  and the full `Settings.RegisterVerticalLayoutCategory` / `CreateCheckbox` /
+  `CreateSlider` / `CreateDropdown` API, which draws controls exactly as Esc > Options.
+- **Unverified at runtime.** All of the above is source; per the 2026-10-16 rule every
+  template is `pcall`-probed and cached because an unknown name raises.
+- **Recommendation:** rebuild the window's frame on `ButtonFrameTemplate` (no portrait)
+  plus `UIPanelCloseButtonDefaultAnchors`, today's art kept as the fallback when the probe
+  fails. That is the one change that makes it match Forever's own windows rather than
+  1.12's. Controls second, if the frame lands.
+
+## 2026-10-23 — Light snow is fewer flakes, not fainter ones
+
+"snow light and normal dont seem diff". Measured on the near sheet (visible = peak
+contrast at least 5/255 over the ground, positive control rain light/normal/heavy):
+light drew 552 flakes, normal 618, heavy 628. Alpha only changed brightness (median
+13 vs 26 vs 37 /255), because 87% of the near sheet's flakes already show at 0.30.
+Speed differs 18%, which is physically right for snow, so it cannot carry the
+difference the way rain's 1.8x does.
+
+- **`snow-near-light.tga`**: the same flakes with a 45% keep mask from its own RNG
+  (`scatter(thin=)`), so the other three sheets are bit-identical. Light snow's near
+  layer draws it at 0.52: 320 visible flakes at 21/255, against normal's 618 at 26.
+  Far stays 0.34, so light's depth haze is still fainter too.
+- Wired into check_art SHEETS and both workflows' asset lists; release force-adds by
+  glob. New spec "gives light snow fewer flakes"; draw golden updated (two rows).
+- Heavy had the same flaw against normal (628 vs 618, brighter only); fixed with a
+  denser sheet, see "Every setting tested" above.
+
+## 2026-10-23 — No scene rows: Rain & Snow, then Time of Day, each starting at Off
+
+"Do we need those presets at the top, cant we just use the rain & snow type of ui,
+and then under that time of day, im confused cause theres redundancy", and "maybe we
+dont need icons for type".
+
+- **The two button rows are gone.** Type steps Off / Rain / Snow and is the weather's
+  only switch; Time of Day's Mode steps Off / My PC clock / Shift by hours / Fixed
+  hour ("Server time" renamed Off). The scenes live on as `/comfy preset <name>`,
+  README updated.
+- **No icons anywhere**: the Type well's frost-spell picture, the well's icon slot and
+  the dead `Button:SetIcon` are deleted (`SetIcon` out of api_audit OURS).
+- Specs: the preset-button tests now drive the selectors or the typed preset; new
+  "has no row of scenes" (positive control: the same lookup finds Use mine) and
+  "puts no picture anywhere" (positive control: the scan finds a spell icon once one
+  is drawn). The harness `w:button(text, nth)` gained `nth`.
+- **Open:** `docs/curseforge-shoot-card.md` on docs/gallery-plan names the old buttons.
+- **Open:** a player whose last scene was Overcast has `scale 0` saved and no slider to
+  undo it; Reset Rain & Snow does. Unchanged by this commit, worth knowing.
+
+## 2026-10-23 — The window holds still, and stopped narrating
+
+"We choose a setting and it shifts the UI a lot... if we choose normal light then dusk",
+and "we choose overcast, why do we need drawing normal rain".
+
+- **Nothing appears, vanishes or moves on a press.** Hour and Strength are greyed (and
+  deaf to the mouse) in modes that do not use them instead of hidden; the "weather is
+  off" line is gone; the note row is always laid out, empty or not. The window is
+  centre-anchored, so every height change used to move its top too.
+- **The status sentence is gone.** The lit buttons are the readout. The one text line
+  now speaks only when the screen disagrees with them: under a roof, real rain (with
+  Use mine), a cutscene, or the realm already at the held hour. Each fits one line at
+  the 7.0 px/char rate.
+- New specs: one walks every button, mode, note and indoor state and asserts the window
+  height and the Volume row's y never change (positive control: a taller row does move
+  them); one asserts no note after Overcast/Storm/Off/Night/Normal.
+- `SetActive` added to `tools/api_audit.py` OURS (our row method, not client API).
+
+## 2026-10-23 — The top of the window is two rows: Weather and Light
+
+"If we wanted no weather but wanted it day or night", the old Scenes / Light only /
+Server Light / Turn It All Off / Show rain & snow set could not answer by reading it.
+
+- **Weather:** [Off] [Cozy] [Storm] [Snow] [Overcast]. **Light:** [Normal] [Dusk] [Night].
+  Each row owns one thing and leaves the other alone; night with no rain is Off + Night.
+  Both rows are fifths of the width. Off runs `/comfy off`, Normal `/comfy time off`.
+- **Dusk and Night no longer write `enabled = false`.** That side effect is what made
+  Storm then Night throw the storm away. The disjoint-keys spec has no `enabled`
+  exception any more.
+- **Removed:** the Turn It All Off pill (`/comfy stop` still works and is in help), the
+  Server Light pill (now Normal), the "Show rain & snow" checkbox (Off is the switch;
+  stepping Type or Intensity turns the weather back on). The status line has the whole row.
+- The section heading Weather is now **Rain & Snow** ("Reset Rain & Snow"), so the top
+  caption is the only thing called Weather.
+- No Day button, still: brightening is capped at LIFT_CAP and the sky keeps its stars.
+  Normal gives the realm's own daylight when it is day.
+- Shoot card: photo 4 is a redo anyway; the header's button list needs the new rows.
+
+## 2026-10-23 — The settings window lost its five tuning controls
+
+"We shouldn't allow a user to change the settings of the rain, that's too granular... if
+we remove the options it might make it cleaner and less intimidating." Gone from the
+window: **Drops, Fall Speed, Darkness, Wind, Follow camera zoom.** Weather is now the
+master switch, Type, Intensity and "Step aside for real weather". Sound and Time of Day
+are unchanged.
+
+- The settings still exist underneath. The scenes write scale, speed, gloom and gust on
+  every press, and the slash commands still reach all five, unadvertised. The README no
+  longer lists `alpha`, `speed`, `dim` or `gust`.
+- The UI tests that used Drops, Darkness and Wind as their example slider now use Volume
+  and Strength; the checkbox layout tests use "Step aside". A new spec fails if any of the
+  five comes back into the window.
+- Photo 4 of the shoot (window over live rain) is a redo anyway, so it gets the new window.
+- Then, from an in-game screenshot: "Step aside for real weather" was cut off to "Step aside
+  for real we...". A row label has 148 px and the client's font measured 5.8 to 7.4 px a
+  character against the mock's 5.2, so no spec saw it. Renamed **Pause in real weather**,
+  and a new spec checks every row label at 7.0 px a character (fails on the old label).
+- The Sound section's switch is first now, as Weather's is, and reads **Play sounds**
+  instead of "Sound" under a heading that already says Sound.
+
+## 2026-10-23 — The rain falls 1.8x faster: the layers were too far away
+
+"The rain looks like it's falling too slow", after the pass below. Measured off the
+Stormwind clip (`/tmp/shootcode/flow2.py`, FFT cross-correlation on high-passed frames):
+near 0.89 screen heights/s against 0.92 designed, far 0.46 against 0.45. So the code did
+what it said. What it said was wrong in **level**, not ratio: far 1.05 / near 1.07 put the
+near layer at about 5.5 m, a depth nobody chose. Report 1 says the eye locks onto streaks
+1 to 5 m away. Both layers now sit at 3 m and 6 m: `LAYERS` far 1.925, near 1.954 (x1.833),
+same 2.03x screen ratio.
+
+Near layer at slider 1.0, screen heights per second: Cozy 0.71, normal rain 1.30, heavy
+1.57, Storm 1.69, snow 0.25 to 0.34, blizzard 0.30 vertical and about 3.4 along the slant.
+Cozy is back near the 0.81 that was liked originally; Storm is well under the 3.81 that was
+too fast. Lua only, so `/reload`. Both loops now repeat at about 0.51 s, still to detune.
+
+The camera-turn test measured the turn on top of the fall drift, and at the new speed the
+drift happens to land on a whole sheet. It now compares a turned world against an unturned
+twin, and fails when the yaw term is zeroed.
+
+**Shoot status:** Stormwind photos 2, 3 and 5 are good. Redo clip 1 (old speed) and photo 4
+(UI was hidden). Park the mouse in a corner; it is in every frame so far.
+
+## 2026-10-22 — The fall speeds are derived now, not tuned by eye
+
+"It feels our rain falls too quickly" turned out to be two separate errors, and the second
+one needed research we had never done. The art was researched (drop shape, streak-length
+distribution, snow morphology); the **motion** never was. Per-intensity speeds and layer
+speeds were all tuned by eye.
+
+Two deep research reports came back against
+[docs/motion-realism-research-prompt.md](motion-realism-research-prompt.md). Both are saved
+verbatim: [report 1](motion-research-report-1.md),
+[report 2](motion-research-report-2.md). **Read
+[docs/motion-research-reconciliation.md](motion-research-reconciliation.md) first** — it
+records which report won each disputed point, the four places report 2 is checkably wrong,
+the full before/after speed table, and what is deferred.
+
+Shipped in this pass:
+
+- **Rain now spans 2.37x light to monsoon, not 4.7x.** Monsoon's near layer came down 53%.
+  Normal rain is the anchor and did not move. Terminal velocity goes as roughly the square
+  root of drop diameter, and the median-volume diameter only runs 0.8 mm to 2.5 mm across
+  everything rain does.
+- **Snow spans 1.35x, not 2.9x.** Heavy snow came down 59%.
+- **Blizzard falls at the same vertical rate as light snow**, which is the physical truth.
+  Its speed is sideways: slant 78 to 85 degrees, and `make_snow_tga.py` bakes the gale
+  streaks at 85 to match. Along-streak travel is 1.86 H/s.
+- **Scene preset speed multipliers are all 1.0.** Cozy and Storm were 0.9, Snow 0.8. Those
+  were taste corrections on top of numbers that were wrong by a factor. Cozy lands within
+  3% of where it was, so the preset most people sit in is unchanged.
+- **Camera yaw no longer has parallax on it.** Rotation is depth-independent — a yaw of
+  omega moves every ray by omega — while we were scaling it 0.25 / 0.9 / 1.0 per layer and
+  shearing the three layers against each other on every turn. `PARALLAX` is gone.
+
+Still open, both art-coupled and both their own pass:
+
+- **Rain slant is 7.5 degrees for every intensity and should be 22 to 56.** Needs
+  `make_rain_tga.py` re-baked at the new angle, or sheared UVs via the 8-argument
+  `SetTexCoord`. A sheet whose streaks point one way and whose travel points another reads
+  as a filter over the screen; that is the bug the blizzard sheet had at 62 degrees.
+- **Running should tilt the field, not speed it up.** `(1 + runSpeed * 0.3)` is the wrong
+  vector treatment: 7 m/s through 9 m/s rain is a 38 degree tilt and only +26% speed.
+
+Lower priority, no art dependency: `GUST_FOLLOW` should be ~0.7 s for rain and ~0.1 s for
+snow rather than 6.0 / 2.2 / 1.0 per layer; near and far both loop at ~0.94 s and one
+should be detuned; `ZOOM_RATE`'s 20% first-person speed boost has no physical basis.
+
+**The gallery shoot has to happen after the remaining motion work**, or the GIFs ship the
+old motion.
+
+The gale TGA changed bytes, so this one needs a **full client restart**, not a `/reload`.
+
+## 2026-10-22 — The rain and snow stopped being a pattern
+
+Storm's streaks, the snow and the blizzard all read as fake. Cozy did not, and Cozy is
+the lightest preset, which was the clue. Two independent deep-research passes over the
+overlay reached the same diagnosis from different directions: **the elements were drawn
+well and the population they were drawn from was wrong.** Done in two commits.
+
+### Phase 1, no new art: three structural fixes
+
+Full reasoning is in the commit message for `eb51056`. In short:
+
+| Was | Now | Why |
+|---|---|---|
+| `density` per intensity, 0.58 monsoon to 1.35 light, multiplying tilesY | one `tiling` per weather (rain 1.35, snow 1.20) | it was **inverted** — heavier weather drew fewer, larger streaks. Marshall-Palmer: 32 visible drops/m³ at 1 mm/h against 477 at 25. Closes #11 |
+| whiteout = white quad, ADD, cap 0.10 | BLEND at 0.22, cap 0.30 | ADD cannot reduce contrast until it clips. Koschmieder's whiteout is contrast collapse towards sky luminance |
+| blizzard `slant` 1.9 (62°), sheet baked at 78° | `slant` 4.7046 = tan(78°), `speed` 2.58 → 1.15 | the streaks pointed one way and the sheet slid 16° off it. 62° is 1.5 m/s of wind, not a gale |
+
+Cozy is byte-identical by design: the new `tiling` is pinned at the old light values, so
+everything moves *towards* the preset he already likes.
+
+### Phase 2, the generators: `build/precip.py`
+
+The sheets drew a few hundred near-identical elements on a jittered grid, with a caste of
+deliberately bright ones. All four of those are wrong, and the new shared module is the
+four fixes. Its docstring carries the derivations.
+
+- **Placement is independent uniform, not a jittered grid.** A grid gives every element
+  its own cell and so deletes exactly the close pairs and holes a Poisson field is made
+  of. *That lattice was the starfield*, not the flake drawing. The old docstring defended
+  the grid because uniform placement "reliably leaves bald patches and clumps" — it does,
+  and that is the point.
+- **Sizes are a power law, not a uniform range.** Projection gives p(s) ∝ s⁻⁴ for one
+  physical size; real size variation flattens it to ~3.0-3.2. Overwhelmingly tiny
+  elements, a thin tail of large close ones. A uniform range makes them all the same size.
+- **Brightness is lognormal and there is no bright caste.** One element in ten at ×1.9 is
+  precisely the landmark the eye re-identifies when the sheet tiles, so the caste was
+  buying the repeat it was meant to disguise. At σ 0.6 the 95th percentile is already
+  2.7× the median with nothing being special.
+- **Blowing snow is spatially intermittent**, via a log-Gaussian Cox field (FFT-built, so
+  strictly periodic and the sheet still tiles). The gale gets patches, stretched 150px
+  along the wind against 55px across.
+
+Per-drop and per-flake variety followed: every streak now gets its own longitudinal
+profile from 2-4 random lobes (Garg-Nayar found **no** universal streak profile), width
+correlated with length because both are the same 1/z, and the hex modulation is confined
+to the largest 10% of near flakes where it can actually be seen.
+
+**Mean alpha is held within 2% per sheet on purpose** — counts went up and `a_med` was
+solved back against the old means, so this is a change of distribution, not of density.
+
+### Two art checks, and the control that mattered
+
+`check_art.py` is now eight checks. The new ones are **landmarks** (brightest pixel
+against the 99th percentile of lit ones) and a rewritten **uniformity**.
+
+Uniformity's control is now the sheet's own blobs, lifted off it by connected-component
+labelling and re-scattered at uniform random: identical elements, known-random placement.
+Two earlier controls were wrong and both are recorded in the docstring, because each
+looked right:
+
+- a **binomial over pixels** assumed pixels were independent. They arrive in elements tens
+  of pixels across. It survived only while placement was a grid, and failed snow-near at
+  12.1× for doing the right thing once placement went Poisson.
+- a **32px block shuffle** was worse: it is *inert*. Shuffling preserves the distribution
+  of block densities, so a sheet with a quarter wiped out shuffles into a sheet with a
+  quarter of its blocks empty. It passed a deliberately bald quadrant, which is the one
+  defect the check exists to catch.
+
+The statistic matters as much as the control. Overall coverage spread is dominated by
+where the few largest elements landed, so the hole test is one-sided on the **emptiest
+128px cell**; at 64px cells a wiped quadrant does not separate from clean art at all.
+
+Positive controls, all three passing: old art fails landmarks 1.94-2.18× against a 1.5
+threshold (new art ~1.15-1.25); a wiped quadrant fails the hole test on all five sheets,
+as does a hole of a single 128px cell; the shipping sheets are clean. 292 tests pass,
+worst element 9.9% of the frame against the 12% ceiling.
+
+### Open
+
+- **Not yet seen in-client.** New TGAs need a **full client restart**, not `/reload` — WoW
+  reads the addon file list once at startup.
+- Near snow is still `ADD`. One report wants it BLEND; left alone until the above is
+  judged on screen.
+- A **fourth precipitation layer** at irrational tile-period and wrap-rate ratios
+  (1:√2:√3:φ²) pushes the near-recurrence to ~8,200 base wraps, a sixfold gain over three
+  layers. Only if the 4 Nov date holds.
+
 ## 2026-10-20 — The presets no longer darken a world that is already dark
 
 Gallery shoot on the beta client, Goldshire at night. **Every preset came back at median

@@ -9,21 +9,34 @@ The model, and why snow is not slow rain:
 
 A raindrop is a sphere acting as a lens, and at any ordinary shutter it smears
 into a streak, which is why the rain sheets are streaks. A snow crystal is a
-flat, low-density aggregate perhaps a hundred times lighter for its area. It
-falls at roughly 1 m/s rather than 9, and it tumbles. So over one frame it
-barely moves, and it reads as a soft blob rather than a line. Drawing snow as
-short rain is the single most common way fake snow gives itself away.
+flat, low-density aggregate perhaps a hundred times lighter for its area.
+Locatelli and Hobbs measured natural solid particles falling at roughly 0.3 to
+1.5 m/s against a raindrop's 9, and with a startlingly weak dependence on size:
+for unrimed dendritic aggregates V = 0.80*D^0.16, so a 10mm aggregate falls
+only 30% faster than a 2mm one. So a flake barely moves over one frame, and it
+reads as a soft blob rather than a line. Drawing snow as short rain is the
+single most common way fake snow gives itself away.
 
 Three things follow, and all three are in here:
 
 - Flakes are round, with a soft edge, because they are mostly out of focus. The
-  far layer is pure Gaussian; only the near layer resolves any structure.
-- The near layer gets a faint six-fold modulation. Real aggregates are not
-  tidy hexagons, so this is weak and randomly phased - it is there to break the
-  perfect circle, not to draw a snowflake icon.
+  far layer is pure Gaussian; only the largest near flakes resolve any
+  structure.
+- A faint six-fold modulation, on the biggest near flakes only. Nakaya's
+  morphology diagrams and the 80 categories of the Magono-Lee scheme describe a
+  population far wider than the textbook stellar dendrite, and most of what
+  reaches the ground is irregular AGGREGATES rather than single crystals.
+  Below a few pixels across none of it survives anyway. So this is weak,
+  randomly phased, and rare - it is there to break the perfect circle on the
+  handful of flakes big enough to show one, not to draw a snowflake icon.
 - Elongation comes from wind, not from gravity. In still snow it is almost
   nothing. In a blizzard the horizontal wind dominates the fall speed entirely,
-  so the streaks lie close to flat, and that is what the blizzard sheet is.
+  so the streaks lie close to flat, and that is what the gale sheet is.
+
+The POPULATION the flakes are drawn from is in precip.py, and matters more than
+the drawing does. The snow sheets are where that mattered most: they were a
+jittered grid of near-identical discs, which is a lattice, which is why they
+read as a starfield. See that file's docstring.
 
 WoW addon art must be power-of-two and, for TGA, 32-bit uncompressed. Flakes
 wrap in both axes so the sheets tile without a seam.
@@ -36,10 +49,27 @@ import sys
 import numpy as np
 from PIL import Image
 
+from precip import power_law, lognormal, cox_field, poisson_centres, stamp
+
 SIZE = 512
 
+# p(sigma) proportional to sigma^-EXP_SIZE. For a field of one physical size,
+# projection gives exactly -4; real flakes span 1 to 6mm and more, which
+# flattens it. 3.2 is the compromise. The consequence is the point: the median
+# flake sits near the bottom of its range and the top of the range is a thin
+# tail, so a sheet has a great many almost invisible flakes, a few obvious
+# ones, and a handful of big soft close ones - instead of 800 discs all the
+# same size, which is what a starfield is.
+EXP_SIZE = 3.2
 
-def make_flake(sigma, elong, angle, hex_strength, hex_phase, rng):
+# Only flakes in the top HEX_TOP of the size distribution get the six-fold
+# modulation, and only on the near sheet. Anything smaller is a couple of
+# pixels across and the structure is invisible; putting it on everything was
+# spending detail where it could not be seen and making the flakes more alike.
+HEX_TOP = 0.90
+
+
+def make_flake(sigma, elong, angle, hex_strength, hex_phase):
     """One flake, as a float alpha array.
 
     sigma is the across-wind radius in pixels, elong how many times longer it
@@ -75,48 +105,71 @@ def make_flake(sigma, elong, angle, hex_strength, hex_phase, rng):
     return (core / peak if peak > 0 else core).astype(np.float32)
 
 
-def scatter(count, sigma_lo, sigma_hi, a_lo, a_hi, seed,
-            elong=1.0, elong_jitter=0.0, angle=0.0, angle_jitter=0.0,
-            hex_strength=0.0):
+def scatter(count, sig_lo, sig_hi, a_med, a_sig, a_lo, a_hi, seed,
+            elong=1.0, elong_sig=0.0, angle=0.0, angle_sd=0.0,
+            hex_strength=0.0, gust=None, thin=None):
     """Strew flakes over a sheet that wraps in both axes.
 
-    Placement is a jittered grid, not uniform random. With only a couple of
-    hundred flakes, uniform random reliably leaves bald patches and clumps, and
-    a 512px sheet that tiles across the screen repeats any such blotch four or
-    five times where it is impossible to unsee. One flake per cell at a random
-    offset inside it keeps the spacing irregular without ever leaving a hole.
+    Placement is independent and uniform. It used to be a jittered grid, one
+    flake per cell, which guaranteed no bald patches - and in doing so deleted
+    every close pair and every hole, which is what real snow is made of and
+    what stops it looking like a pattern. See precip.poisson_centres.
+
+    `gust`, on the gale sheet only, is (sigma, along, across): a log-Gaussian
+    Cox field that makes the placement intensity vary smoothly across the
+    sheet, so blowing snow comes in patches rather than at one flat density.
+
+    `thin`, when given, also returns a second sheet holding each flake with
+    that probability. The choice comes from its own generator, so the full
+    sheet is bit-identical with or without it, and thinning a Poisson field
+    leaves a Poisson field: light snow is the same snowfall with fewer flakes
+    in it, not the same flakes drawn fainter.
     """
     rng = np.random.default_rng(seed)
     sheet = np.zeros((SIZE, SIZE), dtype=np.float32)
 
-    cells = int(math.ceil(math.sqrt(count)))
-    step = SIZE / cells
-    slots = [(i, j) for i in range(cells) for j in range(cells)]
-    rng.shuffle(slots)
-    slots = slots[:count]
+    sigmas = power_law(rng, count, sig_lo, sig_hi, EXP_SIZE)
 
-    for ci, cj in slots:
-        f = make_flake(
-            sigma=float(rng.uniform(sigma_lo, sigma_hi)),
-            elong=max(1.0, elong + rng.uniform(-elong_jitter, elong_jitter)),
-            angle=angle + rng.uniform(-angle_jitter, angle_jitter),
-            hex_strength=hex_strength * float(rng.uniform(0.4, 1.0)),
-            hex_phase=float(rng.uniform(0, math.pi)),
-            rng=rng,
-        ) * float(rng.uniform(a_lo, a_hi))
+    # Brightness rises with size, because a bigger flake puts more ice in the
+    # path, but only as a power of 0.8 and with a wide lognormal on top. The
+    # exponent is what keeps big flakes from also being the faint ones; the
+    # lognormal is what stops every flake of a given size being identical.
+    scale = (sigmas / sig_lo) ** 0.8
+    alphas = np.clip(lognormal(rng, count, a_med, a_sig, 0.0, 1e9) * scale,
+                     a_lo, a_hi)
 
-        # One flake in ten is a clump of several crystals and reads brighter.
-        if rng.random() < 0.10:
-            f = np.clip(f * 1.8, 0.0, 1.0)
+    # Elongation is lognormal too. On the gale sheet this is the whole fix for
+    # the "one motion-blur command" look: the old sheet drew every streak at
+    # 5.0 +/- 2.0 uniform, a coefficient of variation of 0.23, so they really
+    # were all the same length. A lognormal at sigma 0.5 gives a CV above 0.5,
+    # which is what a depth-generated length distribution looks like.
+    elongs = (np.maximum(1.0, lognormal(rng, count, elong, elong_sig,
+                                        1.0, elong * 5.0))
+              if elong_sig > 0 else np.full(count, elong))
 
-        fh, fw = f.shape
-        cy = int((ci + rng.random()) * step) % SIZE
-        cx = int((cj + rng.random()) * step) % SIZE
-        ys = (cy + np.arange(fh)) % SIZE
-        xs = (cx + np.arange(fw)) % SIZE
-        idx = np.ix_(ys, xs)
-        sheet[idx] = np.maximum(sheet[idx], f)
-    return sheet
+    # Angle spread is Gaussian, not a uniform cone. A coherent mean wind with
+    # turbulence around it is a few degrees of scatter; 20 degrees of uniform
+    # jitter is a shower of confetti going in all directions.
+    angles = angle + rng.standard_normal(count) * angle_sd
+
+    intensity = cox_field(rng, SIZE, gust[0], gust[1], gust[2], angle) \
+        if gust else None
+    ys, xs = poisson_centres(rng, count, SIZE, intensity)
+
+    thinned = np.zeros_like(sheet) if thin else None
+    keep = np.random.default_rng(seed + 7919).random(count) < thin if thin else None
+
+    big = np.quantile(sigmas, HEX_TOP)
+    for i in range(count):
+        hexs = (hex_strength * float(rng.uniform(0.4, 1.0))
+                if hex_strength > 0 and sigmas[i] >= big else 0.0)
+        f = make_flake(sigma=float(sigmas[i]), elong=float(elongs[i]),
+                       angle=float(angles[i]), hex_strength=hexs,
+                       hex_phase=float(rng.uniform(0, math.pi))) * alphas[i]
+        stamp(sheet, f, ys[i], xs[i])
+        if thin and keep[i]:
+            stamp(thinned, f, ys[i], xs[i])
+    return (sheet, thinned) if thin else sheet
 
 
 def to_tga(alpha, path, tint):
@@ -132,40 +185,78 @@ def main():
 
     # Sheet pixels are not screen pixels, and sigma is not the flake either: a
     # flake's visible diameter is about 3*sigma, and the Lua then magnifies the
-    # whole sheet by H/(tilesY*density*512). At the heavy preset that is x1.71,
-    # so a sigma of 6.2 arrives on screen as a 32px ball of light. Every number
-    # below has to be read through both factors before it means anything.
+    # whole sheet by H/(tilesY*tiling*512) with tiling 1.20 for snow. On 1080p
+    # that is 0.59 screen px per far-sheet px and 1.17 per near-sheet px.
     #
-    # These used to be far 900 @ 1.1-2.3, near 210 @ 2.6-6.2, gale 300 @
-    # 1.5-3.2 elong 7.0. Because density is inverted (light 1.20, blizzard
-    # 0.66), that made the flakes grow as the snow got heavier: heavy snow was
-    # 565 fat blobs where light snow was 1210 small ones. Heavier weather has
-    # to mean more flakes, not bigger ones, so the sheets are now finer and far
-    # more populous and the magnification has something to magnify.
+    # Sigma ranges are now the bounds of a power law, not a uniform band, so
+    # the median sits near the bottom of each and the top is a thin tail. On
+    # the near sheet the median flake arrives about 2.4 screen px across, the
+    # 90th percentile about 5, and under 1% exceed 20.
+    #
+    # The history: far 900 @ 1.1-2.3, near 210 @ 2.6-6.2, gale 300 @ 1.5-3.2
+    # elong 7.0, which grew as the snow got heavier because tiling was
+    # per-intensity and inverted. Then far 1500 @ 0.9-1.9, near 800 @ 1.3-3.0,
+    # gale 900 @ 0.9-1.9 elong 5.0, which was the right SIZE and still read as
+    # a starfield, because the sizes were uniform over a factor of 2, the
+    # brightnesses uniform over a factor of 2.7, one flake in ten was a bright
+    # landmark, and all of them sat on a grid.
 
     # far: a haze of tiny out-of-focus flakes, the depth of the fall
-    far = scatter(1500, 0.9, 1.9, 0.05, 0.15, seed=101,
-                  elong=1.15, elong_jitter=0.2, angle=0.0, angle_jitter=0.35)
+    far = scatter(2200, 0.50, 2.60, a_med=0.077, a_sig=0.62,
+                  a_lo=0.010, a_hi=0.26, seed=101,
+                  elong=1.15, elong_sig=0.18, angle=0.0, angle_sd=0.18)
 
-    # near: larger and resolved enough to show an edge, but still a flake and
-    # not a snowball - about 7-20px on screen across the intensity range.
-    near = scatter(800, 1.3, 3.0, 0.12, 0.32, seed=207,
-                   elong=1.3, elong_jitter=0.35, angle=0.0, angle_jitter=0.45,
-                   hex_strength=0.07)
+    # near: the layer that carries the character of the snowfall. A few large
+    # soft flakes close to the camera, a great many small ones behind them.
+    #
+    # Light snow draws near-light, the same sheet with about half its flakes.
+    # Intensity used to be layer alpha alone, and on this sheet alpha is not a
+    # count control: 87% of its flakes are already visible at light's alpha,
+    # so normal drew 12% more flakes at twice the brightness and light and
+    # normal looked the same, 2026-10-23. A light snowfall is fewer flakes,
+    # each as bright as ever.
+    near, near_light = scatter(900, 1.00, 7.00, a_med=0.111, a_sig=0.70,
+                               a_lo=0.012, a_hi=0.40, seed=207,
+                               elong=1.3, elong_sig=0.30, angle=0.0,
+                               angle_sd=0.24, hex_strength=0.07, thin=0.45)
 
-    # blizzard: the wind beats gravity, so the streaks lie close to flat. 78
-    # degrees off vertical, not 90, because a perfectly horizontal field looks
-    # like a screen wipe rather than weather. Elongation is 5.0, not 7.0: at
-    # 7.0 the longest streak reached 205px on a 1080p screen, 19% of the frame
-    # height, and read as scratches on glass rather than as driven snow.
-    gale = math.radians(78)
-    bliz = scatter(900, 0.9, 1.9, 0.07, 0.24, seed=313,
-                   elong=5.0, elong_jitter=2.0, angle=gale, angle_jitter=0.12)
+    # Heavy draws near-heavy, the same sheet with 2.2x the flakes, for the
+    # same reason from the other side: heavy and normal showed the same
+    # flakes, heavy's brighter (tools/perceive.py). The extra flakes come from
+    # their own seed, so the near sheet itself is unchanged. Overlapping
+    # flakes merge, so 2.2x drawn is about 1.4-1.7x seen.
+    near_heavy = np.maximum(near, scatter(1080, 1.00, 7.00, a_med=0.111,
+                                          a_sig=0.70, a_lo=0.012, a_hi=0.40,
+                                          seed=211, elong=1.3, elong_sig=0.30,
+                                          angle=0.0, angle_sd=0.24,
+                                          hex_strength=0.07))
+
+    # gale: the wind beats gravity, so the streaks lie close to flat. 85
+    # degrees off vertical, which is what ComfyRain.lua's blizzard slant of
+    # 11.4301 = tan(85) scrolls at: the sheet and its travel have to point
+    # the same way or it reads as a filter applied to the screen. The angle is
+    # atan(wind / fall speed), and a flake settling at 0.9 m/s is already at 85
+    # in the 10 m/s that defines a blizzard; 78 needs only 4.2 m/s, which is a
+    # breezy flurry. Stopping short of 90 still matters - a perfectly
+    # horizontal field looks like a screen wipe rather than weather.
+    #
+    # The gust field is what makes this a blizzard rather than a hatch
+    # pattern: blowing snow is suspended by turbulence and measured
+    # concentrations vary strongly from place to place, so the density here
+    # varies smoothly, stretched 150px along the wind against 55px across it.
+    gale = math.radians(85)
+    bliz = scatter(1600, 0.55, 2.30, a_med=0.118, a_sig=0.68,
+                   a_lo=0.010, a_hi=0.32, seed=313,
+                   elong=4.2, elong_sig=0.50, angle=gale, angle_sd=0.13,
+                   gust=(0.45, 150.0, 55.0))
 
     to_tga(far, f"{out}/snow-far.tga", (0.92, 0.95, 1.00))
     to_tga(near, f"{out}/snow-near.tga", (0.97, 0.98, 1.00))
+    to_tga(near_light, f"{out}/snow-near-light.tga", (0.97, 0.98, 1.00))
+    to_tga(near_heavy, f"{out}/snow-near-heavy.tga", (0.97, 0.98, 1.00))
     to_tga(bliz, f"{out}/snow-gale.tga", (0.95, 0.97, 1.00))
-    print(f"wrote snow-far.tga, snow-near.tga and snow-gale.tga "
+    print(f"wrote snow-far.tga, snow-near.tga, snow-near-light.tga, "
+          f"snow-near-heavy.tga and snow-gale.tga "
           f"({SIZE}x{SIZE} 32-bit TGA), flakes rasterised from the model "
           f"- no Blizzard art")
 

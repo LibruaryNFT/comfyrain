@@ -88,6 +88,34 @@ it("falls back to the bundled loop if the client will not play Blizzard's", func
 	ok(#w.mock.printedMatching("bundled") > 0, "and said so once")
 end)
 
+it("waits out a muted game instead of switching to the bundled loop", function()
+	-- A live retail client, 2026-10-23: Sound_EnableAllSound was 0, every clip
+	-- was refused, and the status said "(bundled audio)". The refusal was the
+	-- mute, not a missing file, and the bundled switch lasted until /reload,
+	-- taking the under-layer with it. The spec above is the control: there only
+	-- the FileDataIDs fail, and the switch is right.
+	local w = H.world({ loaded = false })
+	w.mock.cvars.Sound_EnableAllSound = "0"
+	w.mock.canPlaySound = function() return w.mock.cvars.Sound_EnableAllSound ~= "0" end
+	w:load()
+	w:advance(2)
+	ok(#playsOf(w.mock) > 0, "it did try to play")
+	eq(#w.mock.printedMatching("bundled"), 0, "no switch to the bundled loop")
+	w:slash("status")
+	ok(#w.mock.printedMatching("sound is switched off") > 0, "status names the mute")
+
+	-- Ctrl-S again. The bed comes back by itself, as Blizzard's loop.
+	w.mock.cvars.Sound_EnableAllSound = "1"
+	local before = #w.mock.sounds
+	w:advance(70, 0.25)
+	local back = false
+	for _, s in ipairs(playsOf(w.mock, before)) do
+		if s.ok ~= false and type(s.file) == "number" then back = true end
+	end
+	ok(back, "Blizzard's loop plays once the sound is back on")
+	eq(#w.mock.printedMatching("bundled"), 0, "and it never switched")
+end)
+
 it("stops everything when sound is turned off, and resumes on", function()
 	local w = H.world()
 	w:advance(1)

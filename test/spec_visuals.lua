@@ -170,16 +170,21 @@ end)
 it("derives horizontal tiling from the real aspect ratio", function()
 	-- The author plays on 21:9. A sheet tiled by a fixed count would stretch
 	-- every drop sideways on his monitor and look correct on nobody else's.
+	--
+	-- Stated as a ratio rather than against a literal tile count: the claim is
+	-- that tilesX is tilesY times the aspect, and pinning the absolute number
+	-- here only made this spec fail every time the tiling was retuned for
+	-- reasons that had nothing to do with aspect.
 	local wide = H.world({ width = 3440, height = 1440 })
 	wide:advance(0.1)
 	local c = wide:layers().far.texCoord
-	near(c[2] - c[1], 3.0 * (3440 / 1440), 1e-6, "far tilesX at 21:9")
-	near(c[4] - c[3], 3.0, 1e-9, "far tilesY is fixed")
+	near((c[2] - c[1]) / (c[4] - c[3]), 3440 / 1440, 1e-6, "far tilesX at 21:9")
 
 	local narrow = H.world({ width = 1920, height = 1080 })
 	narrow:advance(0.1)
 	local n = narrow:layers().far.texCoord
-	near(n[2] - n[1], 3.0 * (1920 / 1080), 1e-6, "far tilesX at 16:9")
+	near((n[2] - n[1]) / (n[4] - n[3]), 1920 / 1080, 1e-6, "far tilesX at 16:9")
+	near(n[4] - n[3], c[4] - c[3], 1e-9, "and tilesY does not move with the monitor")
 end)
 
 it("keeps drops the same shape from 4:3 to 32:9", function()
@@ -250,13 +255,21 @@ end)
 it("sweeps the curtain sideways when the camera turns", function()
 	-- Yaw parallax is the single biggest tell that a sheet is 2D. Without it
 	-- the rain slides at one fixed rate no matter where the player looks.
-	local w = H.world()
-	w:advance(0.5)
-	local still = w:layers().far.texCoord[1]
-	w.mock.state.facing = 1.2
-	w:advance(0.5)
-	local turned = w:layers().far.texCoord[1]
-	ok(math.abs(((turned - still) % 1)) > 0.01, "the sheet moved with the camera")
+	--
+	-- Measured against a twin world that does not turn. Comparing one world
+	-- before and after the turn also counts the slant drift in between, and
+	-- at some fall speeds that drift lands within 0.01 of a whole sheet and
+	-- hides the turn completely. Both worlds start from the same seed, so
+	-- the camera is the only thing that differs between them.
+	local function farX(turn)
+		local w = H.world()
+		w:advance(0.5)
+		if turn then w.mock.state.facing = 1.2 end
+		w:advance(0.5)
+		return w:layers().far.texCoord[1]
+	end
+	local d = (farX(true) - farX(false)) % 1
+	ok(math.min(d, 1 - d) > 0.01, "the sheet moved with the camera")
 end)
 
 it("fades the bottom of the rain layers but not the mist", function()

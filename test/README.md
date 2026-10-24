@@ -95,6 +95,32 @@ Rules for them:
 | A seeded 400-step random walk | Order-dependent bugs. This is what found `/comfy time 1e400` putting a nan in `timeFixed`, via `inf % 24` |
 | Help coverage | Every command the dispatcher accepts is named in the help, or listed as deliberately unadvertised with a reason |
 
+## Can a player tell the settings apart?
+
+```
+python3 tools/perceive.py <dir with the built art>
+```
+
+Every assertion above asks whether the addon sent the renderer the numbers it
+meant to. Light snow sent different numbers from normal for weeks and looked
+the same in game, and so did heavy rain, monsoon and heavy snow, each drawing
+its lighter neighbour's flakes brighter. No spec could see it, because the
+numbers were right.
+
+`dump_scenes.lua` types every choice the window offers into a fresh world and
+prints what it would draw and play. `perceive.py` renders each one with the
+real art over a dark ground and a snowfield and fails any pair a player could
+not tell apart: an intensity step has to be at least 1.35x the flakes or 1.30x
+the speed, any other choice a colour difference of 5 dE or a different sound,
+and a volume change 3 dB. It runs two negative controls first and stops if
+either passes: light snow as it shipped, and one sound against itself 1.6 dB
+louder.
+
+`spec_perceive.lua`, in the suite, closes the other half: each control in the
+window, clicked, has to land exactly where typing its command does, and
+somewhere other than where it started. Together the two mean every click in
+the window is a change a player can see or hear.
+
 ## What it cannot answer
 
 Everything in `## Open / unverified` in `RESUME.md`. The mock asserts the

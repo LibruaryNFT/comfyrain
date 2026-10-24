@@ -35,15 +35,14 @@ local function screenTravel(w, key, seconds, step)
 	return total
 end
 
-it("falls at the speed the preset says, whatever its density is", function()
+it("falls at the speed the preset says, and nothing else", function()
 	-- The bug: offsets are texture coordinates and a denser preset tiles the
 	-- sheet more times, so for years a fixed texture-space step moved the image
 	-- less of a screen. Fall speed was silently divided by density, and `speed`
 	-- meant 0.59x to 2.76x what it said depending on which preset read it.
 	--
 	-- This is the spec that would have caught it: the ratio of two presets'
-	-- travel must be the ratio of the two numbers a reader sees in the source,
-	-- and the densities deliberately differ between them.
+	-- travel must be the ratio of the two numbers a reader sees in the source.
 	local function travelOf(intensity)
 		local w = H.world()
 		w:slash("gust 0")
@@ -54,11 +53,39 @@ it("falls at the speed the preset says, whatever its density is", function()
 	local light = travelOf("light")
 	local heavy, w = travelOf("heavy")
 	local presets = w.env.ComfyRainAPI.Weather.rain.presets
-	ok(presets.light.density ~= presets.heavy.density, "the two densities differ")
 
 	local want = presets.heavy.speed / presets.light.speed
 	near(heavy / light, want, 0.02,
 		"heavy falls faster than light by exactly the ratio of their speeds")
+end)
+
+it("does not magnify the sheet when the weather gets heavier", function()
+	-- Issue #11. Copies on screen go as tilesY squared, so a per-intensity
+	-- tiling multiplier below 1 did not merely enlarge the drops, it thinned
+	-- them out quadratically: monsoon drew 511 near streaks where light rain
+	-- drew 2770, each nearly twice as long. Heavy rain is a MORE crowded field
+	-- of ordinary drops, not a sparser field of big ones - Marshall-Palmer puts
+	-- roughly 32 visible drops per cubic metre at 1 mm/h against 477 at 25.
+	--
+	-- Asserted on the drawn tex coords rather than on the table, so moving the
+	-- number somewhere else cannot quietly bring the inversion back.
+	for _, weather in ipairs({ "rain", "snow" }) do
+		local sizes = {}
+		local w = H.world()
+		w:slash("gust 0")
+		w:slash("zoom off")        -- zoom is allowed to change tiling; this is not
+		w:slash(weather)
+		for _, intensity in ipairs(w.env.ComfyRainAPI.Weather[weather].order) do
+			w:slash(intensity)
+			w:advance(0.05, 0.05)
+			local c = w:layers().far.texCoord
+			sizes[#sizes + 1] = c[4] - c[3]
+		end
+		for i = 2, #sizes do
+			near(sizes[i], sizes[1], 0.0001,
+				weather .. ": every intensity tiles the sheet the same")
+		end
+	end
 end)
 
 it("doubling the speed slider doubles the fall, and nothing else moves", function()
