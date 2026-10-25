@@ -79,8 +79,11 @@ about two thirds done). Both say **do not rename before 4 Nov**. What was checke
   control strings `GetGameTime`, `SetCVar`, `GetCVar` all hit. Report 2's two "gamma
   addons" are DayNight (136 downloads, 2015, used `SetGamma`, fullscreen only) and
   Nightlight (674, 2020). Neither proves anything on Forever.
-- **In game, 2026-10-24, Forever client: `SetCVar("Gamma", x)` from `/run` works.** `/run`
-  is the same insecure Lua an addon runs. Default and current value both read 1. One
+- **In game, 2026-10-24, on the Retail client (12.1.5, the only WoW process running at
+  20:08; Forever last ran 10-21): `SetCVar("Gamma", x)` from `/run` works.** `/run` is the
+  same insecure Lua an addon runs. Not yet repeated on Forever, though its binary carries
+  the same CVar. `Screenshot()` from `/run` saved nothing on Retail (no Screenshots folder
+  created), so captures use GNOME's Shift+Print instead. Default and current value both read 1. One
   command set 0.4, then 2.4 after 4 s, then 1 after 8 s via `C_Timer.After`; it printed
   `dark 0.4`, `bright 2.4`, `back 1`, so writes are accepted and not protected. 0.4
   **visibly darkened the world** (seen by the developer). Still unconfirmed: whether 2.4
