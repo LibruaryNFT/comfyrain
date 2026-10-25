@@ -78,10 +78,17 @@ about two thirds done). Both say **do not rename before 4 Nov**. What was checke
   correction. Range: [0.3 - 2.8]", `Brightness`, `Contrast`, and `SetDeviceGammaRamp()`;
   control strings `GetGameTime`, `SetCVar`, `GetCVar` all hit. Report 2's two "gamma
   addons" are DayNight (136 downloads, 2015, used `SetGamma`, fullscreen only) and
-  Nightlight (674, 2020). Neither proves anything on Forever. Untested in game: whether
-  `SetCVar("Gamma", x)` works from an addon, whether it also dims the UI, whether it writes
-  to Config.wtf. This is the only route that could brighten, so it gets tested before any
-  Time of Day copy promises more than darkening.
+  Nightlight (674, 2020). Neither proves anything on Forever.
+- **In game, 2026-10-24, Forever client: `SetCVar("Gamma", x)` from `/run` works.** `/run`
+  is the same insecure Lua an addon runs. Default and current value both read 1. One
+  command set 0.4, then 2.4 after 4 s, then 1 after 8 s via `C_Timer.After`; it printed
+  `dark 0.4`, `bright 2.4`, `back 1`, so writes are accepted and not protected. 0.4
+  **visibly darkened the world** (seen by the developer). Still unconfirmed: whether 2.4
+  visibly brightened, whether the UI changes with it, and whether the value persists to
+  Config.wtf (it matters: an addon that crashes or is removed mid-grade would leave the
+  player's gamma changed, the same failure DayNight documented). Gamma is the only route
+  that could brighten, so Time of Day copy promises nothing beyond darkening until the
+  bright half is seen.
 - **Time of Day already has a Forever competitor.** Cinematic (SapoAC, 8.6K downloads,
   updated 2026-10-23, Forever listed) does a time-of-day tint "from moonlit blue to dawn pink
   to golden hour" on game time or a custom clock. Weather (keyboardturner, 2.9K, Forever)
