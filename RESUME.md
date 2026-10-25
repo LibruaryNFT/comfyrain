@@ -82,16 +82,31 @@ about two thirds done). Both say **do not rename before 4 Nov**. What was checke
 - **In game, 2026-10-24, on the Retail client (12.1.5, the only WoW process running at
   20:08; Forever last ran 10-21): `SetCVar("Gamma", x)` from `/run` works.** `/run` is the
   same insecure Lua an addon runs. Not yet repeated on Forever, though its binary carries
-  the same CVar. `Screenshot()` from `/run` saved nothing on Retail (no Screenshots folder
-  created), so captures use GNOME's Shift+Print instead. Default and current value both read 1. One
+  the same CVar. Default and current value both read 1. One
   command set 0.4, then 2.4 after 4 s, then 1 after 8 s via `C_Timer.After`; it printed
   `dark 0.4`, `bright 2.4`, `back 1`, so writes are accepted and not protected. 0.4
-  **visibly darkened the world** (seen by the developer). Still unconfirmed: whether 2.4
-  visibly brightened, whether the UI changes with it, and whether the value persists to
-  Config.wtf (it matters: an addon that crashes or is removed mid-grade would leave the
-  player's gamma changed, the same failure DayNight documented). Gamma is the only route
-  that could brighten, so Time of Day copy promises nothing beyond darkening until the
-  bright half is seen.
+  **visibly darkened the world** (seen by the developer).
+- **Gamma brightens night into something like overcast day, and the UI moves with it.**
+  Three in-game screenshots, Stormwind Trade District at night in game rain, 20:11
+  (`_retail_/Screenshots/WoWScrnShot_102426_2011{07,11,16}.jpg`). The game's own
+  screenshot captures gamma, so it is applied in the render, not a hardware ramp. Mean
+  luma, 0 to 255, measured with ffmpeg signalstats:
+
+  | Gamma | Sky | Street | Action bar |
+  |---|---|---|---|
+  | 1.0 | 78 | 51 | 54 |
+  | 0.4 | 17 | 6 | 14 |
+  | 2.4 | 155 | 131 | 119 |
+
+  Street 51 to 131 is the brightening the overlay cannot do (its lift is capped at 0.13,
+  about 33 levels, with no contrast). At 2.4 the sky reads pale overcast, buildings fully
+  lit, colours washed; stars and the night sky texture are still there underneath. The
+  action bar and minimap brighten too, so a gamma grade is a whole-screen change, and it
+  is the player's own System setting. Still open: whether the value persists to
+  Config.wtf (an addon that is removed or errors mid-grade would leave the player's gamma
+  changed, the failure DayNight documented), whether it holds on Forever, and whether a
+  per-minute write causes a visible step. `Screenshot()` from `/run` saved nothing, but
+  the bound key does (Shift+Print reached the game, not GNOME).
 - **Time of Day already has a Forever competitor.** Cinematic (SapoAC, 8.6K downloads,
   updated 2026-10-23, Forever listed) does a time-of-day tint "from moonlit blue to dawn pink
   to golden hour" on game time or a custom clock. Weather (keyboardturner, 2.9K, Forever)
