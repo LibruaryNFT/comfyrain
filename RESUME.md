@@ -42,6 +42,83 @@ geometry by `build/make_icon_tga.py`, which also writes `docs/logo.png` and the 
 behind it, which showed dark corners outside the minimap ring, is now a round texture.
 Uploaded as the CurseForge avatar 2026-10-24 (item 6). The in-game icon needs a full client restart to show, not `/reload`.
 
+## 2026-10-24 — Should it be Comfy Rain at all? A research prompt, and what the day/night ask really is
+
+"the big ask everyone wants is actually the day night stuff... does it make any sense to
+rebrand the addon and rename it... dont want to pigeon hole ourselves into just rain".
+Prompt: `docs/rebrand-research-prompt.md`. Nothing renamed; that waits on the reports.
+
+What the demand turned out to be, read 2026-10-24:
+
+| Source | Score | What it asks for | Can a screen grade do it |
+|---|---|---|---|
+| r/wowforever 1x8tnda "Skyboxes" (seen 10-18) | ~516 up | better sky **art**: Retail skyboxes, volumetric clouds | no, no skybox API |
+| Blizzard forums, OCE "perpetual midnight" (09-28) | 71 likes | daylight in Australian evenings, or a client toggle | barely: brightening, lift capped 0.13 |
+| forever-bugs #424 (10-22, open) | 10 thumbs-up | per-region clock, shorter cycle, or client offset | same, brightening |
+
+- **The loudest clock ask is the direction the renderer is weakest at.** What it does well
+  (hold dusk or night, darken to a later clock) matches the "mood" want, which nobody above
+  measured. The prompt makes the researcher size that separately.
+- Reddit blocks both curl (403) and WebFetch here; the Reddit score is from the thread as
+  pasted on 10-18, not re-read.
+- The two earlier rename rationales contradict each other on whether the CurseForge title
+  carries search (Duskfall: no, the subtitle does; Comfy Rain: yes). The prompt asks for a
+  positive-control test of what CurseForge, its app and WowUp index.
+
+Reports in: `docs/rebrand-research-report-1.md` (full) and `-report-2.md` (a progress note,
+about two thirds done). Both say **do not rename before 4 Nov**. What was checked here,
+2026-10-24:
+
+- **CurseForge website search indexes the summary, not the description.** Two positive
+  controls: "weather sounds" returns Comfy Rain (words only in its summary), "accessory
+  reminders" returns keyboardturner's Weather (words only in its summary). "stranglethorn",
+  only in our description, does not return us. So the summary is where Time of Day has to be
+  named. App and API search not tested.
+- **Forever has a `Gamma` CVar but no `SetGamma` function.** The binary holds "Gamma
+  correction. Range: [0.3 - 2.8]", `Brightness`, `Contrast`, and `SetDeviceGammaRamp()`;
+  control strings `GetGameTime`, `SetCVar`, `GetCVar` all hit. Report 2's two "gamma
+  addons" are DayNight (136 downloads, 2015, used `SetGamma`, fullscreen only) and
+  Nightlight (674, 2020). Neither proves anything on Forever.
+- **In game, 2026-10-24, on the Retail client (12.1.5, the only WoW process running at
+  20:08; Forever last ran 10-21): `SetCVar("Gamma", x)` from `/run` works.** `/run` is the
+  same insecure Lua an addon runs. Not yet repeated on Forever, though its binary carries
+  the same CVar. Default and current value both read 1. One
+  command set 0.4, then 2.4 after 4 s, then 1 after 8 s via `C_Timer.After`; it printed
+  `dark 0.4`, `bright 2.4`, `back 1`, so writes are accepted and not protected. 0.4
+  **visibly darkened the world** (seen by the developer).
+- **Gamma brightens night into something like overcast day, and the UI moves with it.**
+  Three in-game screenshots, Stormwind Trade District at night in game rain, 20:11
+  (`_retail_/Screenshots/WoWScrnShot_102426_2011{07,11,16}.jpg`). The game's own
+  screenshot captures gamma, so it is applied in the render, not a hardware ramp. Mean
+  luma, 0 to 255, measured with ffmpeg signalstats:
+
+  | Gamma | Sky | Street | Action bar |
+  |---|---|---|---|
+  | 1.0 | 78 | 51 | 54 |
+  | 0.4 | 17 | 6 | 14 |
+  | 2.4 | 155 | 131 | 119 |
+
+  Street 51 to 131 is the brightening the overlay cannot do (its lift is capped at 0.13,
+  about 33 levels, with no contrast). At 2.4 the sky reads pale overcast, buildings fully
+  lit, colours washed; stars and the night sky texture are still there underneath. The
+  action bar and minimap brighten too, so a gamma grade is a whole-screen change, and it
+  is the player's own System setting. Still open: whether the value persists to
+  Config.wtf (an addon that is removed or errors mid-grade would leave the player's gamma
+  changed, the failure DayNight documented), whether it holds on Forever, and whether a
+  per-minute write causes a visible step. `Screenshot()` from `/run` saved nothing, but
+  the bound key does (Shift+Print reached the game, not GNOME).
+- **Time of Day already has a Forever competitor.** Cinematic (SapoAC, 8.6K downloads,
+  updated 2026-10-23, Forever listed) does a time-of-day tint "from moonlit blue to dawn pink
+  to golden hour" on game time or a custom clock. Weather (keyboardturner, 2.9K, Forever)
+  does indoor weather sounds and a rain tint. Two new Forever weather addons, both tiny:
+  Weather Forever Seasons (102 downloads, 10-21) and Azeroth Alive (19, Retail only, 10-20).
+- **Blizzard is adding weather.** Kaivax, 2026-09-23, "Increased Weather Effects", coming
+  to the beta (us.forums.blizzard.com thread 2359491).
+- **Not found:** report 2's lead number, an r/classicwow "Blizzard, Please Fix WoW's
+  Day/Night Cycle" at 1,024 votes. WebSearch finds that exact title only as a TikTok (65
+  likes). Its other Reddit scores (Snowy Weather 1.1K, 73, 17) are unchecked; Reddit blocks
+  both fetch routes here.
+
 ## 2026-10-23 — One addon for every flavour: the window adapts, Classic still unlisted
 
 "can we make one addon to work for all of them and change the ui for classic".
@@ -2339,9 +2416,11 @@ midnight at lunchtime. `/rain time local` grades the screen towards your own clo
 - **Day to night works; night to day barely does.** Darkening is a multiply and multiplies are
   free. Brightening needs ADD, which lifts the black level without restoring contrast, and the
   skybox keeps its stars and its absent sun regardless. The lift is capped at 0.13 so it never
-  turns the screen to milk. An Australian on a US realm wanting their evening is the good
-  direction; wanting daylight at realm-midnight is not, and that is a hard limit, not a tuning
-  problem.
+  turns the screen to milk. **Corrected 2026-10-24:** an Australian wanting their evening is
+  the bad direction, not the good one. forever-bugs #424 reports Oceanic layers on US Pacific
+  time in the 21 October stress test, so an Australian's 19:00 to 23:00 is realm 01:00 to
+  05:00, and their evening means brightening. The good direction is holding dusk or night
+  while the realm is in daylight. Night to day is a hard limit, not a tuning problem.
 - Measured grades: realm 13:00 showing 22:00 → dim (0.34, 0.40, 0.66); realm noon showing 19:00
   → dim (1.00, 0.74, 0.55); realm 22:00 showing 13:00 → dim unchanged, lift 0.130.
 
