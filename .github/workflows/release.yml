@@ -12,6 +12,9 @@ permissions:
 jobs:
   package:
     runs-on: ubuntu-latest
+    # A good run takes about a minute. Without this, a hung step sits for
+    # GitHub's 6-hour default, and on launch day that is the upload (#39).
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
         with:
@@ -27,9 +30,14 @@ jobs:
       # the workstation and absent from the runner image, so without this the
       # release dies on a tag with a bare FileNotFoundError - and it dies AFTER
       # the point where a half-built ComfyRain/ already exists.
+      #
+      # The Acquire options are for #39: on 2026-10-26 apt-get update hung with
+      # no output on 5 of 9 runs. A stalled mirror now times out and retries.
       - name: Install asset build dependencies
+        timeout-minutes: 5
         run: |
-          sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
+          sudo apt-get update -qq -o Acquire::Retries=3 -o Acquire::http::Timeout=30
+          sudo apt-get install -y -qq -o Acquire::Retries=3 ffmpeg
           python -m pip install --quiet numpy Pillow
 
       # The .tga and .ogg files are gitignored: they are deterministic outputs
