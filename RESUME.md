@@ -34,6 +34,10 @@ the rain indoors; needs `/reload` to pick up (no new files, so no client restart
    does not show the addon. Any tag pushed now is tagged both from the TOC. Proposed: a
    `v1.0.0-beta1` tag now, which also proves the CurseForge upload before launch day.
    Waiting on Justin's go, because it publishes.
+9. 2026-10-26: deep-research prompt for the launch plan, the audio roadmap and new
+   features in the same mood, `docs/next-steps-research-prompt.md` ("make the absolute
+   best addon we can"). It lists untested Blizzard rain soundscapes (coastal, plains,
+   forest storm), drips and tavern chatter by FileDataID; none is probed on a client yet.
 
 Icon: redrawn 2026-10-23 ("can we get a non-ai looking logo"), approved the same day
 ("flat drop is fine then"). One flat drop drawn from
