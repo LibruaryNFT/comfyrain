@@ -70,6 +70,47 @@ Our three live images are captioned with their filenames (`preview1.jpg`), which
 
 Fix the place names once the frames exist; the caption names where it was shot.
 
+## The clip: first gallery item, 30 seconds, with sound
+
+Added 2026-10-26. Both next-steps reports put a clip with sound first: the page has no
+proof of the audio, and the audio is what neither Weather nor Cinematic does. Cinematic's
+first gallery item is a YouTube video, so the clip goes to YouTube and its link goes in
+the Media tab as item 1. Shoot it on Retail now; Forever is not up until 4 Nov.
+
+**Recorder: OBS**, from Ubuntu's own archive (`obs-studio` 32.1.0, needs `sudo`). This
+is a Wayland session and GNOME's built-in recorder has no audio, so it cannot make this
+clip. In OBS: one *Screen Capture (PipeWire)* source (pick the WoW window), Desktop Audio
+on, Output 1920x1080, 60 fps, MKV. OBS writes to `~/Videos`; say the filename and the
+cut, fades and mp4 export are done with ffmpeg here.
+
+**Before recording:** game window at 1920x1080, UI hidden (Alt+Z), default gamma, game
+music off, ambience and effects up. Key bindings still work with the UI hidden, so put
+these five macros on action bar keys 1-5 and drive the clip from the keyboard:
+
+| Key | Macro |
+|---|---|
+| 1 | `/comfy off` |
+| 2 | `/comfy preset storm` |
+| 3 | `/comfy strike` |
+| 4 | `/comfy blizzard` |
+| 5 | `/comfy preset cozy` then `/comfy preset dusk` |
+
+**Shot list.** Record each shot as its own take; they get joined here.
+
+| Time | Shot | Keys |
+|---|---|---|
+| 0-4 s | A dry street in daylight, camera still. Only the game's own sound | 1 |
+| 4-12 s | Press 2: the storm comes in, rain and sound together. Slow pan. Press 3 for a thunderclap with its flash | 2, then 3 |
+| 12-18 s | Walk in through an inn door: the rain fades under the roof. Back out | - |
+| 18-24 s | A snowy zone, blizzard with gusts | 4 |
+| 24-30 s | Light rain at dusk, camera still. The end frame | 5 |
+
+A zone that never rains (Durotar, Westfall) makes 0-12 s stronger than Stormwind, if the
+character can get there.
+
+**Publish:** upload to YouTube, public, title "Comfy Rain: rain and snow anywhere in World
+of Warcraft". Then the YouTube link as the first item in the CurseForge Media tab.
+
 ## The shoot
 
 Nine frames. Numbers 1, 2 and 5 are the ones that do the work.
@@ -88,7 +129,7 @@ Nine frames. Numbers 1, 2 and 5 are the ones that do the work.
 
 ### Order in the gallery
 
-1, 2, 3, 5, 4, 7, 6. The menu goes last, per the pattern above. 8 and 9 are description
+The clip first, then 1, 2, 3, 5, 4, 7, 6. The menu goes last, per the pattern above. 8 and 9 are description
 inline images, not gallery slots.
 
 ## Shooting notes, so this does not have to be re-derived

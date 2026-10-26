@@ -26,7 +26,7 @@ comfy-rain
 ## Summary
 
 ```
-Makes it rain or snow anywhere in the game, with weather sounds, wind and thunder, all set from a settings panel or the minimap button.
+Cozy rain and snow anywhere, with Blizzard's own weather sounds, thunder, wind and a time-of-day colour grade. Rain ambience for questing, reading or AFK.
 ```
 
 ## Logo

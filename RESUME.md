@@ -19,8 +19,10 @@ the rain indoors; needs `/reload` to pick up (no new files, so no client restart
    probe screenshots and the gallery re-shoot (PR #19) are optional, not launch gates.
 4. #3 (does weatherDensity 0 stop the engine lightning) needs a real storm. It does not
    block launch.
-5. Tag `v1.0.0` from `main` on 4 November, then check the file landed on CurseForge.
-   The publish step has no CurseForge check of its own (only GitHub), so that check is by hand.
+5. Tag `v1.0.0` from `main` on **3 November** (moved from the 4th on 2026-10-26, report 2:
+   it clears CurseForge moderation before players log in at 23:00 UTC on the 4th). It
+   publishes, so it needs Justin's go on the day. Then check the file landed on CurseForge:
+   the publish step has no CurseForge check of its own (only GitHub), so that is by hand.
 6. Done 2026-10-24, all read back from the public page: the description has the "Which
    WoW" section (Forever and Retail, Classic not yet), the flat logo is the avatar
    (`avatars/2143/963`), and Roleplay and Artwork are listed. Those two categories were
@@ -33,14 +35,53 @@ the rain indoors; needs `/reload` to pick up (no new files, so no client restart
    20 Oct, is tagged Forever 1.60.1 alone, so the Retail listing in the CurseForge app
    does not show the addon. Any tag pushed now is tagged both from the TOC. Proposed: a
    `v1.0.0-beta1` tag now, which also proves the CurseForge upload before launch day.
-   Waiting on Justin's go, because it publishes.
+   **2026-10-26: beta1 pushed from `edd3853` on Justin's go, and it failed before
+   publishing.** The zip was good, but the release check wanted a flavour suffix
+   (`-forever`) that the packager drops now the TOC lists two flavours. Nothing reached
+   GitHub or CurseForge, so the page is still Forever-only, and v1.0.0 would have failed
+   the same way. Fix: PR #38. Once it merges, push `v1.0.0-beta2` from main and read the
+   CurseForge file's game versions back.
 9. 2026-10-26: deep-research prompt for the launch plan, the audio roadmap and new
    features in the same mood, `docs/next-steps-research-prompt.md` ("make the absolute
    best addon we can"). It lists untested Blizzard rain soundscapes (coastal, plains,
    forest storm), drips and tavern chatter by FileDataID; none is probed on a client yet.
 10. 2026-10-26: both reports are in, `docs/next-steps-research-report-1.md` and `-2.md`, and
     they are checked in the next section. Checking them turned up a launch bug: **#29, Volume
-    does nothing in game.** Fixing it is the one code item before v1.0.0.
+    does nothing in game.** Fixing it is the one code item before v1.0.0. The fix is PR #32
+    (beds only; thunder and wind are #31), and #29 stays open until an ear test in a client.
+
+## Launch plan (decided 2026-10-26, "ok do all of that")
+
+**Before 4 Nov**
+- [ ] PR #38 merged (Justin), then `v1.0.0-beta2` (item 8).
+- [ ] `/comfy probe volume` on Retail: is the second clip quieter, and does `kit_overlap`
+      say yes. The Retail AddOns folder already has the fix build (`dev-bb5c610`, PR #32).
+- [ ] PR #32 merged (Justin).
+- [ ] CurseForge summary pasted (authors console, his login). Text is the Summary block in
+      `docs/curseforge-page.md`.
+- [ ] The 30-second clip with sound, on YouTube, first in the Media tab. Method and shot
+      list: "The clip" in `docs/curseforge-gallery-plan.md`. Then the fresh stills. The
+      shoot aid `~/comfyrain-shoot-2026-10-22/shoot-card.html` gets deleted after this.
+- [ ] Forum reply in Blizzard's weather thread, text in `docs/launch-posts.md`. Justin posts it.
+- [ ] v1.0.0 tag on 3 Nov (item 5).
+
+**Launch week**
+- [ ] 4 Nov 23:00 UTC, Forever smoke test: loads, `/comfy status`, rain and snow draw,
+      `/comfy probe volume` (answers #29's Forever half: flag 0x20 and the 0.69 question),
+      the #31 kit lines, and `/run PlaySoundFile(<id>)` for each soundscape and drip in #33
+      and #34.
+- [ ] 5 Nov: hotfix from whatever the smoke test finds, as v1.0.1.
+- [ ] Every CurseForge comment answered, daily through 11 Nov (Invite-A-Friend week ends).
+- [ ] 6-8 Nov: one r/wowforever post, Video flair, text in `docs/launch-posts.md`. Needs
+      the clip link and Justin's go.
+
+**After launch, in this order** (label `after-launch`, none of it in v1.0.0)
+1. #33 Rain soundscapes with Meander
+2. #34 Indoor drips and the inn scene
+3. #35 Fog
+4. #36 Leaves, embers and sandstorm as one particle system
+5. #28 Gamma brightening
+6. #37 Music mode
 
 ## 2026-10-26: the next-steps reports, checked
 
