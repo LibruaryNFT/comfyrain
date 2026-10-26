@@ -32,9 +32,10 @@ It is on CurseForge for Forever and Retail: https://www.curseforge.com/wow/addon
 
 ---
 
-## Reddit: one post in r/wowforever, 6 to 8 November
+## Reddit: one post in r/wowforever, later (#40)
 
-Not ready to send: it needs the YouTube link for the clip
+Not scheduled: Justin decided on 2026-10-26 to post it later, not in launch week.
+Not ready to send either: it needs the YouTube link for the clip
 (`docs/curseforge-gallery-plan.md`, "The clip"). Flair: Video. Rules checked by report 2:
 Forever only, flair required, link the source, memes on Mondays only, no stated rule on
 self-promotion either way. Once only; reply to every comment.

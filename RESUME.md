@@ -72,8 +72,8 @@ the rain indoors; needs `/reload` to pick up (no new files, so no client restart
       and #34.
 - [ ] 5 Nov: hotfix from whatever the smoke test finds, as v1.0.1.
 - [ ] Every CurseForge comment answered, daily through 11 Nov (Invite-A-Friend week ends).
-- [ ] 6-8 Nov: one r/wowforever post, Video flair, text in `docs/launch-posts.md`. Needs
-      the clip link and Justin's go.
+- Not this week: the r/wowforever post. Justin, 2026-10-26: "we arent making a new
+  reddit thread yet, we will do tht later". Todo is #40; draft in `docs/launch-posts.md`.
 
 **After launch, in this order** (label `after-launch`, none of it in v1.0.0)
 1. #33 Rain soundscapes with Meander
