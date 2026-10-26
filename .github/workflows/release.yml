@@ -147,8 +147,14 @@ jobs:
               echo "::error::version is '${got}', expected the tag '${TAG}'"
               missing=1
             fi
-            case "$zip" in
-              *"ComfyRain-${TAG}-"*) ;;
+            # The flavour suffix comes and goes with the TOC. A one-flavour TOC
+            # gets `ComfyRain-v0.9.2-alpha-forever.zip`; since retail joined
+            # (`16001, 120105`) it is `ComfyRain-v1.0.0-beta1.zip` with no suffix,
+            # and the old `*"ComfyRain-${TAG}-"*` failed that tag before it
+            # published. Accept either. A describe string still fails: after the
+            # tag it has `-1-gabc1234`, a digit, never a letter.
+            case "$(basename "$zip")" in
+              "ComfyRain-${TAG}.zip"|"ComfyRain-${TAG}-"[a-z]*.zip) ;;
               *) echo "::error::zip name does not carry the bare tag: $zip"; missing=1 ;;
             esac
           fi
