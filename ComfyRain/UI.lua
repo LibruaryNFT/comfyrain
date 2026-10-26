@@ -1228,7 +1228,8 @@ local function Build()
 			function(v) Run(string.format("volume %.2f", v)) end,
 			Back("volume", "volume")))
 		Teach(controls.volume.slider, "Volume", "/comfy volume 0.5",
-			"ComfyRain's weather only. Your game volume is untouched.")
+			"The rain and snow. Thunder and wind follow your game's own " ..
+			"volume for now. Your game volume is untouched.")
 	end
 
 	-- One checkbox per row, which is what the client does. A box in the

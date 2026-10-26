@@ -42,6 +42,30 @@ geometry by `build/make_icon_tga.py`, which also writes `docs/logo.png` and the 
 behind it, which showed dark corners outside the minimap ring, is now a round texture.
 Uploaded as the CurseForge avatar 2026-10-24 (item 6). The in-game icon needs a full client restart to show, not `/reload`.
 
+## 2026-10-26: Volume reaches the rain and snow (#29)
+
+- **Why it did nothing:** `C_Sound.PlaySoundWithOptions` takes SoundKit ids only. Every
+  FileDataID we passed came back nil (Forever 70450, kit 567 accepted in the same run as
+  the control), and the addon fell back to `PlaySoundFile`, which has no volume.
+- **Now:** the six beds (rain and snow, light/medium/heavy) play through their own
+  single-file SoundKits 8533-8538 with `volumeOverride`. `BED_KITS` in `ComfyRain.lua`.
+  Each kit holds one entry, the same file, on both clients (wago.tools SoundKitEntry).
+- **Not yet:** thunder, gusts and wind 918050 have no single-file kit on Forever, so they
+  stay on `PlaySoundFile` at the game's volume. The slider at 0 silences thunder. The
+  tooltip says so.
+- **The risk:** Forever's six kits carry flags 4128 (bit 0x20), Retail's carry 0. If 0x20
+  refuses a second play of a kit that is still sounding, every reloop (which overlaps the
+  clip it replaces by 0.12 s) would be refused. On the first refusal with game sound on,
+  the addon latches to file playback for the session: the worst case is the old
+  behaviour, never silence. The bug report line reads `vol=kit`, `vol=refused` or
+  `vol=none`.
+- **Untested in a client.** `/comfy probe volume` (dev install only, Probe.lua) plays kit
+  8534 at 1.0, then 0.15, then twice at once, and records `kit_volume` and `kit_overlap`;
+  answer the ears question with `/comfy probe heard yes|no`. Retail now, Forever at launch.
+  Also unknown: whether the kit's own VolumeFloat 0.69 multiplies `volumeOverride`.
+- **Tests:** the mock now refuses a FileDataID the way the client does. The new bed spec
+  fails on the old `ComfyRain.lua` (4 failures) and passes on the new one.
+
 ## 2026-10-23 — One addon for every flavour: the window adapts, Classic still unlisted
 
 "can we make one addon to work for all of them and change the ui for classic".
