@@ -62,6 +62,8 @@ the rain indoors; needs `/reload` to pick up (no new files, so no client restart
 - [ ] The 30-second clip with sound, on YouTube, first in the Media tab. Method and shot
       list: "The clip" in `docs/curseforge-gallery-plan.md`. Then the fresh stills. The
       shoot aid `~/comfyrain-shoot-2026-10-22/shoot-card.html` gets deleted after this.
+      OBS configured 2026-10-26 (profile `ComfyRain`, websocket, `tools/obs_ws.py`); the
+      agent records, Justin pastes one `/run` line in game.
 - [ ] Forum reply in Blizzard's weather thread, text in `docs/launch-posts.md`. Justin posts it.
 - [ ] v1.0.0 tag on 3 Nov (item 5).
 

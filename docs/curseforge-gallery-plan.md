@@ -79,23 +79,31 @@ the Media tab as item 1. Shoot it on Retail now; Forever is not up until 4 Nov.
 
 **Recorder: OBS**, from Ubuntu's own archive (`obs-studio` 32.1.0, needs `sudo`). This
 is a Wayland session and GNOME's built-in recorder has no audio, so it cannot make this
-clip. In OBS: one *Screen Capture (PipeWire)* source (pick the WoW window), Desktop Audio
-on, Output 1920x1080, 60 fps, MKV. OBS writes to `~/Videos`; say the filename and the
-cut, fades and mp4 export are done with ffmpeg here.
+clip. OBS is driven from the agent side, set up 2026-10-26:
 
-**Before recording:** game window at 1920x1080, UI hidden (Alt+Z), default gamma, game
-music off, ambience and effects up. Key bindings still work with the UI hidden, so put
-these five macros on action bar keys 1-5 and drive the clip from the keyboard:
+- Profile `ComfyRain`: canvas 3440x1440 (the whole monitor), 60 fps, NVENC H.264 at
+  "Indistinguishable Quality", MKV, into `~/Videos`.
+- Scene `Scene`: one *Screen Capture (PipeWire)* source called `Screen` (whole monitor,
+  no cursor) and `Desktop Audio`. No microphone source, on purpose.
+- obs-websocket on 127.0.0.1:4455 with a generated password that lives only in OBS's
+  own config. `python3 -I tools/obs_ws.py StartRecord` / `StopRecord` /
+  `GetSourceScreenshot` drive it; the script reads the password from that config.
 
-| Key | Macro |
-|---|---|
-| 1 | `/comfy off` |
-| 2 | `/comfy preset storm` |
-| 3 | `/comfy strike` |
-| 4 | `/comfy blizzard` |
-| 5 | `/comfy preset cozy` then `/comfy preset dusk` |
+**The take is one `/run` line**, so nobody has to press keys on cue. Stand still, game
+music off, ambience and effects up, default gamma. The agent starts recording; paste
+this, then Alt+Z to hide the UI within 8 seconds:
 
-**Shot list.** Record each shot as its own take; they get joined here.
+```
+/run local c,a=ComfyRainAPI.Command,C_Timer.After c("stop")a(8,function()c("preset storm")end)a(13,function()c("strike")end)a(19,function()c("strike")end)a(24,function()c("blizzard")c("thunder off")end)a(36,function()c("preset cozy")c("preset dusk")end)
+```
+
+253 characters, under the 255 the chat box takes; `luac -p` clean. Dry until 8 s,
+storm with thunderclaps at 13 and 19 s, blizzard at 24 s, light rain at dusk from 36 s.
+The cut (centre 2560x1440, scaled to 1920x1080, about 30 s) and the stills are done
+from the raw file with ffmpeg, then the raw file is deleted.
+
+**Shot list**, as originally planned for separate takes. The `/run` take covers every
+shot except the inn door.
 
 | Time | Shot | Keys |
 |---|---|---|
