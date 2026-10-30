@@ -185,6 +185,34 @@ character can get there.
 **Publish:** upload to YouTube, public, title "Comfy Rain: rain and snow anywhere in World
 of Warcraft". Then the YouTube link as the first item in the CurseForge Media tab.
 
+Thumbnail: `~/comfyrain-media-2026-10-30/youtube-thumbnail.jpg`, 1280x720, 256 KB. It is
+frame 5 (before / after) with OFF and ON in Lato Black 150px and a white divider at the
+split. Rain streaks vanish at sidebar size (168x94); the labels and the light/dark halves
+do not, so the proof frame beats any storm frame here.
+
+YouTube description:
+
+```
+Comfy Rain is a World of Warcraft addon that makes it rain or snow wherever you are, for as long as you want. Thunder, wind and a time-of-day colour grade come with it, and the sound is built from Blizzard's own weather audio.
+
+Filmed in Elwynn Forest on Retail. The rain, the snow, the thunder, the wind and the dusk light are all Comfy Rain.
+
+Works on WoW Forever and Retail. Free and open source (MIT).
+
+Download: https://www.curseforge.com/wow/addons/comfy-rain
+Source: https://github.com/LibruaryNFT/comfyrain
+
+In game, type /comfyrain to open the settings, or /comfy to turn the weather on and off.
+```
+
+Tags:
+
+```
+World of Warcraft, WoW addon, WoW Forever, Comfy Rain, rain ambience, WoW ambience, cozy, Elwynn Forest, CurseForge
+```
+
+No chapters: YouTube needs every chapter to be at least 10 s, and dusk runs 6 s.
+
 ## The shoot
 
 Nine frames. Numbers 1, 2 and 5 are the ones that do the work.

@@ -64,7 +64,8 @@ the rain indoors; needs `/reload` to pick up (no new files, so no client restart
       Method, including the setup lines: "The clip" in `docs/curseforge-gallery-plan.md`.
       The old shoot card is deleted.
 - [ ] Clip uploaded to YouTube (Justin), title "Comfy Rain: rain and snow anywhere in
-      World of Warcraft"; then the CurseForge Media tab: YouTube link first, then stills
+      World of Warcraft", thumbnail `youtube-thumbnail.jpg` in the same folder, description
+      and tags in the gallery plan's Publish section; then the CurseForge Media tab: YouTube link first, then stills
       1, 2, 3, 5, 6 with the captions in the gallery plan, and the three old images removed.
 - [ ] Forum reply in Blizzard's weather thread, text in `docs/launch-posts.md`. Justin posts it.
 - [ ] v1.0.0 tag on 3 Nov (item 5).
