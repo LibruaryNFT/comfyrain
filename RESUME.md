@@ -62,7 +62,11 @@ the rain indoors; needs `/reload` to pick up (no new files, so no client restart
       here is Justin's click or his explicit ask.
 - [x] `/comfy probe volume` on Retail, 2026-10-30 on `dev-bb5c610`: the 15% clip was
       quieter and `kit_overlap` said yes. Result on #29; Forever half at the smoke test.
-- [ ] PR #32 merged (Justin).
+- [x] PR #32 merged 2026-10-30 on Justin's ask (`912cdfc`, CI green), and
+      `v1.0.0-beta3` pushed from it so CurseForge has the Volume fix before the forum post.
+      Packager logged CurseForge "Success!" as beta for `12.1.5` and `1.60.1`. The zip's
+      ComfyRain.lua and UI.lua match `912cdfc` except the substituted version string;
+      Probe.lua is left out by `.pkgmeta`, as designed. #29 stays open for the ear test.
 - [ ] CurseForge summary pasted (authors console, his login). Text is the Summary block in
       `docs/curseforge-page.md`.
 - [x] Clip and stills shot, 2026-10-30, Elwynn Forest on Retail: `comfy-rain-clip.mp4`
