@@ -184,6 +184,7 @@ character can get there.
 
 **Publish:** upload to YouTube, public, title "Comfy Rain: rain and snow anywhere in World
 of Warcraft". Then the YouTube link as the first item in the CurseForge Media tab.
+Published 2026-10-30: https://youtu.be/6JES-90IoW0
 
 Thumbnail: `~/comfyrain-media-2026-10-30/youtube-thumbnail.jpg`, 1280x720, 256 KB. It is
 frame 5 (before / after) with OFF and ON in Lato Black 150px and a white divider at the

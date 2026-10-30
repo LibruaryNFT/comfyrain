@@ -63,10 +63,12 @@ the rain indoors; needs `/reload` to pick up (no new files, so no client restart
       (38 s, 1080p60, sound) and stills 1, 2, 3, 5, 6 in `~/comfyrain-media-2026-10-30/`.
       Method, including the setup lines: "The clip" in `docs/curseforge-gallery-plan.md`.
       The old shoot card is deleted.
-- [ ] Clip uploaded to YouTube (Justin), title "Comfy Rain: rain and snow anywhere in
-      World of Warcraft", thumbnail `youtube-thumbnail.jpg` in the same folder, description
-      and tags in the gallery plan's Publish section; then the CurseForge Media tab: YouTube link first, then stills
-      1, 2, 3, 5, 6 with the captions in the gallery plan, and the three old images removed.
+- [x] Clip on YouTube, 2026-10-30: https://youtu.be/6JES-90IoW0. Checked from outside
+      the same day: public, embeddable (oEmbed 200, `playableInEmbed` true), tags set, the
+      OFF / ON thumbnail is live. Category still reads People & Blogs; Gaming is better,
+      a Studio edit, not blocking.
+- [ ] CurseForge Media tab (Justin): the YouTube link first, then stills 1, 2, 3, 5, 6
+      with the captions in the gallery plan, and the three old images removed.
 - [ ] Forum reply in Blizzard's weather thread, text in `docs/launch-posts.md`. Justin posts it.
 - [ ] v1.0.0 tag on 3 Nov (item 5).
 
