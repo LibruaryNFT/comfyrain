@@ -53,7 +53,13 @@ the rain indoors; needs `/reload` to pick up (no new files, so no client restart
 ## Launch plan (decided 2026-10-26, "ok do all of that")
 
 **Before 4 Nov**
-- [ ] PR #38 merged (Justin), then `v1.0.0-beta2` (item 8).
+- [x] PR #38 merged 2026-10-30 (by the agent, on Justin's explicit ask), and
+      `v1.0.0-beta2` pushed from `41662aa`. Release run green; GitHub pre-release has
+      `ComfyRain-v1.0.0-beta2.zip`; the packager logged CurseForge "Success!" as beta for
+      `12.1.5` and `1.60.1`. The cfwidget mirror had not caught up 5 minutes later, so it
+      is a lagging source, not evidence either way. `main` is unprotected with no
+      required checks, so standing merge authority never applies in this repo: a merge
+      here is Justin's click or his explicit ask.
 - [x] `/comfy probe volume` on Retail, 2026-10-30 on `dev-bb5c610`: the 15% clip was
       quieter and `kit_overlap` said yes. Result on #29; Forever half at the smoke test.
 - [ ] PR #32 merged (Justin).
