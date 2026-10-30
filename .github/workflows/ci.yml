@@ -9,14 +9,20 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
 
       # The addon targets the client's Lua 5.1. Running the suite on a newer
       # interpreter would accept syntax the client rejects, which is the one
       # thing a test suite for this project must not do.
+      # Acquire options and the step timeout: apt-get update hung with no
+      # output on 5 of 9 runs on 2026-10-26 (#39).
       - name: Install Lua 5.1
-        run: sudo apt-get update -qq && sudo apt-get install -y -qq lua5.1
+        timeout-minutes: 5
+        run: |
+          sudo apt-get update -qq -o Acquire::Retries=3 -o Acquire::http::Timeout=30
+          sudo apt-get install -y -qq -o Acquire::Retries=3 lua5.1
 
       - name: Syntax-check every chunk the client loads
         run: luac5.1 -p ComfyRain/*.lua
@@ -34,6 +40,7 @@ jobs:
 
   assets:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -47,7 +54,10 @@ jobs:
       # Lua 5.1 too: tools/perceive.py asks the addon what each setting draws
       # by running test/dump_scenes.lua.
       - name: Install ffmpeg and Lua 5.1
-        run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg lua5.1
+        timeout-minutes: 5
+        run: |
+          sudo apt-get update -qq -o Acquire::Retries=3 -o Acquire::http::Timeout=30
+          sudo apt-get install -y -qq -o Acquire::Retries=3 ffmpeg lua5.1
 
       # The art is generated, so "does the build still produce it" is a real
       # test and the only one that catches a broken generator before a tag.
