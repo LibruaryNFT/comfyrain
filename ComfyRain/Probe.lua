@@ -319,6 +319,92 @@ local function CheckFinishEvent()
 end
 
 --------------------------------------------------------------------------------
+-- 6b. Does the bed kit's volumeOverride reach the speakers? (issue #29)
+--
+-- The fix plays each bed as its single-file SoundKit (8534 is RainMediumLoop)
+-- so the gain has somewhere to go. Lua can see that the client accepted each
+-- call; only ears can say the second clip was quieter, so this ends in "ask".
+--
+-- kit_overlap is the Forever question. Forever's copy of 8534 carries flag
+-- 0x20 and Retail's does not, and every reloop starts the kit again while the
+-- old copy is still running. "no" here means the addon will latch to file
+-- playback on the first reloop and the slider goes dead for the session.
+--------------------------------------------------------------------------------
+
+local BED_KIT = 8534
+
+local function CheckKitVolume()
+	local function play(volume)
+		local callOk, a, b = pcall(C_Sound.PlaySoundWithOptions,
+			{ soundKitID = BED_KIT, channel = "Ambience", volumeOverride = volume })
+		if not callOk then return nil, nil, tostring(a) end
+		return a, b
+	end
+
+	-- ComfyRain's own bed is very likely kit 8534 itself (medium rain is the
+	-- default), and on a client that refuses duplicates it would make the
+	-- first call here fail for a reason that has nothing to do with volume.
+	-- So the addon's sound goes off for the test and comes back after it.
+	local liveDB = ComfyRainAPI and ComfyRainAPI.DB and ComfyRainAPI.DB()
+	local hadSound = liveDB and liveDB.sound
+	local function say(c)
+		pcall(function()
+			if ComfyRainAPI and ComfyRainAPI.Command then ComfyRainAPI.Command(c) end
+		end)
+	end
+	if hadSound then say("sound off") end
+	local function restore()
+		if hadSound then say("sound on") end
+	end
+
+	msg("|cff66ff66Volume test.|r Rain plays twice, five seconds each: LOUD, " ..
+	    "then the SAME rain at 15%. Starting in three seconds.")
+	C_Timer.After(3, function()
+		local okLoud, hLoud, errLoud = play(1.0)
+		msg("|cffffd100>>> 1 of 2: full volume <<<|r")
+		C_Timer.After(5, function()
+			pcall(function() if hLoud then StopSound(hLoud, 300) end end)
+			C_Timer.After(1.5, function()
+				local okQuiet, hQuiet, errQuiet = play(0.15)
+				msg("|cffffd100>>> 2 of 2: 15% <<<|r")
+				C_Timer.After(5, function()
+					pcall(function() if hQuiet then StopSound(hQuiet, 300) end end)
+
+					-- The overlap check, silent enough not to matter: two
+					-- copies of the same kit, the second started while the
+					-- first still runs, exactly as a reloop does it.
+					local okA, hA = play(0.05)
+					local okB, hB = play(0.05)
+					pcall(function()
+						if hA then StopSound(hA) end
+						if hB then StopSound(hB) end
+					end)
+					record("kit_overlap", (okA and okB) and "yes" or (okA and "no" or "unknown"),
+						string.format("kit %d twice at once: first=%s second=%s. %s", BED_KIT,
+							tostring(okA), tostring(okB),
+							(okA and not okB) and "a reloop will be refused; the addon latches to files"
+							or (not okA) and "the first copy was refused too, so this says nothing"
+							or "reloops are allowed"))
+
+					record("kit_volume", (okLoud and okQuiet) and "ask" or "no",
+						string.format("kit %d loud ok=%s handle=%s, quiet ok=%s handle=%s%s",
+							BED_KIT, tostring(okLoud), tostring(hLoud), tostring(okQuiet),
+							tostring(hQuiet),
+							(errLoud or errQuiet) and (" raised: " .. tostring(errLoud or errQuiet)) or ""))
+					restore()
+					store()
+					if okLoud and okQuiet then
+						P.pendingEars = "kit_volume"
+						msg("Was the SECOND one clearly quieter? " ..
+						    "|cffffd100/comfy probe heard yes|r or |cffffd100/comfy probe heard no|r")
+					end
+				end)
+			end)
+		end)
+	end)
+end
+
+--------------------------------------------------------------------------------
 -- 7. Will Forever host a Settings panel at all?
 --
 -- AddSearchTags is already known to raise ADDON_ACTION_FORBIDDEN here, which is
@@ -986,6 +1072,8 @@ function ComfyRain_Probe(arg)
 		P.pendingEars = nil
 	elseif sub == "3d" then
 		try("model_3d", function() Run3D() end)
+	elseif sub == "volume" then
+		try("kit_volume", CheckKitVolume)
 	elseif sub == "saw" then
 		store()
 		local id = P.pendingEyes
@@ -1030,6 +1118,7 @@ function ComfyRain_Probe(arg)
 	else
 		msg("|cffffd100/comfy probe|r, |cffffd100/comfy probe report|r, " ..
 		    "|cffffd100/comfy probe shots|r, |cffffd100/comfy probe 3d|r, " ..
+		    "|cffffd100/comfy probe volume|r, " ..
 		    "|cffffd100/comfy probe heard yes||no|r, |cffffd100/comfy probe ears|r, " ..
 		    "|cffffd100/comfy probe wipe|r")
 	end
