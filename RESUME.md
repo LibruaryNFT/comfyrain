@@ -59,11 +59,13 @@ the rain indoors; needs `/reload` to pick up (no new files, so no client restart
 - [ ] PR #32 merged (Justin).
 - [ ] CurseForge summary pasted (authors console, his login). Text is the Summary block in
       `docs/curseforge-page.md`.
-- [ ] The 30-second clip with sound, on YouTube, first in the Media tab. Method and shot
-      list: "The clip" in `docs/curseforge-gallery-plan.md`. Then the fresh stills. The
-      shoot aid `~/comfyrain-shoot-2026-10-22/shoot-card.html` gets deleted after this.
-      OBS configured 2026-10-26 (profile `ComfyRain`, websocket, `tools/obs_ws.py`); the
-      agent records, Justin pastes one `/run` line in game.
+- [x] Clip and stills shot, 2026-10-30, Elwynn Forest on Retail: `comfy-rain-clip.mp4`
+      (38 s, 1080p60, sound) and stills 1, 2, 3, 5, 6 in `~/comfyrain-media-2026-10-30/`.
+      Method, including the setup lines: "The clip" in `docs/curseforge-gallery-plan.md`.
+      The old shoot card is deleted.
+- [ ] Clip uploaded to YouTube (Justin), title "Comfy Rain: rain and snow anywhere in
+      World of Warcraft"; then the CurseForge Media tab: YouTube link first, then stills
+      1, 2, 3, 5, 6 with the captions in the gallery plan, and the three old images removed.
 - [ ] Forum reply in Blizzard's weather thread, text in `docs/launch-posts.md`. Justin posts it.
 - [ ] v1.0.0 tag on 3 Nov (item 5).
 

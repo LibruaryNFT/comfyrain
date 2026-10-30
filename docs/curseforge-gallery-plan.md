@@ -60,15 +60,16 @@ Our three live images are captioned with their filenames (`preview1.jpg`), which
 
 | # | Caption |
 |---|---|
-| 1 | A thunderstorm over Stormwind. The rain, the wind and the lightning are all Comfy Rain. |
-| 2 | A blizzard in Dun Morogh, with the snow blowing on the wind. |
+| 1 | A thunderstorm in Elwynn Forest. The rain, the wind and the lightning are all Comfy Rain. |
+| 2 | A blizzard in Elwynn Forest, with the snow blowing on the wind. |
 | 3 | Light rain at dusk. The weather the game would not give you. |
-| 5 | Same spot, same moment: Comfy Rain off on the left, heavy rain on the right. |
+| 5 | Same spot, same camera: Comfy Rain off on the left, a storm on the right. |
 | 4 | Gentle snow in town. |
 | 7 | Time of Day holds the world at dusk, whatever the realm clock says. |
 | 6 | Every setting in one window, previewed live behind it. Hover a control to see its slash command. |
 
-Fix the place names once the frames exist; the caption names where it was shot.
+Place names updated 2026-10-30 to where 1, 2 and 5 were actually shot. 4 and 7 have no
+frame yet.
 
 ## The clip: first gallery item, 30 seconds, with sound
 
@@ -91,11 +92,31 @@ clip. OBS is driven from the agent side, set up 2026-10-26:
 
 **The take is one `/run` line**, so nobody has to press keys on cue. Stand still, game
 music off, ambience and effects up, default gamma. The agent starts recording; paste
-this, then Alt+Z to hide the UI within 8 seconds:
+this, then Alt+Z to hide the UI. The storm comes in at 15 s; the first version of this
+line used 8 s and that was not long enough to get to Alt+Z:
 
 ```
-/run local c,a=ComfyRainAPI.Command,C_Timer.After c("stop")a(8,function()c("preset storm")end)a(13,function()c("strike")end)a(19,function()c("strike")end)a(24,function()c("blizzard")c("thunder off")end)a(36,function()c("preset cozy")c("preset dusk")end)
+/run local c,a=ComfyRainAPI.Command,C_Timer.After c("stop")a(15,function()c("preset storm")end)a(20,function()c("strike")end)a(26,function()c("strike")end)a(31,function()c("blizzard")c("thunder off")end)a(43,function()c("preset cozy")c("preset dusk")end)
 ```
+
+**Turn the game's own weather off first.** Comfy Rain stands aside while the game is
+raining (`defer`, on by default), so a take shot in real rain shows only Blizzard's rain
+and has no dry opening. This saves the old value with the name lines below:
+
+```
+/run R=R or{}R.weatherDensity=R.weatherDensity or C_CVar.GetCVar("weatherDensity")C_CVar.SetCVar("weatherDensity","0")
+```
+
+NPC voices and emotes are muted the same way:
+
+```
+/run R=R or{}for _,n in ipairs{"Sound_EnableDialog","Sound_EnableEmoteSounds"}do R[n]=R[n]or C_CVar.GetCVar(n)C_CVar.SetCVar(n,"0")end
+```
+
+**Graphics go up in Options, not by CVar.** Setting `graphicsQuality` and `RenderScale`
+with `C_CVar.SetCVar` changed nothing visible on 2026-10-30. Options > Graphics: Render
+Scale 100%, and click Base Game Quality once so it re-applies the preset (it said 7 with
+shadows Low and SSAO off underneath).
 
 Names over heads, nameplates and chat bubbles are drawn by the world, so Alt+Z leaves
 them on. Before the take, this saves the current values and turns them off (names
@@ -116,17 +137,36 @@ the same saved set, so one restore covers all three):
 /run R=R or{}local c=C_CVar for n in("Enemies FriendlyNpcs FriendlyPlayers"):gmatch"%S+"do n="nameplateShow"..n R[n]=R[n]or c.GetCVar(n)c.SetCVar(n,"0")end
 ```
 
-and this puts them back, in the same session (the saved values do not survive a
-`/reload`):
+**The menu shot** keeps the UI, but the player frame shows the character's name and chat
+shows NPC yells, and the Comfy Rain window is a child of UIParent so Alt+Z hides it too.
+Hide just those two:
 
 ```
-/run for n,v in pairs(R)do C_CVar.SetCVar(n,v)end
+/run PlayerFrame:Hide()ChatFrame1:Hide()
 ```
 
-The take line is 253 characters, under the 255 the chat box takes; `luac -p` clean. Dry until 8 s,
-storm with thunderclaps at 13 and 19 s, blizzard at 24 s, light rain at dusk from 36 s.
-The cut (centre 2560x1440, scaled to 1920x1080, about 30 s) and the stills are done
-from the raw file with ffmpeg, then the raw file is deleted.
+This puts everything back, in the same session (the saved values do not survive a
+`/reload`). It leaves graphics as set in Options:
+
+```
+/run R.graphicsQuality=nil R.RenderScale=nil for n,v in pairs(R)do C_CVar.SetCVar(n,v)end PlayerFrame:Show()ChatFrame1:Show()
+```
+
+The take line is 254 characters, under the 255 the chat box takes; `luac -p` clean. Dry until 15 s,
+storm with thunderclaps at 20 and 26 s, blizzard at 31 s, light rain at dusk from 43 s.
+
+**The cut.** WoW runs windowed, so crop to the window's client area, not the screen
+centre. Find the edges from a raw frame by sampling pixel rows and columns (the title
+bar is flat grey 57, the browser under it is white). On 2026-10-30 the client was
+x 1940-3439, y 224-1127, and the 16:9 crop was `crop=1472:828:1954:262`, scaled with
+lanczos to 1920x1080, x264 CRF 16, 60 fps, 0.3 s audio fade in, 1.5 s fade out. Find the
+storm, blizzard and dusk changes with `signalstats` YAVG per half-second; they are step
+changes. The lightning flashes are single bright frames on the strike second. The raw
+file is deleted afterwards.
+
+**Shot 2026-10-30, Elwynn Forest on Retail:** the clip (38 s) and stills 1, 2, 3, 5 and
+6, in `~/comfyrain-media-2026-10-30/`. Stills 4 (snow in town) and 7 (Time of Day) were
+not shot; 3 already shows the dusk grade.
 
 **Shot list**, as originally planned for separate takes. The `/run` take covers every
 shot except the inn door.
