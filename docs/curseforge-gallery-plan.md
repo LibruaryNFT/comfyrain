@@ -97,7 +97,22 @@ this, then Alt+Z to hide the UI within 8 seconds:
 /run local c,a=ComfyRainAPI.Command,C_Timer.After c("stop")a(8,function()c("preset storm")end)a(13,function()c("strike")end)a(19,function()c("strike")end)a(24,function()c("blizzard")c("thunder off")end)a(36,function()c("preset cozy")c("preset dusk")end)
 ```
 
-253 characters, under the 255 the chat box takes; `luac -p` clean. Dry until 8 s,
+Names over heads, nameplates and chat bubbles are drawn by the world, so Alt+Z leaves
+them on. Before the take, this saves the current values and turns them off (names
+checked against Retail's `Wow.exe`, 2026-10-30):
+
+```
+/run R={}local c=C_CVar for n in("Own NPC FriendlyPlayerName EnemyPlayerName HostleNPC InteractiveNPC nameplateShowAll nameplateShowSelf chatBubbles"):gmatch"%S+"do n=n:find"^%u"and"UnitName"..n or n R[n]=c.GetCVar(n)c.SetCVar(n,"0")end
+```
+
+and this puts them back, in the same session (the saved values do not survive a
+`/reload`):
+
+```
+/run for n,v in pairs(R)do C_CVar.SetCVar(n,v)end
+```
+
+The take line is 253 characters, under the 255 the chat box takes; `luac -p` clean. Dry until 8 s,
 storm with thunderclaps at 13 and 19 s, blizzard at 24 s, light rain at dusk from 36 s.
 The cut (centre 2560x1440, scaled to 1920x1080, about 30 s) and the stills are done
 from the raw file with ffmpeg, then the raw file is deleted.
