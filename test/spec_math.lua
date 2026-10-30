@@ -201,26 +201,28 @@ it("puts the lightning flash behind the same two dimmers as everything else", fu
 	lt(inside, full * 0.6, "and so does being indoors on the default dim setting")
 end)
 
-it("runs the thunder through the volume slider, like the rain", function()
-	local function loudest(volume)
+it("silences the thunder with the slider at zero, the one level it can honour", function()
+	-- This spec used to say thunder followed the slider. It never did in game:
+	-- the thunder files have no single-file SoundKit on Forever, so they play
+	-- at the channel's level (issue #29). Zero is still silence.
+	local function claps(volume)
 		local w = H.world()
 		w:slash("volume " .. volume)
 		local before = #w.mock.sounds
 		w:advance(600, 0.5)
-		local peak = 0
+		local n = 0
 		for i = before + 1, #w.mock.sounds do
 			local s = w.mock.sounds[i]
-			if s.file and s.file >= 838830 and s.file <= 839737 then
-				local v = s.volumeOverride or 1
-				if v > peak then peak = v end
+			if s.ok and type(s.file) == "number" and s.file >= 838830 and s.file <= 839737 then
+				n = n + 1
 			end
 		end
-		return peak
+		return n
 	end
 
-	local loud = loudest(1.0)
-	gt(loud, 0.8, "thunder plays at full volume by default")
-	lt(loudest(0.2), 0.35, "and quietly when the slider is down")
+	gt(claps(1.0), 0, "thunder plays at the default volume")
+	gt(claps(0.2), 0, "and with the slider down")
+	eq(claps(0), 0, "and not at all with it at zero")
 end)
 
 it("hands the realm its loops back when it stands down, and not when it is told to be quiet",

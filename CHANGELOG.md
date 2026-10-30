@@ -11,6 +11,8 @@ First release, for World of Warcraft: Forever and Retail.
 - Layered ambience built from the game's own weather loops, with wind gusts and
   distant thunder. Two beds of unequal length run under each other so the loop
   never settles into a recognisable cycle.
+- A Volume slider for the rain and snow that leaves your game volume alone.
+  Thunder and wind follow the game's own volume for now.
 - Gusts drive the rain, the sound and the light from one shared signal.
 - Rain streaks and snow flakes are smaller and far more numerous, so heavy
   weather reads as a downpour or a real snowfall rather than as bars and

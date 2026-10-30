@@ -86,7 +86,7 @@ end)
 it("will not call a missing finish event 'no' unless the SoundKit control fired", function()
 	-- The whole Phase 4 sequencer design turns on this answer, so a false "no"
 	-- is cheap to record and expensive to believe.
-	local w = H.world({ soundKits = {}, finishEventForKits = true })
+	local w = H.world({ soundKits = {}, finishEventForKits = true, optionsAcceptFiles = true })
 	w:slash("probe")
 	w:advance(20)
 	eq(results(w).finish_event.verdict, "unknown", "no control, no conclusion")
@@ -103,7 +103,7 @@ it("reports no when the control fires and the FileDataID does not", function()
 end)
 
 it("reports yes when the FileDataID fires too", function()
-	local w = H.world({ soundKits = { 567 },
+	local w = H.world({ soundKits = { 567 }, optionsAcceptFiles = true,
 	                    finishEventForKits = true, finishEventForFiles = true })
 	w:slash("probe")
 	w:advance(20)
@@ -647,4 +647,29 @@ it("says what to do when nothing has asked your ears yet", function()
 	local w = H.world()
 	w:slash("probe heard yes")
 	gt(#w.mock.printedMatching("probe ears"), 0, "points at the retry")
+end)
+
+it("plays the bed kit loud then quiet and asks the ears, never claiming it heard", function()
+	local w = H.world()
+	w:slash("probe volume")
+	w:advance(20)
+	local r = results(w)
+	eq(r.kit_volume.verdict, "ask", "only ears can say it was quieter")
+	eq(r.kit_overlap.verdict, "yes", "a client that allows a reloop says so")
+	local quiet
+	for _, s in ipairs(w.mock.sounds) do
+		if s.kit == 8534 and s.volumeOverride and s.volumeOverride < 0.2
+		   and s.volumeOverride > 0.1 then quiet = s end
+	end
+	ok(quiet and quiet.ok, "the quiet clip went to the client as kit 8534")
+	eq(w:db().probe.pendingEars, "kit_volume", "and waits on the answer")
+	eq(#w.mock.errors, 0, "errors")
+end)
+
+it("records that a reloop will be refused when the client blocks duplicate kits", function()
+	local w = H.world({ kitNoDuplicates = true })
+	w:slash("probe volume")
+	w:advance(20)
+	eq(results(w).kit_overlap.verdict, "no", "verdict")
+	contains(results(w).kit_overlap.detail, "latches to files", "and says what the addon does then")
 end)

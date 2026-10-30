@@ -1807,11 +1807,27 @@ local function SlotStop(slot)
 end
 
 -- volumeOverride is the only gain control this client exposes and it exists
--- only at play time, so a clip's level is fixed the moment it starts. The probe
--- on build 70374 confirmed `soundKitID` is the id key but tested it with a
--- SoundKit; every id this addon owns is a FileDataID, so the options call may
--- refuse them. It is wrapped and falls back to the plain call, which costs the
--- volume wobble and nothing else.
+-- only at play time, so a clip's level is fixed the moment it starts. It rides
+-- on C_Sound.PlaySoundWithOptions, which takes a SoundKit and nothing else.
+-- Handed a FileDataID it returns nil: the probe on Forever build 70450 asked
+-- it for our thunder file and got nothing back, with SoundKit 567 accepted in
+-- the same run as the control. Every clip then fell back to PlaySoundFile at
+-- full level, so the Volume slider, the wobble, the under-layer's lower level
+-- and the indoor duck all did nothing in game (issue #29).
+--
+-- So each bed is played as the SoundKit that wraps it. All six are kits with
+-- exactly ONE entry, so the kit plays exactly the file it names and nothing
+-- picks at random. The same six IDs hold the same six files on Retail 12.1.5
+-- and Forever 1.60.1.70532 (wago.tools SoundKitEntry, read 2026-10-26).
+--
+-- Thunder, gusts and the blizzard wind are not here. Forever has no
+-- single-file kit for any of them - each rumble sits in three to seven
+-- multi-file kits - so they still play by file, at the channel's own level.
+local BED_KITS = {
+	[538983] = 8533, [538981] = 8534, [538982] = 8535,   -- rain: light, medium, heavy
+	[538985] = 8536, [538989] = 8537, [538984] = 8538,   -- snow: light, medium, heavy
+}
+
 -- Resolved once and cached, and the LOOKUP is pcall'd, not just the call. A
 -- table whose __index raises is a shape this client can present, and reading a
 -- field off one throws before any pcall around the call itself would help. The
@@ -1826,21 +1842,52 @@ local function OptionsPlay()
 	return optionsPlay
 end
 
+-- The game's own on/off switches, as opposed to its sliders. With one of these
+-- off the client refuses every clip, the bundled one as much as Blizzard's, so
+-- a refusal says nothing about whether Blizzard's loop exists. Treating it as
+-- if it did is what put a live retail client on the bundled bed with its sound
+-- switched off (2026-10-23), and the switch to the bundled bed lasts the whole
+-- session, so a Ctrl-S mute in the rain cost the under-layer until /reload.
+local CHANNEL_SWITCH = {
+	Ambience = "Sound_EnableAmbience", SFX = "Sound_EnableSFX", Music = "Sound_EnableMusic",
+}
+local function GameSoundOff()
+	if GetCVar("Sound_EnableAllSound") == "0" then return true end
+	local switch = CHANNEL_SWITCH[db.channel]
+	return switch ~= nil and GetCVar(switch) == "0"
+end
+
+-- Set the first time the client refuses a bed kit with its sound on, and held
+-- for the session. Nobody has played these kits on Forever yet: the beta was
+-- withdrawn before the fix existed. Forever's copies of all six carry flag
+-- 0x20, which Retail's do not, and in the oldest SoundEntries format that flag
+-- meant "never let the same sound overlap" - and every reloop overlaps the
+-- clip it replaces. If that is what it still means, each relaunch would be
+-- refused, fall back to the file at full level, and the bed would pump between
+-- 0.35 and 1.0 on alternate clips. One refusal therefore puts the whole session
+-- on file playback: the slider goes dead, which is where it was before the
+-- fix, and nothing pumps. `/comfy bug` reports it, so a player's report says so.
+local kitsRefused = false
+
 -- Without the options call there is no gain control at all: PlaySoundFile
 -- takes no volume and plays at the channel's own level. The Classic clients
 -- are in that position (issue #20), so a volume setting would drive nothing.
-local function SetsVolume() return OptionsPlay() ~= nil end
+local function SetsVolume() return OptionsPlay() ~= nil and not kitsRefused end
 
 local function Play(file, volume)
-	local ok, handle
-	local opts = volume and OptionsPlay()
+	local kit = BED_KITS[file]
+	local opts = volume and kit and not kitsRefused and OptionsPlay()
 	if opts then
+		-- Silence asked for is silence delivered. Whether the client accepts a
+		-- volumeOverride of 0 is unprobed, and a refusal here would trip the
+		-- latch above for a player who only turned the slider down.
+		if volume <= 0 then return true, nil end
 		local called, a, b = pcall(opts, {
-			soundKitID = file, channel = db.channel, volumeOverride = volume })
-		if called and a then ok, handle = a, b end
+			soundKitID = kit, channel = db.channel, volumeOverride = volume })
+		if called and a then return a, b end
+		if not GameSoundOff() then kitsRefused = true end
 	end
-	if not ok then ok, handle = PlaySoundFile(file, db.channel) end
-	return ok, handle
+	return PlaySoundFile(file, db.channel)
 end
 
 -- Every handle this slot is given is either held or stopped, never simply
@@ -1902,21 +1949,6 @@ local function CurrentBed()
 	if bedFallback then return w.fallbackBed.file, w.fallbackBed.len end
 	local b = Preset().bed
 	return b.id, b.len
-end
-
--- The game's own on/off switches, as opposed to its sliders. With one of these
--- off the client refuses every clip, the bundled one as much as Blizzard's, so
--- a refusal says nothing about whether Blizzard's loop exists. Treating it as
--- if it did is what put a live retail client on the bundled bed with its sound
--- switched off (2026-10-23), and the switch to the bundled bed lasts the whole
--- session, so a Ctrl-S mute in the rain cost the under-layer until /reload.
-local CHANNEL_SWITCH = {
-	Ambience = "Sound_EnableAmbience", SFX = "Sound_EnableSFX", Music = "Sound_EnableMusic",
-}
-local function GameSoundOff()
-	if GetCVar("Sound_EnableAllSound") == "0" then return true end
-	local switch = CHANNEL_SWITCH[db.channel]
-	return switch ~= nil and GetCVar(switch) == "0"
 end
 
 local function PlayBedClip()
@@ -2107,10 +2139,13 @@ local function Strike()
 	-- to trail, so it simply arrives.
 	C_Timer.After(w.flash and (0.6 + math.random() * 2.6) or 0, function()
 		if not ShouldRain() or not db.thunder or not db.sound then return end
-		-- Through the same gain as the bed. A volume slider that turns the rain
-		-- down and leaves the thunder where it was is not a volume slider.
+		-- The same gain as the bed is passed, but nothing can apply it yet: no
+		-- thunder or gust file has a single-file SoundKit on Forever (see
+		-- BED_KITS), so these play at the channel's own level. A slider at zero
+		-- still has to mean silence, and that much needs no gain to honour.
 		local list = w.oneShots
 		local vol = BedVolume(1)
+		if vol <= 0 then return end
 		if not SlotPlay(thunderSlot, list[math.random(#list)], vol)
 		   and w.fallbackOneShot then
 			SlotPlay(thunderSlot, w.fallbackOneShot, vol)
@@ -2721,8 +2756,13 @@ local function HandleSlash(input, source)
 				IsOutdoors() and 1 or 0, Sheltered() and 1 or 0,
 				tostring(CurrentMapID() or "?"),
 				SealedMap() and " sealed" or ""),
-			string.format("draw%d hear%d yield%d", st.drawing and 1 or 0,
-				st.hearing and 1 or 0, st.yielding and 1 or 0),
+			-- vol= says whether the Volume slider is reaching the sound at all:
+			-- kit is working, refused means the client turned the bed kits
+			-- down this session (see kitsRefused), none is a client with no
+			-- volume call. "The slider does nothing" is unanswerable without it.
+			string.format("draw%d hear%d yield%d vol=%s", st.drawing and 1 or 0,
+				st.hearing and 1 or 0, st.yielding and 1 or 0,
+				(OptionsPlay() == nil and "none") or (kitsRefused and "refused") or "kit"),
 			string.format("real=%s@%.2f dens%s", tostring(real or "?"), grade or 0,
 				tostring(GetCVar("weatherDensity") or "?")),
 		}, " | ")

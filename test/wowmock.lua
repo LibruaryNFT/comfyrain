@@ -390,6 +390,24 @@ function M.reset(opts)
 	M.uiHidden    = false
 	M.soundKits = {}
 	for _, id in ipairs(opts.soundKits or { 567 }) do M.soundKits[id] = true end
+	-- SoundKits that wrap exactly one file, kit -> file, which is how the real
+	-- client resolves them. Defaults to the six weather kits the addon plays
+	-- its beds through; both clients carry these with these files (wago.tools
+	-- SoundKitEntry, 2026-10-26).
+	M.kitFiles = opts.kitFiles or {
+		[8533] = 538983, [8534] = 538981, [8535] = 538982,
+		[8536] = 538985, [8537] = 538989, [8538] = 538984,
+	}
+	for kit in pairs(M.kitFiles) do M.soundKits[kit] = true end
+	-- What Forever's 0x20 kit flag might mean and nobody can check before
+	-- launch: refuse a kit while an earlier play of the same kit still runs.
+	-- Off by default; a spec turns it on to prove the addon survives it.
+	M.kitNoDuplicates = pick(opts.kitNoDuplicates, false)
+	-- The old, wrong client: PlaySoundWithOptions taking any number. Only for
+	-- specs about the probe's own reasoning, which has to reach the right
+	-- verdict whichever way a client behaves.
+	M.optionsAcceptFiles = pick(opts.optionsAcceptFiles, false)
+	M.kitLive = {}
 
 	-- How long each file runs, so a handle stops being live when the sound
 	-- ends. Without this every handle looks like it is still playing forever
@@ -946,8 +964,29 @@ function M.install(env)
 				error("bad argument #1 to '?' (Usage: local success, soundHandle = " ..
 					"C_Sound.PlaySoundWithOptions(params))", 2)
 			end
-			local ok, handle = play(id, params.channel, "options")
+			-- A SoundKit and nothing else. Handed a FileDataID the client
+			-- returns nil, which the probe saw on Forever build 70450 with our
+			-- own thunder file (issue #29). The old mock accepted any number,
+			-- which is how every volume spec passed while the slider did
+			-- nothing in game.
+			if not M.soundKits[id] and not M.optionsAcceptFiles then
+				M.sounds[#M.sounds + 1] = { file = id, channel = params.channel,
+					kind = "options", at = M.now, ok = false, refused = "not a kit",
+					volumeOverride = params.volumeOverride }
+				return nil
+			end
+			if M.kitNoDuplicates and M.kitLive[id] and M.handles[M.kitLive[id]] then
+				M.sounds[#M.sounds + 1] = { file = M.kitFiles[id] or id, kit = id,
+					channel = params.channel, kind = "options", at = M.now, ok = false,
+					refused = "duplicate", volumeOverride = params.volumeOverride }
+				return false
+			end
+			-- A single-file kit plays its file, and is logged as that file, so
+			-- a spec asks what was HEARD rather than which door it came in by.
+			local ok, handle = play(M.kitFiles[id] or id, params.channel, "options")
 			local entry = M.sounds[#M.sounds]
+			entry.kit = id
+			if ok then M.kitLive[id] = handle end
 			entry.volumeOverride = params.volumeOverride
 			entry.runFinishCallback = params.runFinishCallback and true or false
 			if ok and params.runFinishCallback then
@@ -957,7 +996,8 @@ function M.install(env)
 				-- for a SoundKit, so the mock is told, never assumes.
 				local isKit = M.soundKits[id] and true or false
 				local fires = isKit and M.finishEventForKits or M.finishEventForFiles
-				local length = params.length or M.soundLengths[id] or M.defaultSoundLength or 1.0
+				local length = params.length or M.soundLengths[M.kitFiles[id] or id]
+					or M.defaultSoundLength or 1.0
 				if fires then
 					M.timers[#M.timers + 1] = {
 						at = M.now + length,

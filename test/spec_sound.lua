@@ -312,36 +312,78 @@ it("arms SOUNDKIT_FINISHED for a SoundKit, which is the positive control", funct
 	eq(heard[1], handle, "with the handle that ended")
 end)
 
-it("cannot assume SOUNDKIT_FINISHED fires for a FileDataID", function()
-	-- Every sound this addon owns is a FileDataID, not a SoundKit. Whether the
-	-- event fires for those is unknown until /comfy probe answers it on a live
-	-- client, so the mock defaults to the hostile answer and the sequencer in
-	-- Phase 4 is driven by a timer. If this spec ever starts failing because
-	-- the default flipped, the sequencer design has to be revisited, not the test.
+it("refuses a FileDataID in the options call, the way the client does", function()
+	-- Forever build 70450 answered this exact shape, our thunder file on the
+	-- Ambience channel, with nil and no handle, while SoundKit 567 played in
+	-- the same run. A mock that accepted it is how the Volume slider passed
+	-- every spec and did nothing in game (issue #29).
 	local w = H.world()
-	local heard = 0
-	local f = w.env.CreateFrame("Frame")
-	f:RegisterEvent("SOUNDKIT_FINISHED")
-	f:SetScript("OnEvent", function() heard = heard + 1 end)
-
-	local ok_ = w.env.C_Sound.PlaySoundWithOptions({
+	local ok_, handle = w.env.C_Sound.PlaySoundWithOptions({
 		soundKitID = 538981, channel = "Ambience", volumeOverride = 0.4,
-		length = 5.0, runFinishCallback = true,
 	})
-	eq(ok_, true, "played")
-	w:advance(6)
-	eq(heard, 0, "no finish event for a file, under the assumption we ship on")
+	eq(ok_, nil, "a file is not a kit")
+	eq(handle, nil, "and there is nothing to stop")
 end)
 
 it("records volumeOverride and runFinishCallback as the params struct fields they are", function()
 	local w = H.world()
 	local before = #w.mock.sounds
 	w.env.C_Sound.PlaySoundWithOptions({
-		soundKitID = 538981, channel = "Ambience", volumeOverride = 0.4,
+		soundKitID = 8534, channel = "Ambience", volumeOverride = 0.4,
 		runFinishCallback = true,
 	})
 	local s = w.mock.sounds[before + 1]
+	eq(s.file, 538981, "a single-file kit plays the file it wraps")
+	eq(s.kit, 8534, "and the log says which kit it came through")
 	eq(s.channel, "Ambience", "channel")
 	near(s.volumeOverride, 0.4, 1e-9, "volumeOverride")
 	eq(s.runFinishCallback, true, "runFinishCallback is a flag")
+end)
+
+it("plays every bed through its SoundKit, so the gain reaches the client", function()
+	-- The regression test for #29: ask what the CLIENT was given, not what the
+	-- addon meant. Every bed of every preset has to arrive as a kit carrying a
+	-- volumeOverride. One that arrives as a plain file is at full level.
+	local w = H.world()
+	w:slash("volume 0.5")
+	for _, scene in ipairs({ "rain light", "rain heavy", "monsoon", "snow light",
+	                         "snow heavy", "blizzard" }) do
+		local before = #w.mock.sounds
+		for word in scene:gmatch("%S+") do w:slash(word) end
+		w:advance(3.0, 0.1)
+		for i = before + 1, #w.mock.sounds do
+			local s = w.mock.sounds[i]
+			if s.ok and type(s.file) == "number" and s.file >= 538981 and s.file <= 538989 then
+				ok(s.kit, scene .. ": bed " .. s.file .. " went through a kit")
+				ok(s.volumeOverride and s.volumeOverride < 0.6,
+					scene .. ": and carries the slider's gain, got " .. tostring(s.volumeOverride))
+			end
+		end
+	end
+	eq(#w.mock.errors, 0, "errors")
+end)
+
+it("drops to file playback for the session if the client refuses a bed kit", function()
+	-- Forever's copies of the bed kits carry flag 0x20 and Retail's do not.
+	-- If it means "no overlapping duplicates", every reloop is refused. The
+	-- one outcome that must not happen is the bed pumping between a quiet kit
+	-- and a full-level file on alternate clips, so one refusal ends kit play.
+	local w = H.world({ kitNoDuplicates = true, soundLengths = {
+		[538983] = 20.0, [538981] = 30.0, [538982] = 25.0,
+	} })
+	w:slash("volume 0.4")
+	w:advance(90, 0.1)
+	local refusedAt, kitAfter, fileAfter = nil, 0, 0
+	for _, s in ipairs(w.mock.sounds) do
+		if s.refused == "duplicate" and not refusedAt then
+			refusedAt = s.at
+		elseif refusedAt and s.ok and s.at > refusedAt then
+			if s.kit then kitAfter = kitAfter + 1 else fileAfter = fileAfter + 1 end
+		end
+	end
+	ok(refusedAt, "the duplicate rule was reached")
+	eq(kitAfter, 0, "no kit plays after the first refusal")
+	gt(fileAfter, 0, "and the bed carries on as files")
+	eq(w.env.ComfyRainAPI.Can.volume(), false, "and the slider stops claiming to work")
+	eq(#w.mock.errors, 0, "errors")
 end)
