@@ -32,14 +32,16 @@ When the server sends a real storm it steps aside and lets that one fall, so it 
 It is on CurseForge for Forever and Retail: https://www.curseforge.com/wow/addons/comfy-rain
 ```
 
-Post it after `v1.0.0-beta2` is the newest file on CurseForge, so the first people who click
-get the current build rather than the 20 October alpha.
+Post it on 4 November, a few hours before the servers open at 23:00 UTC, with v1.0.0
+already on CurseForge. That is when the forums are fullest, and the first people who click
+get the release rather than a beta.
 
 ---
 
-## Reddit: one post in r/wowforever, later (#40)
+## Reddit: one post in r/wowforever, Sat 7 November (#40)
 
-Not scheduled: Justin decided on 2026-10-26 to post it later, not in launch week.
+Justin said "later" on 2026-10-26; on 2026-10-30 he asked to publish when there are the
+most eyes, and launch weekend is that for Reddit (launch day sinks under queue posts).
 The clip link is in, so the text is ready when he is. Flair: Video. Rules checked by report 2:
 Forever only, flair required, link the source, memes on Mondays only, no stated rule on
 self-promotion either way. Once only; reply to every comment.
