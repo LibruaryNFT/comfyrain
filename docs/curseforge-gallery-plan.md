@@ -60,15 +60,164 @@ Our three live images are captioned with their filenames (`preview1.jpg`), which
 
 | # | Caption |
 |---|---|
-| 1 | A thunderstorm over Stormwind. The rain, the wind and the lightning are all Comfy Rain. |
-| 2 | A blizzard in Dun Morogh, with the snow blowing on the wind. |
+| 1 | A thunderstorm in Elwynn Forest. The rain, the wind and the lightning are all Comfy Rain. |
+| 2 | A blizzard in Elwynn Forest, with the snow blowing on the wind. |
 | 3 | Light rain at dusk. The weather the game would not give you. |
-| 5 | Same spot, same moment: Comfy Rain off on the left, heavy rain on the right. |
+| 5 | Same spot, same camera: Comfy Rain off on the left, a storm on the right. |
 | 4 | Gentle snow in town. |
 | 7 | Time of Day holds the world at dusk, whatever the realm clock says. |
 | 6 | Every setting in one window, previewed live behind it. Hover a control to see its slash command. |
 
-Fix the place names once the frames exist; the caption names where it was shot.
+Place names updated 2026-10-30 to where 1, 2 and 5 were actually shot. 4 and 7 have no
+frame yet.
+
+## The clip: first gallery item, 30 seconds, with sound
+
+Added 2026-10-26. Both next-steps reports put a clip with sound first: the page has no
+proof of the audio, and the audio is what neither Weather nor Cinematic does. Cinematic's
+first gallery item is a YouTube video, so the clip goes to YouTube and its link goes in
+the Media tab as item 1. Shoot it on Retail now; Forever is not up until 4 Nov.
+
+**Recorder: OBS**, from Ubuntu's own archive (`obs-studio` 32.1.0, needs `sudo`). This
+is a Wayland session and GNOME's built-in recorder has no audio, so it cannot make this
+clip. OBS is driven from the agent side, set up 2026-10-26:
+
+- Profile `ComfyRain`: canvas 3440x1440 (the whole monitor), 60 fps, NVENC H.264 at
+  "Indistinguishable Quality", MKV, into `~/Videos`.
+- Scene `Scene`: one *Screen Capture (PipeWire)* source called `Screen` (whole monitor,
+  no cursor) and `Desktop Audio`. No microphone source, on purpose.
+- obs-websocket on 127.0.0.1:4455 with a generated password that lives only in OBS's
+  own config. `python3 -I tools/obs_ws.py StartRecord` / `StopRecord` /
+  `GetSourceScreenshot` drive it; the script reads the password from that config.
+
+**The take is one `/run` line**, so nobody has to press keys on cue. Stand still, game
+music off, ambience and effects up, default gamma. The agent starts recording; paste
+this, then Alt+Z to hide the UI. The storm comes in at 15 s; the first version of this
+line used 8 s and that was not long enough to get to Alt+Z:
+
+```
+/run local c,a=ComfyRainAPI.Command,C_Timer.After c("stop")a(15,function()c("preset storm")end)a(20,function()c("strike")end)a(26,function()c("strike")end)a(31,function()c("blizzard")c("thunder off")end)a(43,function()c("preset cozy")c("preset dusk")end)
+```
+
+**Turn the game's own weather off first.** Comfy Rain stands aside while the game is
+raining (`defer`, on by default), so a take shot in real rain shows only Blizzard's rain
+and has no dry opening. This saves the old value with the name lines below:
+
+```
+/run R=R or{}R.weatherDensity=R.weatherDensity or C_CVar.GetCVar("weatherDensity")C_CVar.SetCVar("weatherDensity","0")
+```
+
+NPC voices and emotes are muted the same way:
+
+```
+/run R=R or{}for _,n in ipairs{"Sound_EnableDialog","Sound_EnableEmoteSounds"}do R[n]=R[n]or C_CVar.GetCVar(n)C_CVar.SetCVar(n,"0")end
+```
+
+**Graphics go up in Options, not by CVar.** Setting `graphicsQuality` and `RenderScale`
+with `C_CVar.SetCVar` changed nothing visible on 2026-10-30. Options > Graphics: Render
+Scale 100%, and click Base Game Quality once so it re-applies the preset (it said 7 with
+shadows Low and SSAO off underneath).
+
+Names over heads, nameplates and chat bubbles are drawn by the world, so Alt+Z leaves
+them on. Before the take, this saves the current values and turns them off (names
+checked against Retail's `Wow.exe`, 2026-10-30):
+
+```
+/run R={}local c=C_CVar for n in("Own NPC FriendlyPlayerName EnemyPlayerName HostleNPC InteractiveNPC nameplateShowAll nameplateShowSelf chatBubbles"):gmatch"%S+"do n=n:find"^%u"and"UnitName"..n or n R[n]=c.GetCVar(n)c.SetCVar(n,"0")end
+```
+
+That leaves critters, pets and neutral NPCs named, so these two follow it (they add to
+the same saved set, so one restore covers all three):
+
+```
+/run R=R or{}local c=C_CVar for n in("NonCombatCreatureName FriendlyPetName EnemyPetName FriendlyMinionName EnemyMinionName FriendlyGuardianName FriendlySpecialNPCName"):gmatch"%S+"do n="UnitName"..n R[n]=R[n]or c.GetCVar(n)c.SetCVar(n,"0")end
+```
+
+```
+/run R=R or{}local c=C_CVar for n in("Enemies FriendlyNpcs FriendlyPlayers"):gmatch"%S+"do n="nameplateShow"..n R[n]=R[n]or c.GetCVar(n)c.SetCVar(n,"0")end
+```
+
+**The menu shot** keeps the UI, but the player frame shows the character's name and chat
+shows NPC yells, and the Comfy Rain window is a child of UIParent so Alt+Z hides it too.
+Hide just those two:
+
+```
+/run PlayerFrame:Hide()ChatFrame1:Hide()
+```
+
+This puts everything back, in the same session (the saved values do not survive a
+`/reload`). It leaves graphics as set in Options:
+
+```
+/run R.graphicsQuality=nil R.RenderScale=nil for n,v in pairs(R)do C_CVar.SetCVar(n,v)end PlayerFrame:Show()ChatFrame1:Show()
+```
+
+The take line is 254 characters, under the 255 the chat box takes; `luac -p` clean. Dry until 15 s,
+storm with thunderclaps at 20 and 26 s, blizzard at 31 s, light rain at dusk from 43 s.
+
+**The cut.** WoW runs windowed, so crop to the window's client area, not the screen
+centre. Find the edges from a raw frame by sampling pixel rows and columns (the title
+bar is flat grey 57, the browser under it is white). On 2026-10-30 the client was
+x 1940-3439, y 224-1127, and the 16:9 crop was `crop=1472:828:1954:262`, scaled with
+lanczos to 1920x1080, x264 CRF 16, 60 fps, 0.3 s audio fade in, 1.5 s fade out. Find the
+storm, blizzard and dusk changes with `signalstats` YAVG per half-second; they are step
+changes. The lightning flashes are single bright frames on the strike second. The raw
+file is deleted afterwards.
+
+**Shot 2026-10-30, Elwynn Forest on Retail:** the clip (38 s) and stills 1, 2, 3, 5 and
+6, in `~/comfyrain-media-2026-10-30/`. Stills 4 (snow in town) and 7 (Time of Day) were
+not shot; 3 already shows the dusk grade.
+
+Still 6 is cropped to the window, `crop=930:620:271:100` from the 1472x828 frame: the
+action bar, minimap, quest tracker and chat tab are outside it, and it drops the file
+from 2,245,991 bytes to 966,210, under CurseForge's 2 MB image limit. Every still is
+under 2,000,000 bytes.
+
+**Shot list**, as originally planned for separate takes. The `/run` take covers every
+shot except the inn door.
+
+| Time | Shot | Keys |
+|---|---|---|
+| 0-4 s | A dry street in daylight, camera still. Only the game's own sound | 1 |
+| 4-12 s | Press 2: the storm comes in, rain and sound together. Slow pan. Press 3 for a thunderclap with its flash | 2, then 3 |
+| 12-18 s | Walk in through an inn door: the rain fades under the roof. Back out | - |
+| 18-24 s | A snowy zone, blizzard with gusts | 4 |
+| 24-30 s | Light rain at dusk, camera still. The end frame | 5 |
+
+A zone that never rains (Durotar, Westfall) makes 0-12 s stronger than Stormwind, if the
+character can get there.
+
+**Publish:** upload to YouTube, public, title "Comfy Rain: rain and snow anywhere in World
+of Warcraft". Then the YouTube link as the first item in the CurseForge Media tab.
+Published 2026-10-30: https://youtu.be/6JES-90IoW0
+
+Thumbnail: `~/comfyrain-media-2026-10-30/youtube-thumbnail.jpg`, 1280x720, 256 KB. It is
+frame 5 (before / after) with OFF and ON in Lato Black 150px and a white divider at the
+split. Rain streaks vanish at sidebar size (168x94); the labels and the light/dark halves
+do not, so the proof frame beats any storm frame here.
+
+YouTube description:
+
+```
+Comfy Rain is a World of Warcraft addon that makes it rain or snow wherever you are, for as long as you want. Thunder, wind and a time-of-day colour grade come with it, and the sound is built from Blizzard's own weather audio.
+
+Filmed in Elwynn Forest on Retail. The rain, the snow, the thunder, the wind and the dusk light are all Comfy Rain.
+
+Works on WoW Forever and Retail. Free and open source (MIT).
+
+Download: https://www.curseforge.com/wow/addons/comfy-rain
+Source: https://github.com/LibruaryNFT/comfyrain
+
+In game, type /comfyrain to open the settings, or /comfy to turn the weather on and off.
+```
+
+Tags:
+
+```
+World of Warcraft, WoW addon, WoW Forever, Comfy Rain, rain ambience, WoW ambience, cozy, Elwynn Forest, CurseForge
+```
+
+No chapters: YouTube needs every chapter to be at least 10 s, and dusk runs 6 s.
 
 ## The shoot
 
@@ -88,7 +237,7 @@ Nine frames. Numbers 1, 2 and 5 are the ones that do the work.
 
 ### Order in the gallery
 
-1, 2, 3, 5, 4, 7, 6. The menu goes last, per the pattern above. 8 and 9 are description
+The clip first, then 1, 2, 3, 5, 4, 7, 6. The menu goes last, per the pattern above. 8 and 9 are description
 inline images, not gallery slots.
 
 ## Shooting notes, so this does not have to be re-derived

@@ -19,8 +19,10 @@ the rain indoors; needs `/reload` to pick up (no new files, so no client restart
    probe screenshots and the gallery re-shoot (PR #19) are optional, not launch gates.
 4. #3 (does weatherDensity 0 stop the engine lightning) needs a real storm. It does not
    block launch.
-5. Tag `v1.0.0` from `main` on 4 November, then check the file landed on CurseForge.
-   The publish step has no CurseForge check of its own (only GitHub), so that check is by hand.
+5. Tag `v1.0.0` from `main` on **3 November** (moved from the 4th on 2026-10-26, report 2:
+   it clears CurseForge moderation before players log in at 23:00 UTC on the 4th). It
+   publishes, so it needs Justin's go on the day. Then check the file landed on CurseForge:
+   the publish step has no CurseForge check of its own (only GitHub), so that is by hand.
 6. Done 2026-10-24, all read back from the public page: the description has the "Which
    WoW" section (Forever and Retail, Classic not yet), the flat logo is the avatar
    (`avatars/2143/963`), and Roleplay and Artwork are listed. Those two categories were
@@ -33,7 +35,110 @@ the rain indoors; needs `/reload` to pick up (no new files, so no client restart
    20 Oct, is tagged Forever 1.60.1 alone, so the Retail listing in the CurseForge app
    does not show the addon. Any tag pushed now is tagged both from the TOC. Proposed: a
    `v1.0.0-beta1` tag now, which also proves the CurseForge upload before launch day.
-   Waiting on Justin's go, because it publishes.
+   **2026-10-26: beta1 pushed from `edd3853` on Justin's go, and it failed before
+   publishing.** The zip was good, but the release check wanted a flavour suffix
+   (`-forever`) that the packager drops now the TOC lists two flavours. Nothing reached
+   GitHub or CurseForge, so the page is still Forever-only, and v1.0.0 would have failed
+   the same way. Fix: PR #38. Once it merges, push `v1.0.0-beta2` from main and read the
+   CurseForge file's game versions back.
+9. 2026-10-26: deep-research prompt for the launch plan, the audio roadmap and new
+   features in the same mood, `docs/next-steps-research-prompt.md` ("make the absolute
+   best addon we can"). It lists untested Blizzard rain soundscapes (coastal, plains,
+   forest storm), drips and tavern chatter by FileDataID; none is probed on a client yet.
+10. 2026-10-26: both reports are in, `docs/next-steps-research-report-1.md` and `-2.md`, and
+    they are checked in the next section. Checking them turned up a launch bug: **#29, Volume
+    does nothing in game.** Fixing it is the one code item before v1.0.0. The fix is PR #32
+    (beds only; thunder and wind are #31), and #29 stays open until an ear test in a client.
+
+## Launch plan (decided 2026-10-26, "ok do all of that")
+
+**Before 4 Nov**
+- [x] PR #38 merged 2026-10-30 (by the agent, on Justin's explicit ask), and
+      `v1.0.0-beta2` pushed from `41662aa`. Release run green; GitHub pre-release has
+      `ComfyRain-v1.0.0-beta2.zip`; the packager logged CurseForge "Success!" as beta for
+      `12.1.5` and `1.60.1`. The cfwidget mirror had not caught up 5 minutes later, so it
+      is a lagging source, not evidence either way. `main` is unprotected with no
+      required checks, so standing merge authority never applies in this repo: a merge
+      here is Justin's click or his explicit ask.
+- [x] `/comfy probe volume` on Retail, 2026-10-30 on `dev-bb5c610`: the 15% clip was
+      quieter and `kit_overlap` said yes. Result on #29; Forever half at the smoke test.
+- [x] PR #32 merged 2026-10-30 on Justin's ask (`912cdfc`, CI green), and
+      `v1.0.0-beta3` pushed from it so CurseForge has the Volume fix before the forum post.
+      Packager logged CurseForge "Success!" as beta for `12.1.5` and `1.60.1`. The zip's
+      ComfyRain.lua and UI.lua match `912cdfc` except the substituted version string;
+      Probe.lua is left out by `.pkgmeta`, as designed. #29 stays open for the ear test.
+- [ ] CurseForge summary pasted (authors console, his login). Text is the Summary block in
+      `docs/curseforge-page.md`.
+- [x] Clip and stills shot, 2026-10-30, Elwynn Forest on Retail: `comfy-rain-clip.mp4`
+      (38 s, 1080p60, sound) and stills 1, 2, 3, 5, 6 in `~/comfyrain-media-2026-10-30/`.
+      Method, including the setup lines: "The clip" in `docs/curseforge-gallery-plan.md`.
+      The old shoot card is deleted.
+- [x] Clip on YouTube, 2026-10-30: https://youtu.be/6JES-90IoW0. Checked from outside
+      the same day: public, embeddable (oEmbed 200, `playableInEmbed` true), tags set, the
+      OFF / ON thumbnail is live. Category still reads People & Blogs; Gaming is better,
+      a Studio edit, not blocking.
+- [ ] CurseForge Media tab (Justin): the YouTube link first, then stills 1, 2, 3, 5, 6
+      with the captions in the gallery plan, and the three old images removed.
+- [ ] Forum reply in Blizzard's weather thread, text in `docs/launch-posts.md`. Justin posts it.
+- [ ] v1.0.0 tag on 3 Nov (item 5).
+
+**Launch week**
+- [ ] 4 Nov 23:00 UTC, Forever smoke test: loads, `/comfy status`, rain and snow draw,
+      `/comfy probe volume` (answers #29's Forever half: flag 0x20 and the 0.69 question),
+      the #31 kit lines, and `/run PlaySoundFile(<id>)` for each soundscape and drip in #33
+      and #34.
+- [ ] 5 Nov: hotfix from whatever the smoke test finds, as v1.0.1.
+- [ ] Every CurseForge comment answered, daily through 11 Nov (Invite-A-Friend week ends).
+- Not this week: the r/wowforever post. Justin, 2026-10-26: "we arent making a new
+  reddit thread yet, we will do tht later". Todo is #40; draft in `docs/launch-posts.md`.
+
+**After launch, in this order** (label `after-launch`, none of it in v1.0.0)
+1. #33 Rain soundscapes with Meander
+2. #34 Indoor drips and the inn scene
+3. #35 Fog
+4. #36 Leaves, embers and sandstorm as one particle system
+5. #28 Gamma brightening
+6. #37 Music mode
+
+## 2026-10-26: the next-steps reports, checked
+
+What the reports claimed, and what we checked on 2026-10-26:
+
+| Claim | From | Checked by | Result |
+|---|---|---|---|
+| `PlaySoundWithOptions` takes a SoundKit id, not a FileDataID | 1 | our probe log + wago.tools SoundKitEntry | **True, and it breaks us today.** Forever 70450 returned nil for FileDataID 838830, while kit 567 was accepted in the same run. The highest kit id on both clients is about 376k, and ours start at 538981. So every clip falls back to `PlaySoundFile` with no gain: #29 |
+| Weather's indoor ambience does not play on Forever | 2 | Weather's GitHub releases | **Stale.** 0.1.1 fixed it with bundled 50%-volume files and says "I can't add volume sliders to the Forever version". A working slider on Forever would beat it |
+| `C_CVar.SetTempCVar` landed in 1.60.1 | 1 | binary strings | **In the Forever `Wow.exe`, not in the Retail one** (control: `SetCVar` is found in both). Gamma on Retail still needs report 2's save-and-restore-on-logout. Untested: whether a temp Gamma stays out of Config.wtf. Added to #28 |
+| Kaivax thread: 9.6k views, 807 likes, 214 posts (1); 93 posts (2, secondhand) | 1, 2 | Discourse JSON | 9,624 views, 807 likes, 208 posts, still open, last post 2026-10-03. **Report 1 is right and report 2 is wrong.** Liger's fog ask is post #7, verbatim. Post #18 asks for a way to turn weather *off* |
+| HousingMusic 82.5K proves demand for music mode | 1 | CurseForge page | 82.6K, but it is keyboardturner's **Retail-only** player-housing playlist addon, not on Forever. FAME is at 366 (search, 2026-10-26). **Weak evidence**; report 2 ranks music 11th |
+| Cinematic has no actual rain | 1 | CurseForge page | True. 9,055 downloads. Its only weather line: "rain, snow and sandstorms grey or colour the scene" |
+| Launch 4 Nov, 3:00 p.m. PST (23:00 UTC) | 2 | Blizzard's Forever page and news posts | True |
+| r/wowforever has 147,854 members (Subriff) | 2 | reddit `about.json` | **Unverified.** 403, and the control r/classicwow was also 403, so the method is blocked |
+| Ship a `ComfyRain_Forever.toc` | 1 | our TOC | Not needed. `16001, 120105` already loads on both and the packager tags both |
+| Suspend audio relaunches in combat | 1 | - | Rejected. The rain would go silent in every fight, and the report gives no reason for it |
+
+**Where the reports agree, adopted:**
+- Summary carries the searched words.
+- Gallery leads with a clip that has sound.
+- Beta tag now.
+- Position as a companion: "Cinematic and Weather change how the world looks. Comfy Rain makes it rain."
+- Rain textures plus a slow random gain drift ("Meander"), not three rain variants.
+- A per-file loudness table.
+- No `MuteSoundFile`.
+
+Every gain-based audio idea in both reports depends on #29.
+
+**Recommendation where they differ:**
+- Upload v1.0.0 on **3 Nov**, not 4 Nov (report 2), so moderation is never in the way at 23:00 UTC.
+- After launch, build the **soundscape picker and sequencer first** (report 2), not music mode (report 1), because music mode's demand evidence is a Retail housing addon.
+- Summary to propose, from report 2, keeping "weather sounds" so the positive control still matches: "Cozy rain and snow anywhere, with Blizzard's own weather sounds, thunder, wind and a time-of-day colour grade. Rain ambience for questing, reading or AFK."
+- The summary and every tag publish, so each waits on Justin's go.
+
+**Soundscape availability, from the kit tables (not a play test):**
+- Retail references every candidate file in a SoundKit.
+- Forever's table references only 539134 (ForestStormy_Night), the SandStorm trio, the drips 596024/1402221/614975 and the 10.0 thunder strikes from 4883319.
+- Coastal, plains, the other three storm beds, tavern walla and the cave loop are absent from it.
+- Absent from the table is not absent from the client, so it still takes a `/run PlaySoundFile` on Forever launch night.
 
 Icon: redrawn 2026-10-23 ("can we get a non-ai looking logo"), approved the same day
 ("flat drop is fine then"). One flat drop drawn from
