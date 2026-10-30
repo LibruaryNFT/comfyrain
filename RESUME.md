@@ -86,7 +86,9 @@ the rain indoors; needs `/reload` to pick up (no new files, so no client restart
       a Studio edit, not blocking.
 - [ ] CurseForge Media tab (Justin): the YouTube link first, then stills 1, 2, 3, 5, 6
       with the captions in the gallery plan, and the three old images removed.
-- [ ] v1.0.0 tag on 3 Nov (item 5). The file goes up BEFORE the eyes arrive: players
+- [ ] v1.0.0 tag: recommended **now** (2026-10-30) rather than 3 Nov, on Justin's "ship
+      it". Nothing is due to land in between: #29's Forever half and #3 need the live
+      client or a real storm, #39 is CI. The file goes up BEFORE the eyes arrive: players
       set up addons before the servers open, and Release-only installs are stuck on 0.9.2
       until a Release exists. Re-check `wowf` on the patch server first (2026-10-30:
       `1.60.1.70707`, so `16001` is still right); if the launch build changes the
