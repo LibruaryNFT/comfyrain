@@ -54,8 +54,8 @@ the rain indoors; needs `/reload` to pick up (no new files, so no client restart
 
 **Before 4 Nov**
 - [ ] PR #38 merged (Justin), then `v1.0.0-beta2` (item 8).
-- [ ] `/comfy probe volume` on Retail: is the second clip quieter, and does `kit_overlap`
-      say yes. The Retail AddOns folder already has the fix build (`dev-bb5c610`, PR #32).
+- [x] `/comfy probe volume` on Retail, 2026-10-30 on `dev-bb5c610`: the 15% clip was
+      quieter and `kit_overlap` said yes. Result on #29; Forever half at the smoke test.
 - [ ] PR #32 merged (Justin).
 - [ ] CurseForge summary pasted (authors console, his login). Text is the Summary block in
       `docs/curseforge-page.md`.

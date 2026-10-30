@@ -105,6 +105,17 @@ checked against Retail's `Wow.exe`, 2026-10-30):
 /run R={}local c=C_CVar for n in("Own NPC FriendlyPlayerName EnemyPlayerName HostleNPC InteractiveNPC nameplateShowAll nameplateShowSelf chatBubbles"):gmatch"%S+"do n=n:find"^%u"and"UnitName"..n or n R[n]=c.GetCVar(n)c.SetCVar(n,"0")end
 ```
 
+That leaves critters, pets and neutral NPCs named, so these two follow it (they add to
+the same saved set, so one restore covers all three):
+
+```
+/run R=R or{}local c=C_CVar for n in("NonCombatCreatureName FriendlyPetName EnemyPetName FriendlyMinionName EnemyMinionName FriendlyGuardianName FriendlySpecialNPCName"):gmatch"%S+"do n="UnitName"..n R[n]=R[n]or c.GetCVar(n)c.SetCVar(n,"0")end
+```
+
+```
+/run R=R or{}local c=C_CVar for n in("Enemies FriendlyNpcs FriendlyPlayers"):gmatch"%S+"do n="nameplateShow"..n R[n]=R[n]or c.GetCVar(n)c.SetCVar(n,"0")end
+```
+
 and this puts them back, in the same session (the saved values do not survive a
 `/reload`):
 
