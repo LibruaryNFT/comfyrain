@@ -168,6 +168,11 @@ file is deleted afterwards.
 6, in `~/comfyrain-media-2026-10-30/`. Stills 4 (snow in town) and 7 (Time of Day) were
 not shot; 3 already shows the dusk grade.
 
+Still 6 is cropped to the window, `crop=930:620:271:100` from the 1472x828 frame: the
+action bar, minimap, quest tracker and chat tab are outside it, and it drops the file
+from 2,245,991 bytes to 966,210, under CurseForge's 2 MB image limit. Every still is
+under 2,000,000 bytes.
+
 **Shot list**, as originally planned for separate takes. The `/run` take covers every
 shot except the inn door.
 
