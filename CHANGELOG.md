@@ -4,8 +4,8 @@
 
 First release, for World of Warcraft: Forever and Retail.
 
-- Rain and snow on demand, anywhere, for as long as you want, on top of whatever
-  weather the server is running.
+- Rain and snow on demand, anywhere, for as long as you want. When the server
+  sends its own rain or snow, Comfy Rain steps aside and lets the real thing fall.
 - Four intensities each, plus `monsoon` and `blizzard`.
 - `/comfy auto` matches the server's current weather in one shot.
 - Layered ambience built from the game's own weather loops, with wind gusts and

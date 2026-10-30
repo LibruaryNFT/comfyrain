@@ -67,6 +67,13 @@ the rain indoors; needs `/reload` to pick up (no new files, so no client restart
       Packager logged CurseForge "Success!" as beta for `12.1.5` and `1.60.1`. The zip's
       ComfyRain.lua and UI.lua match `912cdfc` except the substituted version string;
       Probe.lua is left out by `.pkgmeta`, as designed. #29 stays open for the ear test.
+      **Read back from CurseForge itself** the same afternoon, via the site's own JSON
+      (no key needed; the project and search endpoints return 403, this one does not):
+      `https://www.curseforge.com/api/v1/mods/1756622/files?pageIndex=0&pageSize=10&sort=dateCreated&sortDescending=true`.
+      beta3 is file 9374187, status 4 (Approved), releaseType 2 (Beta), game versions
+      `12.1.5` and `1.60.1`, approved within minutes of upload, so moderation no longer
+      needs a day of margin. The 0.9.2-alpha file is releaseType **1, Release**, so an app
+      that takes Release files only still gets 0.9.2 (Forever only) until v1.0.0 lands.
 - [ ] CurseForge summary pasted (authors console, his login). Text is the Summary block in
       `docs/curseforge-page.md`.
 - [x] Clip and stills shot, 2026-10-30, Elwynn Forest on Retail: `comfy-rain-clip.mp4`
@@ -79,8 +86,17 @@ the rain indoors; needs `/reload` to pick up (no new files, so no client restart
       a Studio edit, not blocking.
 - [ ] CurseForge Media tab (Justin): the YouTube link first, then stills 1, 2, 3, 5, 6
       with the captions in the gallery plan, and the three old images removed.
-- [ ] Forum reply in Blizzard's weather thread, text in `docs/launch-posts.md`. Justin posts it.
-- [ ] v1.0.0 tag on 3 Nov (item 5).
+- [ ] v1.0.0 tag: recommended **now** (2026-10-30) rather than 3 Nov, on Justin's "ship
+      it". Nothing is due to land in between: #29's Forever half and #3 need the live
+      client or a real storm, #39 is CI. The file goes up BEFORE the eyes arrive: players
+      set up addons before the servers open, and Release-only installs are stuck on 0.9.2
+      until a Release exists. Re-check `wowf` on the patch server first (2026-10-30:
+      `1.60.1.70707`, so `16001` is still right); if the launch build changes the
+      interface number, v1.0.1 with the new TOC goes out the same hour.
+- [ ] Forum reply in Blizzard's weather thread, text in `docs/launch-posts.md`. Justin posts
+      it on **4 Nov, a few hours before 23:00 UTC**, when the forums fill with people
+      waiting for the servers (timing proposed 2026-10-30, after Justin asked to publish
+      "when there's the most eyes").
 
 **Launch week**
 - [ ] 4 Nov 23:00 UTC, Forever smoke test: loads, `/comfy status`, rain and snow draw,
@@ -89,8 +105,11 @@ the rain indoors; needs `/reload` to pick up (no new files, so no client restart
       and #34.
 - [ ] 5 Nov: hotfix from whatever the smoke test finds, as v1.0.1.
 - [ ] Every CurseForge comment answered, daily through 11 Nov (Invite-A-Friend week ends).
-- Not this week: the r/wowforever post. Justin, 2026-10-26: "we arent making a new
-  reddit thread yet, we will do tht later". Todo is #40; draft in `docs/launch-posts.md`.
+- [ ] r/wowforever post (#40), proposed **Sat 7 Nov**, launch weekend. Justin had said
+  "later" on 2026-10-26; on 2026-10-30 he asked to publish when there are the most eyes.
+  Launch day itself is buried under queue and server posts; the first weekend is when
+  people are settled in and browsing. Report 2 said 6-8 Nov too. Draft in
+  `docs/launch-posts.md`, clip link included.
 
 **After launch, in this order** (label `after-launch`, none of it in v1.0.0)
 1. #33 Rain soundscapes with Meander
