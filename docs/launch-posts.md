@@ -25,18 +25,22 @@ Reply:
 ```
 For anyone who wants more rain than the server gives them: I made a free addon, Comfy Rain, that makes it rain or snow anywhere, whenever you like, with Blizzard's own weather sounds, thunder and wind. Blizzards in Dun Morogh on demand.
 
-It runs on top of the real weather, so it adds to what Kaivax showed rather than replacing it, and it fades out when you walk under a roof.
+When the server sends a real storm it steps aside and lets that one fall, so it adds to what Kaivax showed rather than replacing it, and it fades out when you walk under a roof.
+
+38 seconds of it, sound on: https://youtu.be/6JES-90IoW0
 
 It is on CurseForge for Forever and Retail: https://www.curseforge.com/wow/addons/comfy-rain
 ```
+
+Post it after `v1.0.0-beta2` is the newest file on CurseForge, so the first people who click
+get the current build rather than the 20 October alpha.
 
 ---
 
 ## Reddit: one post in r/wowforever, later (#40)
 
 Not scheduled: Justin decided on 2026-10-26 to post it later, not in launch week.
-Not ready to send either: it needs the YouTube link for the clip
-(`docs/curseforge-gallery-plan.md`, "The clip"). Flair: Video. Rules checked by report 2:
+The clip link is in, so the text is ready when he is. Flair: Video. Rules checked by report 2:
 Forever only, flair required, link the source, memes on Mondays only, no stated rule on
 self-promotion either way. Once only; reply to every comment.
 
@@ -46,10 +50,12 @@ Title:
 I made an addon that makes it rain or snow anywhere, with Blizzard's own weather sounds
 ```
 
-Body, with the clip link added as the first line once it exists:
+Body:
 
 ```
-Comfy Rain draws rain or snow on top of whatever the server is doing, plays the game's own weather loops with thunder and wind, and can hold the world at dusk. It fades out under a roof. Free, for Forever and Retail.
+https://youtu.be/6JES-90IoW0
+
+Comfy Rain draws rain or snow wherever you are, plays the game's own weather loops with thunder and wind, and can hold the world at dusk. When the server sends real rain it steps aside, and it fades out under a roof. Free, for Forever and Retail.
 
 CurseForge: https://www.curseforge.com/wow/addons/comfy-rain
 Source: https://github.com/LibruaryNFT/comfyrain
