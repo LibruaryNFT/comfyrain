@@ -35,6 +35,7 @@ PRESENT GetBuildInfo
 PRESENT GetCVar
 PRESENT GetCameraZoom
 PRESENT GetCenter
+PRESENT GetCurrentWeather
 PRESENT GetCursorPosition
 PRESENT GetEffectiveScale
 PRESENT GetFileIDFromPath

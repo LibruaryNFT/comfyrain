@@ -354,7 +354,12 @@ local function Invariants(w, where)
 
 	local wo = w:whiteout()
 	if wo then
-		lt(wo:GetAlpha(), 0.11, where .. ": the whiteout stays below the point " ..
+		-- 0.31, against the 0.30 cap in ApplyAlphas. The old ceiling was 0.11
+		-- for an ADD quad, where alpha bought raw brightness and clipped the
+		-- highlights off anything behind it. This is a BLEND: 0.30 takes 30%
+		-- of the scene's contrast out and keeps every level, so it obscures
+		-- strictly less at a larger number.
+		lt(wo:GetAlpha(), 0.31, where .. ": the whiteout stays below the point " ..
 			"where it could hide a mob")
 	end
 

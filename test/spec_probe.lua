@@ -86,7 +86,7 @@ end)
 it("will not call a missing finish event 'no' unless the SoundKit control fired", function()
 	-- The whole Phase 4 sequencer design turns on this answer, so a false "no"
 	-- is cheap to record and expensive to believe.
-	local w = H.world({ soundKits = {}, finishEventForKits = true })
+	local w = H.world({ soundKits = {}, finishEventForKits = true, optionsAcceptFiles = true })
 	w:slash("probe")
 	w:advance(20)
 	eq(results(w).finish_event.verdict, "unknown", "no control, no conclusion")
@@ -103,7 +103,7 @@ it("reports no when the control fires and the FileDataID does not", function()
 end)
 
 it("reports yes when the FileDataID fires too", function()
-	local w = H.world({ soundKits = { 567 },
+	local w = H.world({ soundKits = { 567 }, optionsAcceptFiles = true,
 	                    finishEventForKits = true, finishEventForFiles = true })
 	w:slash("probe")
 	w:advance(20)
@@ -489,14 +489,25 @@ it("photographs every weather state instead of asking somebody to describe one",
 	w:advance(90)
 
 	local shots = w.mock.screenshots
-	eq(#shots, 10, "one file per state in the sweep")
+	eq(#shots, 13, "one file per state in the sweep")
 	eq(w:db().probe.shots.order[1], "control-off", "the control is taken first")
 	eq(shots[1].enabled, false, "and it really is the weather turned off")
 
 	-- The manifest is the whole point: the files are timestamps on disk and
 	-- carry no record of what they are pictures of.
-	eq(#w:db().probe.shots.order, 10, "every shot is named in the manifest")
-	eq(w:db().probe.shots.taken["snow-blizzard-night"].index, 8, "in sweep order")
+	eq(#w:db().probe.shots.order, 13, "every shot is named in the manifest")
+	eq(w:db().probe.shots.taken["snow-blizzard-night"].index, 11, "in sweep order")
+
+	-- And each name is the truth about its picture. A sweep whose "snow-light"
+	-- is a photo of normal snow would confirm exactly the bug it exists to find.
+	for i, name in ipairs(w:db().probe.shots.order) do
+		local weather, intensity = name:match("^(%a+)%-(%a+)%-")
+		if name ~= "control-off" then
+			ok(weather and intensity, name .. " names a weather and an intensity")
+			eq(shots[i].weather .. "-" .. shots[i].intensity, weather .. "-" .. intensity,
+				name .. " photographs what it is named for")
+		end
+	end
 end)
 
 it("photographs the state it claims to, not the fade into it", function()
@@ -541,7 +552,7 @@ it("takes the pictures with the UI out of the way", function()
 	for _, shot in ipairs(w.mock.screenshots) do
 		if shot.uiHidden then hidden = hidden + 1 end
 	end
-	eq(hidden, 10, "every shot in the sweep is a clean frame")
+	eq(hidden, 13, "every shot in the sweep is a clean frame")
 	eq(w.mock.uiHidden, false, "and the UI comes back when it is done")
 end)
 
@@ -636,4 +647,29 @@ it("says what to do when nothing has asked your ears yet", function()
 	local w = H.world()
 	w:slash("probe heard yes")
 	gt(#w.mock.printedMatching("probe ears"), 0, "points at the retry")
+end)
+
+it("plays the bed kit loud then quiet and asks the ears, never claiming it heard", function()
+	local w = H.world()
+	w:slash("probe volume")
+	w:advance(20)
+	local r = results(w)
+	eq(r.kit_volume.verdict, "ask", "only ears can say it was quieter")
+	eq(r.kit_overlap.verdict, "yes", "a client that allows a reloop says so")
+	local quiet
+	for _, s in ipairs(w.mock.sounds) do
+		if s.kit == 8534 and s.volumeOverride and s.volumeOverride < 0.2
+		   and s.volumeOverride > 0.1 then quiet = s end
+	end
+	ok(quiet and quiet.ok, "the quiet clip went to the client as kit 8534")
+	eq(w:db().probe.pendingEars, "kit_volume", "and waits on the answer")
+	eq(#w.mock.errors, 0, "errors")
+end)
+
+it("records that a reloop will be refused when the client blocks duplicate kits", function()
+	local w = H.world({ kitNoDuplicates = true })
+	w:slash("probe volume")
+	w:advance(20)
+	eq(results(w).kit_overlap.verdict, "no", "verdict")
+	contains(results(w).kit_overlap.detail, "latches to files", "and says what the addon does then")
 end)

@@ -55,6 +55,37 @@ it("gives the blizzard its own gale sheet, not the same flakes faster", function
 	ok(tostring(l.near.texture):find("gale"), "and it is the gale sheet")
 end)
 
+-- Light and normal snow used to be the same near sheet at two alphas, and on
+-- that sheet alpha barely changes how many flakes show: 552 against 618. Heavy
+-- had the same flaw from the other side. Each is its own sheet now, a count
+-- ladder, and tools/perceive.py checks a player could tell the steps apart.
+it("gives each snow intensity its own count of flakes, not the same flakes brighter", function()
+	local w = H.world()
+	w:slash("snow")
+	local l = w:layers()
+	local full = l.near.texture
+	ok(tostring(full):find("snow%-near%.tga"), "normal snow draws the full near sheet")
+	w:slash("light")
+	ok(tostring(l.near.texture):find("snow%-near%-light"), "light draws the thinned sheet")
+	w:slash("heavy")
+	ok(tostring(l.near.texture):find("snow%-near%-heavy"), "heavy draws the dense one")
+	w:slash("normal")
+	eq(l.near.texture, full, "and normal goes back to the full sheet")
+end)
+
+it("gives heavy rain and monsoon more drops, not the same drops brighter", function()
+	local w = H.world()
+	w:slash("rain")
+	local l = w:layers()
+	ok(tostring(l.near.texture):find("rain%-near%.tga"), "normal rain draws the base sheet")
+	w:slash("heavy")
+	ok(tostring(l.near.texture):find("rain%-near%-heavy"), "heavy draws a denser one")
+	w:slash("monsoon")
+	ok(tostring(l.near.texture):find("rain%-near%-monsoon"), "monsoon the densest")
+	w:slash("light")
+	ok(tostring(l.near.texture):find("rain%-near%.tga"), "light shares normal's, slower and fainter")
+end)
+
 it("plays the snow bed, and relooks it on the snow clip length", function()
 	local w = H.world()
 	local before = #w.mock.sounds
@@ -175,7 +206,13 @@ it("whites out in a blizzard, and only in a blizzard", function()
 	local w = H.world()
 	local q = w:whiteout()
 	ok(q, "the whiteout quad exists")
-	eq(q.blend, "ADD", "ADD, because MOD can only darken and a whiteout brightens")
+	-- BLEND, not ADD. A whiteout is contrast collapsing towards the sky, and
+	-- only BLEND does that: it scales every difference in the frame by (1-a),
+	-- where ADD shifts the whole frame by a constant and leaves every
+	-- difference exactly where it was. The old ADD quad could brighten but
+	-- could not actually obscure anything, which is why it read as a gamma
+	-- slider rather than as weather.
+	eq(q.blend, "BLEND", "BLEND, because a whiteout destroys contrast, not darkness")
 	near(q:GetAlpha(), 0, 1e-9, "off in rain")
 
 	w:slash("snow")
@@ -184,10 +221,10 @@ it("whites out in a blizzard, and only in a blizzard", function()
 	w:slash("blizzard")
 	gt(q:GetAlpha(), 0, "on in a blizzard")
 	-- An addon that hides a mob is an addon that gets uninstalled.
-	lt(q:GetAlpha(), 0.23, "and capped well short of hiding the world")
+	lt(q:GetAlpha(), 0.31, "and capped well short of hiding the world")
 
 	w:slash("alpha 1.5")
-	lt(q:GetAlpha(), 0.23, "still capped when the player cranks the alpha")
+	lt(q:GetAlpha(), 0.31, "still capped when the player cranks the alpha")
 end)
 
 it("snow tints cooler than rain but still darkens", function()
