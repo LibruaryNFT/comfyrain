@@ -19,10 +19,9 @@ the rain indoors; needs `/reload` to pick up (no new files, so no client restart
    probe screenshots and the gallery re-shoot (PR #19) are optional, not launch gates.
 4. #3 (does weatherDensity 0 stop the engine lightning) needs a real storm. It does not
    block launch.
-5. Tag `v1.0.0` from `main` on **3 November** (moved from the 4th on 2026-10-26, report 2:
-   it clears CurseForge moderation before players log in at 23:00 UTC on the 4th). It
-   publishes, so it needs Justin's go on the day. Then check the file landed on CurseForge:
-   the publish step has no CurseForge check of its own (only GitHub), so that is by hand.
+5. Done 2026-10-30: `v1.0.0` shipped, four days early, on Justin's "ship it" (see the
+   launch plan below). The publish step still has no CurseForge check of its own, so a
+   tag is confirmed by reading the site's files endpoint (recorded under beta3 below).
 6. Done 2026-10-24, all read back from the public page: the description has the "Which
    WoW" section (Forever and Retail, Classic not yet), the flat logo is the avatar
    (`avatars/2143/963`), and Roleplay and Artwork are listed. Those two categories were
@@ -86,13 +85,14 @@ the rain indoors; needs `/reload` to pick up (no new files, so no client restart
       a Studio edit, not blocking.
 - [ ] CurseForge Media tab (Justin): the YouTube link first, then stills 1, 2, 3, 5, 6
       with the captions in the gallery plan, and the three old images removed.
-- [ ] v1.0.0 tag: recommended **now** (2026-10-30) rather than 3 Nov, on Justin's "ship
-      it". Nothing is due to land in between: #29's Forever half and #3 need the live
-      client or a real storm, #39 is CI. The file goes up BEFORE the eyes arrive: players
-      set up addons before the servers open, and Release-only installs are stuck on 0.9.2
-      until a Release exists. Re-check `wowf` on the patch server first (2026-10-30:
-      `1.60.1.70707`, so `16001` is still right); if the launch build changes the
-      interface number, v1.0.1 with the new TOC goes out the same hour.
+- [x] **v1.0.0 shipped 2026-10-30**, on Justin's "ship it", from `43cbda1` (#41 merged
+      first for the changelog line; main CI green; `wowf` was `1.60.1.70707`). GitHub
+      release is not a pre-release. CurseForge file 9374445, read back from the site's
+      files endpoint 5.5 minutes after upload: releaseType 1 (Release), status 4
+      (Approved), `12.1.5` and `1.60.1`. The zip's ComfyRain.lua and UI.lua match
+      `43cbda1` with the version substituted, the TOC says `v1.0.0`, 12 .tga/.ogg assets.
+- [ ] Re-check `wowf` on 3 Nov and on launch day. If the launch build changes the
+      interface number from `16001`, v1.0.1 with the new TOC goes out the same hour.
 - [ ] Forum reply in Blizzard's weather thread, text in `docs/launch-posts.md`. Justin posts
       it on **4 Nov, a few hours before 23:00 UTC**, when the forums fill with people
       waiting for the servers (timing proposed 2026-10-30, after Justin asked to publish
