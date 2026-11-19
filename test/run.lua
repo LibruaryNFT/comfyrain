@@ -36,6 +36,7 @@ local SPECS = {
 	"spec_probe",
 	"spec_sweep",
 	"spec_perceive",
+	"spec_underwater",
 }
 
 os.exit(H.run(SPECS) and 0 or 1)
