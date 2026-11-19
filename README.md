@@ -105,7 +105,9 @@ In practice that means:
   no way to ask the client which pixels are sky, so indoors the drops stop. On the
   default, `dim`, the sound stays and so does a shade, about 40% of the outdoor darkening,
   so a room is a little darker in a storm. `/comfy indoors sound` keeps the sound only.
-  `/comfy indoors off` turns it off entirely.
+  `/comfy indoors off` turns it off entirely. Under `dim` and `sound`, rain turns to
+  patter under a roof: the light rain loop at a lower level, with a water drip every few
+  seconds. Snow does not drip, and `/comfy indoors on` keeps the full outdoor sound.
 - **Indoor detection is a guess, and it is sometimes wrong.** The addon asks the client
   whether you are under a roof, and the client answers for the whole zone object you are
   standing in, not for the patch of ground above your head. Open courtyards, awnings,

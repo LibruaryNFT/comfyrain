@@ -460,6 +460,9 @@ local windSlot  = { handles = {} }
 -- thing the addon makes, so that was the one sound that could never be stopped
 -- however briefly the player had been outside. It gets a slot like the rest.
 local thunderSlot = { handles = {} }
+-- Shelter patter (#34): the drips played under a roof. One table, because this
+-- file is at Lua 5.1's 200-local limit.
+local shelter = { slot = { handles = {} } }
 -- loopedKey is what the running bed is a loop OF; bedIndoor is how loud it was
 -- told to be. Both have to be compared before deciding the bed is current,
 -- because volumeOverride is fixed at play time - see BedVolume.
@@ -2301,9 +2304,86 @@ local function SlotLoop(slot, len, fn)
 	end)
 end
 
+-- Shelter patter (#34). The client has no rain-on-roof recording, so a roof is
+-- the LIGHT rain loop at the indoor gain, no under-layer, and a drip every 3-9 s.
+-- Rain only: snow does not drip. "dim" and "sound" only: "on" keeps the full
+-- outdoor bed and "off" never gets here.
+--
+-- Drips go through single-file SoundKits so volumeOverride applies. Looked up
+-- 2026-11-18, wago.tools SoundKitEntry CSV, FileDataID 596024
+-- (Worgen_Rain_Drips_01): Forever 1.60.1.70959 has exactly one single-file kit,
+-- 40339; Retail 12.1.7 has 60199, 111555 and 364402, and its own 40339 is a
+-- different three-file kit, so the kit is chosen by client. No other drip file
+-- (1402221, FX_Water_Drip_*, FX_WaterDrips_Loop_*, cave loops) has a single-file
+-- kit on Forever, and PlaySoundFile has no gain, so they are left out rather
+-- than played at a level nobody can justify. Untested in game.
+shelter.pool = { { forever = 40339, retail = 60199 } }
+shelter.GAIN = 0.32     -- of the volume slider, well under the 0.55 bed
+
+-- Its own small generator, so scheduling a drip never shifts the draws the
+-- bed, thunder and weather take from math.random.
+shelter.seed = 12345
+function shelter.Rand()
+	shelter.seed = (shelter.seed * 1103515245 + 12345) % 2147483648
+	return shelter.seed / 2147483648
+end
+
+function shelter.Active()
+	if not (db.sound and indoorsNow and db.weather == "rain" and ShouldRain()) then
+		return false
+	end
+	local m = IndoorMode()
+	return m == "dim" or m == "sound"
+end
+
+function shelter.Kit(entry)
+	local iface = tonumber((select(4, GetBuildInfo())))
+	if not iface then return nil end
+	if iface >= 100000 then return entry.retail end
+	if iface >= 16000 and iface < 17000 then return entry.forever end
+end
+
+function shelter.Next()
+	local slot = shelter.slot
+	if slot.ticker then slot.ticker:Cancel() end
+	-- Heavier outdoor rain skews the draw short; the range stays 3-9 s.
+	local u = shelter.Rand() ^ (0.5 + (Preset().far or 0.7))
+	slot.ticker = C_Timer.NewTimer(3 + 6 * u, shelter.Drip)
+end
+
+function shelter.Drip()
+	local slot = shelter.slot
+	slot.ticker = nil
+	if not shelter.Active() then return end
+	local opts, vol = OptionsPlay(), shelter.GAIN * (db.volume or 1)
+	if opts and not kitsRefused and vol > 0 then
+		-- A refusal is skipped and latches nothing: a drip is not the bed.
+		local n = #shelter.pool
+		local i = n > 1 and ((shelter.last or 0) % n) + 1 or 1
+		shelter.last = i
+		local kit = shelter.Kit(shelter.pool[i])
+		if kit then
+			local called, ok, h = pcall(opts, { soundKitID = kit,
+				channel = db.channel, volumeOverride = math.min(1, vol *
+					(1 + (shelter.Rand() * 2 - 1) * BED_VOL_JITTER)) })
+			if called and ok and h then
+				slot.handles[#slot.handles + 1] = h
+				-- Held or stopped, never forgotten (see SlotPlay). A drip this
+				-- old has almost always finished, so the stop is usually a no-op.
+				if #slot.handles > 3 then StopSound(table.remove(slot.handles, 1)) end
+			end
+		end
+	end
+	shelter.Next()
+end
+
 local function CurrentBed()
 	local w = W()
 	if bedFallback then return w.fallbackBed.file, w.fallbackBed.len end
+	if shelter.Active() then
+		local b = w.presets.light.bed
+		return b.id, b.len
+	end
 	local b = Preset().bed
 	return b.id, b.len
 end
@@ -2338,7 +2418,8 @@ end
 -- large win in the audio layer and both consults named it first.
 local function PlayUnderClip()
 	local u = Preset().under
-	if not u or not ShouldRain() or not db.sound or bedFallback then return end
+	if not u or not ShouldRain() or not db.sound or bedFallback
+	   or shelter.Active() then return end
 	SlotPlay(underSlot, u.id, BedVolume(u.volume))
 	SlotLoop(underSlot, u.len, PlayUnderClip)
 end
@@ -2409,6 +2490,7 @@ local function StopBed(fadeMs)
 	SlotStop(bedSlot, fadeMs)
 	SlotStop(underSlot, fadeMs)
 	SlotStop(windSlot, fadeMs)
+	SlotStop(shelter.slot)
 	if underSlot.start then underSlot.start:Cancel() underSlot.start = nil end
 	loopedKey = nil
 	bedIndoor = nil
@@ -2440,6 +2522,7 @@ local function StartBed()
 	end
 
 	if Preset().wind then PlayWindClip() end
+	if shelter.Active() then shelter.Next() end
 	loopedKey = db.weather .. "/" .. db.intensity
 	bedIndoor = IndoorFactor("hear")
 end
