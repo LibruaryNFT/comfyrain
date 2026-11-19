@@ -400,7 +400,11 @@ function M.reset(opts)
 	M.kitFiles = opts.kitFiles or {
 		[8533] = 538983, [8534] = 538981, [8535] = 538982,
 		[8536] = 538985, [8537] = 538989, [8538] = 538984,
+		-- Worgen_Rain_Drips_01, the shelter drip: Forever's single-file kit,
+		-- and Retail's (wago.tools SoundKitEntry, 2026-11-18).
+		[40339] = 596024, [60199] = 596024,
 	}
+	M.iface = opts.iface or 16001
 	for kit in pairs(M.kitFiles) do M.soundKits[kit] = true end
 	-- What Forever's 0x20 kit flag might mean and nobody can check before
 	-- launch: refuse a kit while an earlier play of the same kit still runs.
@@ -1044,7 +1048,7 @@ function M.install(env)
 	env.GetBuildInfo = function()
 		-- Note the fourth return. It is 16001 on this client, not >= 100000, so
 		-- any retail-era interface-number check mis-branches here.
-		return "1.60.1", "70338", "2026-09-17", 16001
+		return "1.60.1", "70338", "2026-09-17", M.iface or 16001
 	end
 	env.GetPhysicalScreenSize = function() return M.width, M.height end
 	env.GetLocale = function() return "enUS" end
