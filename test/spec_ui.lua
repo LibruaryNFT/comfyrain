@@ -166,7 +166,7 @@ it("toggles sound, gusts and indoors from the window", function()
 	w:button("Play sounds"):Click()
 	eq(w:db().sound, true, "and on again")
 
-	-- Indoors cycles three ways rather than toggling two, because the useful
+	-- Indoors cycles four ways (Off, Sound only, Dim, On) rather than toggling two, because the useful
 	-- setting is the middle one.
 	eq(w:db().indoors, "dim", "starts dimmed")
 	eq(reads(w, "Indoors"), "Dim", "and says so")
@@ -175,7 +175,9 @@ it("toggles sound, gusts and indoors from the window", function()
 	w:select("Indoors").right:Click()
 	eq(w:db().indoors, "off", "on then off")
 	w:select("Indoors").right:Click()
-	eq(w:db().indoors, "dim", "and back round")
+	eq(w:db().indoors, "sound", "and back round to Sound only")
+	w:select("Indoors").right:Click()
+	eq(w:db().indoors, "dim", "then Dim again")
 end)
 
 it("keeps the fine-tuning out of the window", function()

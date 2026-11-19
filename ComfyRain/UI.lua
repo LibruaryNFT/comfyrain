@@ -828,7 +828,7 @@ local CHANNELS = { "Ambience", "SFX", "Master", "Music", "Dialog" }
 -- Off is the first step of Type, as it is of Time of Day's Mode. There are no
 -- scene buttons above the sections any more, so this is the weather's switch.
 local WEATHERS = { "off", "rain", "snow" }
-local INDOOR_ORDER = { "off", "dim", "on" }
+local INDOOR_ORDER = { "off", "sound", "dim", "on" }
 
 -- Which of the game's own volume sliders each channel rides on, and the switch
 -- above it where there is one. Verified against WowB.exe 1.60.1.70425: all nine
@@ -1277,15 +1277,16 @@ local function Build()
 	-- from inside but cannot see, instead of either silence or rain falling
 	-- through the roof.
 	controls.indoors = add(Select(panel, "Indoors", function(d)
-		local at = 2
+		local at = 3
 		for i, n in ipairs(INDOOR_ORDER) do
 			if n == INDOORS(DB()) then at = i end
 		end
 		Run("indoors " .. INDOOR_ORDER[((at - 1 + d) % #INDOOR_ORDER) + 1])
 	end))
 	Teach(controls.indoors.well, "Indoors", "/comfy indoors dim",
-		"Off stops it dead. Dim keeps the sound and draws nothing, the way " ..
-		"weather is from inside. On draws it at full strength.\n\n" ..
+		"Off stops it dead. Sound only keeps the sound and nothing else. Dim " ..
+		"keeps the sound and a little of the darkening, with no drops, the " ..
+		"way weather is from inside. On draws it at full strength.\n\n" ..
 		"Caves and cities with no sky, like Ironforge, are already counted as " ..
 		"indoors even where the game says otherwise. If one is missed, stand " ..
 		"in it and type /comfy indoorhere.")
