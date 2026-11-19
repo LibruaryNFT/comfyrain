@@ -72,6 +72,24 @@ That is the whole thing. Everything below is optional.
 
 </details>
 
+## Rain that changes
+
+Off by default. Switch it on and the rain stops sitting at one level: it builds,
+holds, eases and leaves a lull, the way a real shower does, and the sound
+follows. Tick **Changing** in the settings window, or:
+
+| Command | What it does |
+|---|---|
+| `/comfy cycle showers` | Rain comes and goes between light and heavy |
+| `/comfy cycle soak` | A narrow band around normal that swells slowly |
+| `/comfy cycle storm` | One arc of about 40 minutes: drizzle, downpour with thunder, clearing |
+| `/comfy cycle light-heavy slow` | Your own range (`light`, `normal`, `heavy`, `monsoon`, or 0 to 3) and pace (`slow`, `normal`, `fast`) |
+| `/comfy cycle off` · `on` | Hold one level, or carry on |
+
+Setting an intensity yourself (`/comfy heavy`, the window, a keybind) pauses it,
+so you are always in charge. Thunder only comes above heavy. The window shows
+what it is doing, such as "Now: heavy, easing".
+
 ## What it is, honestly
 
 Comfy Rain is a **screen-space overlay**. It draws scrolling layers of rain in front of the

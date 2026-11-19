@@ -32,6 +32,7 @@ local SPECS = {
 	"spec_sound",
 	"spec_calib",
 	"spec_snow",
+	"spec_cycle",
 	"spec_ui",
 	"spec_probe",
 	"spec_sweep",

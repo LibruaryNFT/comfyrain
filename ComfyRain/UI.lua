@@ -917,6 +917,12 @@ local function Refresh()
 		"How hard it comes down. " ..
 		table.concat(weather.order, ", ") .. ".")
 
+	controls.changing:SetOn(db.changing)
+	do
+		local st = (ComfyRainAPI.State and ComfyRainAPI.State()) or {}
+		controls.liveText:SetText(st.cycle or "")
+	end
+
 	if controls.volume then controls.volume:Set(db.volume) end
 
 	controls.sound:SetOn(db.sound)
@@ -1132,6 +1138,24 @@ local function Build()
 		for i, n in ipairs(w.order) do if n == db2.intensity then at = i end end
 		Run(w.order[((at - 1 + d) % #w.order) + 1])
 	end))
+
+	-- Off by default. On, the rain builds, peaks and eases on its own, and
+	-- stepping Intensity by hand pauses it, which is what clears this box.
+	controls.changing = add(Check(panel, "Changing", "/comfy cycle on",
+		function() Run(DB().changing and "cycle off" or "cycle on") end))
+	Teach(controls.changing, "Changing", "/comfy cycle showers",
+		"Let the rain build, peak and ease by itself instead of sitting at " ..
+		"one level. Setting an intensity yourself pauses it.\n\n" ..
+		"/comfy cycle showers, soak or storm picks a pattern. " ..
+		"/comfy cycle light-heavy slow sets your own range and pace.")
+	-- Always laid out, empty or not, so it appearing does not move the rows
+	-- under the mouse; see the note line above.
+	local live = add(CreateFrame("Frame", nil, panel))
+	live:SetHeight(14)
+	controls.liveText = Text(live, "GameFontHighlightSmall")
+	controls.liveText:SetPoint("LEFT", live, "LEFT", 0, 0)
+	controls.liveText:SetWordWrap(false)
+	controls.liveText:SetText("")
 
 	-- The default is looked up by db key rather than assumed to match the
 	-- slider's name, because the key and the command verb do not always agree:

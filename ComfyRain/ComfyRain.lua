@@ -306,6 +306,19 @@ local GUST_BY_INTENSITY = {
 	light = 0.45, normal = 1.0, heavy = 1.5, monsoon = 2.0, blizzard = 2.0,
 }
 
+-- Everything the cycle owns lives in one table, not one local each: the file is
+-- close to Lua 5.1's limit of 200 locals in a chunk, and a local per helper
+-- is how a new feature stops it loading at all.
+local Cyc = {}
+
+-- The same table for a level between presets, in the order light..top.
+Cyc.gusts = { 0.45, 1.0, 1.5, 2.0 }
+function Cyc.gustAt(level)
+	local i = math.max(0, math.min(2.999999, level))
+	local lo = math.floor(i)
+	return Cyc.lerp(Cyc.gusts[lo + 1], Cyc.gusts[lo + 2], i - lo)
+end
+
 -- Time of day. WoW's day/night runs on the realm's clock, so anyone playing far
 -- from their realm gets night at lunchtime. This grades the screen towards the
 -- hour the player would rather it were. How the world looks at each hour, as a
@@ -374,6 +387,15 @@ local DEFAULTS = {
 	timeOffset = 0,        -- hours from realm time, for "offset"
 	timeFixed = 21,        -- the hour to hold at, for "fixed"
 	timeStrength = 1.0,
+	-- Rain that builds, peaks and eases, instead of sitting at one level. OFF,
+	-- so a player who never touches it gets exactly the fixed intensity they
+	-- always had. `cycle` is which pattern, kept while it is off so turning it
+	-- back on does not forget; see Cyc.patterns.
+	changing  = false,
+	cycle     = "showers", -- showers | soak | storm | custom
+	cycleLow  = 0,         -- custom range, 0 = light .. 3 = monsoon or blizzard
+	cycleHigh = 2,
+	cyclePace = "normal",  -- custom only: slow | normal | fast
 }
 
 -- tilesY is how many copies of the 512px sheet fit vertically; tilesX is derived
@@ -483,11 +505,146 @@ local function W()
 	return WEATHER[db.weather] or WEATHER.rain
 end
 
+--------------------------------------------------------------------------------
+-- Rain that builds, peaks and eases
+--
+-- Real rain arrives as showers: it builds, holds, eases and leaves a lull. A
+-- sine wave is the wrong model and reads as a pulse inside a minute. So the
+-- level is a small state machine, pure Lua with an injectable random source so
+-- test/ can run six hours of it in a blink and replay a seed.
+--
+-- Level is continuous: 0 is the light preset, 1 normal, 2 heavy, 3 the top one
+-- (monsoon or blizzard). Everything numeric lerps between the two presets it
+-- sits between, see Cyc.blend.
+--------------------------------------------------------------------------------
+
+-- Seconds, [min, max]. `draw` is how much of the range above `low` a shower's
+-- peak is drawn from: 0 lets a shower be barely a shower, 1 forces every one
+-- to the top. Storm is one long arc (~40 min) that always reaches the top.
+Cyc.patterns = {
+	showers = { low = 0,   high = 2, draw = 0.4,
+	            build = { 60, 180 },  peak = { 120, 480 },
+	            ease  = { 120, 240 }, lull = { 180, 600 } },
+	-- A narrow band that swells slowly, and the closest to a fixed level.
+	soak    = { low = 1.0, high = 1.7, draw = 0.5,
+	            build = { 180, 360 }, peak = { 300, 600 },
+	            ease  = { 180, 360 }, lull = { 60, 180 } },
+	storm   = { low = 0,   high = 3, draw = 1,
+	            build = { 600, 840 }, peak = { 420, 600 },
+	            ease  = { 540, 720 }, lull = { 240, 420 } },
+}
+-- Custom borrows showers' shape and takes its range and pace from the player.
+Cyc.patterns.custom = Cyc.patterns.showers
+-- Multiplies every duration. Only custom reads it: the named patterns already
+-- say how fast they are.
+Cyc.paces = { slow = 1.6, normal = 1.0, fast = 0.5 }
+-- Bed loudness against level. A drizzle at monsoon volume is the one thing the
+-- sound must not do, and the presets carry no gain of their own to lerp.
+Cyc.gain = { 0.70, 0.85, 1.0, 1.0 }
+-- Strikes only schedule above this: lightning arrives with the peak and leaves
+-- with it, rather than sitting on a drizzle.
+Cyc.thunderAbove = 2
+
+function Cyc.smooth(t)
+	if t <= 0 then return 0 elseif t >= 1 then return 1 end
+	return t * t * (3 - 2 * t)
+end
+
+-- A cycle: :step(dt) advances simulated seconds and returns the level.
+-- spec = { low, high, draw, build, peak, ease, lull } as above, `pace` scales
+-- durations, `start` is the level to leave from so switching it on does not pop.
+function Cyc.new(spec, rng, pace, start)
+	local c = { low = spec.low, high = spec.high, t = 0 }
+	pace = pace or 1
+	local function dur(r) return (r[1] + (r[2] - r[1]) * rng()) * pace end
+	local function drawPeak()
+		local lo = spec.low + (spec.high - spec.low) * spec.draw
+		return lo + (spec.high - lo) * rng()
+	end
+	local function enter(phase)
+		c.phase, c.t = phase, 0
+		if phase == "build" then
+			c.from, c.to = c.level, drawPeak()
+			if c.to < c.from then c.to = c.from end
+		elseif phase == "ease" then c.from, c.to = c.level, c.low
+		end
+		c.dur = dur(spec[phase])
+	end
+	local NEXT = { lull = "build", build = "peak", peak = "ease", ease = "lull" }
+	c.level = math.max(spec.low, math.min(spec.high, start or spec.low))
+	enter("build")
+
+	function c:step(dt)
+		self.t = self.t + dt
+		-- A long hitch can cross several boundaries; carry the remainder.
+		while self.t >= self.dur do
+			local over = self.t - self.dur
+			if self.phase == "build" then self.level = self.to
+			elseif self.phase == "ease" or self.phase == "lull" then self.level = self.low end
+			enter(NEXT[self.phase])
+			self.t = over
+		end
+		local f = self.t / self.dur
+		if self.phase == "build" or self.phase == "ease" then
+			self.level = self.from + (self.to - self.from) * Cyc.smooth(f)
+		elseif self.phase == "peak" then self.level = self.to
+		else self.level = self.low end
+		return self.level
+	end
+	return c
+end
+
+-- The live level while a cycle is running, or nil. Preset() answers from it.
+
+function Cyc.lerp(a, b, f) return a + (b - a) * f end
+
+-- The preset a level stands for. Numbers lerp between the two nearest; the
+-- sound and the sprite sheets cannot, so they come from the nearer one, and
+-- the near sheet is handed over as TWO sheets plus a mix for the renderer to
+-- crossfade, because a pop at the midpoint is exactly the seam this is for.
+function Cyc.blend(level)
+	local w = W()
+	if Cyc.cache and Cyc.cache.level == level and Cyc.cache.weather == w then
+		return Cyc.cache
+	end
+	local n = #w.order
+	if level < 0 then level = 0 elseif level > n - 1 then level = n - 1 end
+	local i = math.floor(level)
+	local f = level - i
+	local a = w.presets[w.order[i + 1]]
+	local b = w.presets[w.order[math.min(i + 2, n)]]
+	local p = { level = level, weather = w, mix = f }
+	for _, k in ipairs({ "mist", "far", "near", "speed", "gloom", "strikeEvery" }) do
+		p[k] = Cyc.lerp(a[k], b[k], f)
+	end
+	-- Only blizzard defines these, and lerping an absent one from nothing would
+	-- hand the other end a value it never asked for.
+	for _, k in ipairs({ "slant", "sway", "swayRate", "whiteout" }) do
+		if a[k] ~= nil or b[k] ~= nil then
+			p[k] = Cyc.lerp(a[k] or w[k] or 0, b[k] or w[k] or 0, f)
+		end
+	end
+	local near = (f < 0.5) and a or b
+	p.bed, p.wind = near.bed, near.wind
+	if a.under and b.under then
+		p.under = { id = near.under.id, len = near.under.len,
+		            volume = Cyc.lerp(a.under.volume, b.under.volume, f) }
+	else
+		p.under = near.under
+	end
+	p.near_texture = a.near_texture or w.near
+	p.nearB = b.near_texture or w.near
+	p.gain = Cyc.lerp(Cyc.gain[i + 1] or 1, Cyc.gain[math.min(i + 2, #Cyc.gain)] or 1, f)
+	Cyc.cache = p
+	return p
+end
+
 -- The bottom three intensities are shared; the top one is named for its own
 -- weather, monsoon or blizzard. Someone at the top of one scale who switches
 -- weather means the top of the other, not a silent drop to normal.
 local function Preset()
 	local w = W()
+	if Cyc.level then return Cyc.blend(Cyc.level) end
 	local p = w.presets[db.intensity]
 	if p then return p end
 	if db.intensity == "monsoon" or db.intensity == "blizzard" then
@@ -546,6 +703,8 @@ local NUMERIC_RANGE = {
 	timeOffset   = { -23, 23  },
 	timeFixed    = { 0,   23  },
 	minimapAngle = { 0,   360 },
+	cycleLow     = { 0,   3   },
+	cycleHigh    = { 0,   3   },
 }
 
 local ENUM = {
@@ -554,6 +713,8 @@ local ENUM = {
 	             Music = true, Dialog = true },
 	timeMode = { off = true, ["local"] = true, offset = true, fixed = true },
 	indoors  = { off = true, dim = true, on = true },
+	cycle    = { showers = true, soak = true, storm = true, custom = true },
+	cyclePace = { slow = true, normal = true, fast = true },
 }
 
 -- Which settings belong to which part of the window. Used by the per-section
@@ -564,7 +725,8 @@ local ENUM = {
 -- the suite rather than shipping quietly.
 local SECTIONS = {
 	look  = { "enabled", "weather", "intensity", "scale", "speed",
-	          "gloom", "gust", "zoom", "indoors", "defer" },
+	          "gloom", "gust", "zoom", "indoors", "defer",
+	          "changing", "cycle", "cycleLow", "cycleHigh", "cyclePace" },
 	sound = { "sound", "volume", "channel", "thunder", "suppress" },
 	time  = { "timeMode", "timeOffset", "timeFixed", "timeStrength" },
 }
@@ -937,7 +1099,10 @@ end
 local function ApplyTextures()
 	if not overlay then return end
 	local w, p = W(), Preset()
-	local key = db.weather .. "/" .. db.intensity
+	-- A cycle's key is the pair of near sheets, not the intensity: the level
+	-- moves every second and the sheets change only where it crosses a preset.
+	local key = Cyc.level and (db.weather .. "/~" .. tostring(p.near_texture) ..
+		"|" .. tostring(p.nearB)) or (db.weather .. "/" .. db.intensity)
 	if appliedTextures == key then return end
 	appliedTextures = key
 
@@ -953,6 +1118,20 @@ local function ApplyTextures()
 				tex:SetVertexColor(w.mistTint[1], w.mistTint[2], w.mistTint[3])
 			end
 		end
+	end
+
+	-- The second near sheet, made only when a cycle first needs one so a player
+	-- who never uses it draws exactly what they always did.
+	if Cyc.level and p.nearB ~= p.near_texture then
+		if not textures.near2 then
+			local tex = overlay:CreateTexture(nil, "ARTWORK", nil, 3)
+			tex:SetAllPoints(overlay)
+			tex:SetBlendMode("ADD")
+			HorizonFade(tex)
+			textures.near2 = tex
+			baseAlpha.near2 = 0
+		end
+		textures.near2:SetTexture(p.nearB, "REPEAT", "REPEAT")
 	end
 end
 
@@ -1013,7 +1192,14 @@ local function ApplyAlphas()
 	baseAlpha.near = math.min(p.near * s, 1)
 	textures.mist:SetAlpha(baseAlpha.mist)
 	textures.far:SetAlpha(baseAlpha.far)
+	-- Mid-cycle the near layer is two sheets crossfading by alpha across the
+	-- band between presets, so a downpour thickens rather than snapping to a
+	-- denser sheet. Outside a cycle `mix` is 0 and near2 is silent.
+	local mix = (Cyc.level and textures.near2 and p.nearB ~= p.near_texture) and p.mix or 0
+	baseAlpha.near2 = baseAlpha.near * mix
+	baseAlpha.near = baseAlpha.near * (1 - mix)
 	textures.near:SetAlpha(baseAlpha.near)
+	if textures.near2 then textures.near2:SetAlpha(baseAlpha.near2) end
 
 	-- MOD multiplies the frame by this colour, so strength lives in the colour
 	-- itself: 1 is untouched, and we lerp towards the tint from there.
@@ -1029,6 +1215,72 @@ local function ApplyAlphas()
 	-- well short of hiding anything.
 	if whiteout then
 		whiteout:SetAlpha(math.min((p.whiteout or 0) * s, 0.30))
+	end
+end
+
+-- Running the cycle. The level only needs to move as fast as the eye can see
+-- it do so, which for a build measured in minutes is once a second.
+
+function Cyc.levelName(level)
+	local order = W().order
+	return order[math.max(1, math.min(#order, math.floor(level + 0.5) + 1))]
+end
+
+Cyc.phaseWord = { lull = "settled", build = "building", peak = "peaking", ease = "easing" }
+
+-- What the window says. Nil when nothing is cycling.
+function Cyc.label()
+	if not Cyc.level then return nil end
+	return "Now: " .. Cyc.levelName(Cyc.level) .. ", " .. (Cyc.phaseWord[Cyc.phase] or "settled")
+end
+
+function Cyc.spec()
+	local spec = Cyc.patterns[db.cycle] or Cyc.patterns.showers
+	if db.cycle == "custom" then
+		local lo, hi = db.cycleLow, math.max(db.cycleLow, db.cycleHigh)
+		return { low = lo, high = hi, draw = spec.draw, build = spec.build,
+		         peak = spec.peak, ease = spec.ease, lull = spec.lull },
+		       Cyc.paces[db.cyclePace] or 1
+	end
+	return spec, 1
+end
+
+function Cyc.tick()
+	if not Cyc.gen then return end
+	local before = Cyc.label()
+	Cyc.level = Cyc.gen:step(1)
+	Cyc.phase = Cyc.gen.phase
+	ApplyAlphas()
+	-- The window repaints when its sentence changes, not every second.
+	if Cyc.label() ~= before and ComfyRainAPI and ComfyRainAPI.changed then
+		pcall(ComfyRainAPI.changed)
+	end
+end
+
+-- Idempotent and cheap, because Refresh runs it every 0.3s. Starts the cycle
+-- from wherever the picture is now, so switching it on never pops.
+function Cyc.sync()
+	if db.changing and db.enabled then
+		if not Cyc.gen then
+			local order = W().order
+			local start = Cyc.level
+			if not start then
+				for i, n in ipairs(order) do
+					if n == db.intensity then start = i - 1 end
+				end
+			end
+			local spec, pace = Cyc.spec()
+			Cyc.gen = Cyc.new(spec, math.random, pace, start or 1)
+			Cyc.level, Cyc.phase = Cyc.gen.level, Cyc.gen.phase
+			appliedTextures = nil
+		end
+		if not Cyc.ticker then
+			Cyc.ticker = C_Timer.NewTicker(1, Cyc.tick)
+		end
+	elseif Cyc.gen or Cyc.level then
+		Cyc.gen, Cyc.level, Cyc.phase = nil, nil, nil
+		if Cyc.ticker then Cyc.ticker:Cancel() Cyc.ticker = nil end
+		appliedTextures = nil
 	end
 end
 
@@ -1617,7 +1869,8 @@ local function OnUpdate(self, elapsed)
 	-- Step the gust, then let each layer chase it at its own pace. The noise is
 	-- the sum of two uniforms rather than a real Gaussian: it is within a few
 	-- percent of normal, costs two calls, and nobody is ever going to plot it.
-	local gustAmp = (GUST_BY_INTENSITY[db.intensity] or 1) * db.gust
+	local gustAmp = (Cyc.level and Cyc.gustAt(Cyc.level)
+		or GUST_BY_INTENSITY[db.intensity] or 1) * db.gust
 	if gustAmp > 0 then
 		local n = (math.random() + math.random() - 1) * NOISE_SCALE
 		gust = gust + (-gust / GUST_TAU) * elapsed + GUST_SIGMA * math.sqrt(elapsed) * n
@@ -1682,6 +1935,15 @@ local function OnUpdate(self, elapsed)
 		-- every layer sweeps the same distance across the screen.
 		o.x = (o.x - dy * slant + swing * tilesX) % 1
 		textures[l.key]:SetTexCoord(o.x, o.x + tilesX, o.y, o.y + tilesY)
+		-- The crossfading sheet rides the near layer's own motion, or the two
+		-- would slide apart and the blend would read as double vision.
+		if l.key == "near" and textures.near2 then
+			textures.near2:SetTexCoord(o.x, o.x + tilesX, o.y, o.y + tilesY)
+			if lg ~= 0 then
+				local a2 = baseAlpha.near2 * (1 + lg * GUST_ALPHA_AMP * gustAmp)
+				textures.near2:SetAlpha(a2 < 0 and 0 or (a2 > 1 and 1 or a2))
+			end
+		end
 	end
 end
 
@@ -1960,7 +2222,7 @@ end
 local function PlayBedClip()
 	if not ShouldRain() or not db.sound then return end
 	local file, len = CurrentBed()
-	if not SlotPlay(bedSlot, file, BedVolume(1)) and not bedFallback and not GameSoundOff() then
+	if not SlotPlay(bedSlot, file, BedVolume(Preset().gain)) and not bedFallback and not GameSoundOff() then
 		-- Switch to the bundled loop only if it actually plays. When it is
 		-- refused as well, the client is refusing every clip for now (alt-tab
 		-- with background sound off, a sound-system restart), Blizzard's loop
@@ -2003,10 +2265,15 @@ end
 
 -- Which loops we are using right now, and so must never mute.
 local function LoopsInUse()
-	local p, keep = Preset(), {}
-	if p.bed then keep[p.bed.id] = true end
-	if p.under then keep[p.under.id] = true end
-	if p.wind then keep[p.wind.id] = true end
+	local keep = {}
+	-- A cycle relaunches onto whichever bed is nearest the level, so every bed
+	-- in range is in use; muting the others would silence it a moment later.
+	local list = Cyc.level and W().presets or { Preset() }
+	for _, p in pairs(list) do
+		if p.bed then keep[p.bed.id] = true end
+		if p.under then keep[p.under.id] = true end
+		if p.wind then keep[p.wind.id] = true end
+	end
 	return keep
 end
 
@@ -2171,10 +2438,20 @@ local function ScheduleLightning()
 	-- rather than derived from the fall speed, which is how it used to work:
 	-- that quietly tied the thunder rate to a visual tuning knob, so every
 	-- change to how fast the rain fell moved how often it thundered.
+	-- Under a cycle there is no thunder at or below heavy; keep asking, so it
+	-- starts when the level climbs past it.
+	if Cyc.level and Cyc.level <= Cyc.thunderAbove then
+		lightningTimer = C_Timer.NewTimer(5, function()
+			lightningTimer = nil
+			ScheduleLightning()
+		end)
+		return
+	end
 	local base = Preset().strikeEvery or 60
 	lightningTimer = C_Timer.NewTimer(LogNormal(base, 0.62, 0.3, 3.2), function()
 		lightningTimer = nil
-		Strike()
+		-- A timer drawn before the level fell can still land after it did.
+		if not (Cyc.level and Cyc.level <= Cyc.thunderAbove) then Strike() end
 		ScheduleLightning()
 	end)
 end
@@ -2186,6 +2463,7 @@ end
 function ComfyRain_Refresh()
 	if not overlay then return end
 	UpdateTimeOfDay()
+	Cyc.sync()
 	local want = ShouldRain()
 	local draw = ShouldDraw()
 
@@ -2283,6 +2561,10 @@ local function Status()
 		IndoorMode(),
 		db.channel,
 		indoorsNow and " |cff888888[indoors]|r" or ""))
+	if Cyc.label() then
+		msg("rain cycle: |cff66ff66" .. Cyc.label():gsub("^Now: ", "") ..
+		    "|r (" .. db.cycle .. "); |cffffd100/comfy cycle off|r to hold one level")
+	end
 	-- alpha 0 is a legitimate setup - the darkening and the ambience with no
 	-- drops, which is an overcast day - but it is indistinguishable from the
 	-- addon being broken, because every other line of the status says "on".
@@ -2308,6 +2590,8 @@ local function Help()
 	print("  |cffffd100/comfy light||normal||heavy|r - intensity")
 	print("  |cffffd100/comfy monsoon|r, |cffffd100/comfy blizzard|r - the top of each, weather included")
 	print("  |cffffd100/comfy cycle|r - step up through the intensities, for a keybind")
+	print("  |cffffd100/comfy cycle showers||soak||storm|r - let the rain build, peak and ease on its own")
+	print("  |cffffd100/comfy cycle light-heavy slow|r - your own range and pace; |cffffd100cycle off|r stops it")
 	if ReadsGameWeather() then
 		print("  |cffffd100/comfy auto|r - match whatever the server says the weather is here")
 	end
@@ -2337,6 +2621,55 @@ local function Help()
 	print("  |cffffd100/comfy status|r, |cffffd100/comfy about|r")
 end
 
+-- Anything that sets an intensity by hand stops the cycle first. The player is
+-- in charge: a wheel notch that the next shower would quietly undo is a control
+-- that does not work. Stopping it here, before the caller restarts the bed,
+-- matters because Preset() would otherwise still answer with the live level.
+function Cyc.pause()
+	if not db.changing then return end
+	db.changing = false
+	Cyc.sync()
+	msg("rain cycle paused. |cffffd100/comfy cycle on|r brings it back.")
+end
+
+-- "light", "heavy", "2.5"; 0..3 either way, with monsoon and blizzard both
+-- the top whatever the weather.
+Cyc.levelWords = { light = 0, normal = 1, heavy = 2, monsoon = 3, blizzard = 3 }
+function Cyc.levelArg(word)
+	local v = Cyc.levelWords[word] or Num(word)
+	if v and v >= 0 and v <= 3 then return v end
+end
+
+-- /comfy cycle off | on | showers | soak | storm | <low>-<high> [slow|normal|fast]
+-- Returns true when it handled the argument; bare `cycle` is the old
+-- step-up-an-intensity command and stays that, for the keybinds that use it.
+function Cyc.command(arg)
+	if arg == "off" then
+		db.changing = false
+		Cyc.sync()
+		msg("rain cycle off. It stays at |cff66ff66" .. db.intensity .. "|r.")
+	elseif arg == "on" then
+		db.changing, db.enabled = true, true
+	elseif Cyc.patterns[arg] and arg ~= "custom" then
+		db.cycle, db.changing, db.enabled = arg, true, true
+		Cyc.gen = nil
+	else
+		local lo, hi, pace = arg:match("^(%S-)%-(%S+)%s*(%S*)$")
+		lo, hi = lo and Cyc.levelArg(lo), hi and Cyc.levelArg(hi)
+		if not (lo and hi) or (pace ~= "" and not Cyc.paces[pace]) then
+			msg("usage: |cffffd100/comfy cycle off||on||showers||soak||storm|r or " ..
+			    "|cffffd100/comfy cycle light-heavy slow|r (pace: slow, normal, fast)")
+			return false
+		end
+		if lo > hi then lo, hi = hi, lo end
+		db.cycle, db.cycleLow, db.cycleHigh = "custom", lo, hi
+		if pace ~= "" then db.cyclePace = pace end
+		db.changing, db.enabled = true, true
+		Cyc.gen = nil
+	end
+	return true
+end
+
 -- source is "ui" when the settings window issued this rather than the player.
 -- The second argument a real slash handler receives is the chat edit box, a
 -- table, so the sentinel can never collide with it.
@@ -2361,10 +2694,12 @@ local function HandleSlash(input, source)
 	-- they switch both at once: nobody typing /comfy blizzard wants rain.
 	elseif cmd == "blizzard" or cmd == "monsoon" then
 		db.weather = (cmd == "blizzard") and "snow" or "rain"
+		Cyc.pause()
 		db.intensity, db.enabled = cmd, true
 		StartBed()
 		ScheduleLightning()
 	elseif W().presets[cmd] then
+		Cyc.pause()
 		db.intensity, db.enabled = cmd, true
 		StartBed()
 		ScheduleLightning()
@@ -2379,6 +2714,8 @@ local function HandleSlash(input, source)
 			    table.concat(names, "|r / |cffffd100") .. "|r")
 			return
 		end
+		-- A scene that names an intensity is a manual set like any other.
+		if p.set.intensity then Cyc.pause() end
 		for k, v in pairs(p.set) do db[k] = v end
 		-- Belt and braces: the intensity names are per-weather, and a preset
 		-- table edited later to pair "snow" with "monsoon" should land on the
@@ -2581,7 +2918,10 @@ local function HandleSlash(input, source)
 		if not c then msg("channel must be Ambience, SFX, Master, Music or Dialog") return end
 		db.channel = c
 		StartBed()
+	elseif cmd == "cycle" and arg ~= "" then
+		if not Cyc.command(arg) then return end
 	elseif cmd == "cycle" then
+		Cyc.pause()
 		local i = 1
 		local order = W().order
 		for n, name in ipairs(order) do
@@ -2919,11 +3259,16 @@ ComfyRainAPI = {
 			-- needs it to tell "Night did nothing because it is already
 			-- night" apart from "Night is broken".
 			lightFlat = GradeIsFlat(),
+			-- The one live sentence the window shows while the rain is
+			-- changing by itself; nil otherwise.
+			cycle = Cyc.label(),
 		}
 	end,
 	-- So the per-slider resets can grey out a value already sitting on its
 	-- default without the window keeping a second copy of these numbers.
 	Defaults     = DEFAULTS,
+	-- Pure and seedable, so test/ can run hours of it without a client.
+	Cycle        = Cyc,
 	Export       = function() return ExportProfile() end,
 }
 
