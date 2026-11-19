@@ -276,6 +276,7 @@ local DEFAULT_EVENTS = {
 function M.reset(opts)
 	opts = opts or {}
 
+	M.shift = false
 	M.now = 1000.0                       -- GetTime(), a monotonic session clock
 	M.epoch = opts.epoch or 1792000000   -- time(), wall clock
 	M.frames = {}
@@ -338,6 +339,8 @@ function M.reset(opts)
 		-- preset it thinks it is measuring. Specs that care set it themselves.
 		cameraZoom = 9.75,
 		indoors = false,
+		submerged = false,   -- head under water (IsSubmerged)
+		swimming = false,    -- in water at all, surface included (IsSwimming)
 		sheltered = false,   -- under a roof the engine does not call a room
 		zone = "Elwynn Forest",
 		subzone = "Goldshire",
@@ -727,6 +730,8 @@ function M.install(env)
 	-- Cursor position in screen pixels, which is what the real one returns.
 	M.cursor = { x = 1080, y = 700 }
 	env.GetCursorPosition = function() return M.cursor.x, M.cursor.y end
+	-- Modifier keys are read, never pushed: a spec sets M.shift to hold it.
+	env.IsShiftKeyDown = function() return M.shift and true or false end
 
 	-- Tooltips are how a settings window teaches its own slash commands, so
 	-- what was put in one is recorded rather than thrown away.
@@ -819,6 +824,7 @@ function M.install(env)
 		return not M.state.indoors
 	end
 	env.IsSubmerged = function() return M.state.submerged and true or false end
+	env.IsSwimming = function() return (M.state.swimming or M.state.submerged) and true or false end
 	env.GetRealZoneText = function() return M.state.zone end
 	env.GetSubZoneText = function() return M.state.subzone end
 	env.GetZoneText = function() return M.state.zone end

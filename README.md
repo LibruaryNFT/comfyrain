@@ -32,6 +32,7 @@ the way rain should, and where the real thing exists it is simply the better of 
 | **The game's own weather** | When the game is raining or snowing for real, Comfy Rain hides so you never see both, and comes back when it stops. It cannot stop the game's weather; no addon can. `/comfy defer off` keeps yours on top |
 | **Scenes** | `/comfy preset cozy`, `storm`, `snow` or `overcast` sets a whole weather; `dusk` or `night` sets just the time of day. Each leaves the other alone, so night with no rain is `/comfy off` plus `/comfy preset night` |
 | **A settings window** | `/comfyrain`, the minimap button, the addon compartment, or a keybind of your own. Every control shows you the command it ran, so you learn them by using it |
+| **Quick intensity** | Scroll the mouse wheel over the minimap button to step lighter or heavier, Shift and scroll for volume. Key Bindings has Heavier and Lighter under AddOns, with no key set |
 
 ## Getting started
 
@@ -57,7 +58,7 @@ That is the whole thing. Everything below is optional.
 
 | Command | What it does |
 |---|---|
-| `/comfy indoors off \| dim \| on` | What happens under a roof. `dim` is the default |
+| `/comfy indoors off \| sound \| dim \| on` | What happens under a roof. `dim` is the default |
 | `/comfy sound on \| off` | The ambience bed |
 | `/comfy volume 0.5` | How loud, over the weather only |
 | `/comfy thunder on \| off` | Lightning and thunder |
@@ -101,8 +102,10 @@ In practice that means:
 
 - It looks right when you are looking at the world. It is weather on your screen.
 - It cannot put rain *outside* a window while you stand indoors. There is one overlay and
-  no way to ask the client which pixels are sky, so indoors it fades to a faint wash
-  instead. `/comfy indoors off` turns it off entirely.
+  no way to ask the client which pixels are sky, so indoors the drops stop. On the
+  default, `dim`, the sound stays and so does a shade, about 40% of the outdoor darkening,
+  so a room is a little darker in a storm. `/comfy indoors sound` keeps the sound only.
+  `/comfy indoors off` turns it off entirely.
 - **Indoor detection is a guess, and it is sometimes wrong.** The addon asks the client
   whether you are under a roof, and the client answers for the whole zone object you are
   standing in, not for the patch of ground above your head. Open courtyards, awnings,

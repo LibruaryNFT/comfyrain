@@ -175,6 +175,27 @@ it("cycle: any manual intensity pauses it", function()
 	end
 end)
 
+it("cycle: the minimap wheel and the Heavier/Lighter keybinds pause it too", function()
+	-- #45 and #44 were built side by side. Both promise that a hand on the
+	-- intensity wins over the cycle; this is the one place that is checked.
+	local steps = {
+		wheel   = function(w) w.env.ComfyRain_Minimap()
+			local b = w.env.ComfyRainMinimapButton
+			b:GetScript("OnMouseWheel")(b, 1) end,
+		heavier = function(w) w.env.ComfyRain_Heavier() end,
+		lighter = function(w) w.env.ComfyRain_Lighter() end,
+	}
+	for name, step in pairs(steps) do
+		local w = H.world()
+		w:slash("cycle storm")
+		w:advance(300, 1)
+		eq(w:db().changing, true, name .. ": cycling before the step")
+		step(w)
+		eq(w:db().changing, false, name .. " paused the cycle")
+		eq(#w.mock.errors, 0, name .. ": errors")
+	end
+end)
+
 it("cycle: /comfy cycle off holds, and on resumes", function()
 	local w = H.world()
 	w:slash("gust 0")

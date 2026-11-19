@@ -381,7 +381,7 @@ local DEFAULTS = {
 	-- RealPrecipHere.
 	defer     = true,
 	thunder   = true,
-	indoors   = "dim",     -- off | dim | on; see IndoorMode
+	indoors   = "dim",     -- off | sound | dim | on; see IndoorMode
 	channel   = "Ambience",
 	timeMode  = "off",     -- off | local | offset | fixed
 	timeOffset = 0,        -- hours from realm time, for "offset"
@@ -468,12 +468,14 @@ local lightningTimer
 local appliedTextures
 local drift = 0
 local cinematic, indoorsNow, indoorsSince = false, false, nil
+-- Head under water, polled beside the shelter state. See PollSubmerged.
+local underwaterNow, underwaterSince = false, nil
 -- True while Blizzard's own weather is falling here, so ours can get out of
 -- the way. See PollWeather.
 local yieldNow, yieldSince = false, nil
 -- Forward-declared: ApplyAlphas is defined above where these are, and a
 -- function body that names a local declared later resolves to a global.
-local IndoorMode, IndoorFactor
+local IndoorMode, IndoorFactor, ShadeTarget
 -- The master gust and its three lagged followers. baseAlpha and baseGloom are
 -- what ApplyAlphas decided; the gust modulates around them every frame without
 -- destroying the setting, so changing a slider still lands where it should.
@@ -481,6 +483,16 @@ local gust = 0
 local layerGust = { near = 0, far = 0, mist = 0 }
 local baseAlpha = { near = 0, far = 0, mist = 0 }
 local baseGloom = 0
+-- The shade is the gloom quad's own frame and its own ease, because it has to
+-- outlive the drops. The gloom used to sit on the overlay, whose alpha fades to
+-- 0 and which hides when nothing is drawn, so under a roof the shade went with
+-- the drops no matter what number it was multiplied by. A child frame would not
+-- help (a child draws at its parent's alpha and hides with it), so it is a
+-- sibling. shadeK is how much of the outdoor gloom is on right now, eased
+-- towards IndoorFactor("shade") at the walk-fade rate so a doorway dims the
+-- light instead of popping it. It is the strength, not a frame alpha, so the
+-- gloom colour in the quad is exactly what is on screen.
+local shade, shadeK = nil, 1
 -- Two fade lengths, because a fade is answering two different questions.
 -- Walking under an awning is weather leaving the sky and wants the slow one.
 -- Pressing Off is a button, and a button that takes most of a second to do
@@ -488,6 +500,8 @@ local baseGloom = 0
 -- and it didnt change quick enough", said of the old Turn It All Off button.
 -- Anything the player switched deliberately gets the short one.
 local FADE_WALK, FADE_SWITCH = 0.7, 0.12
+-- A head going under is instant, so the sheet goes in a quarter second (#46).
+local FADE_DIVE = 0.25
 local fade, fadeTarget, fadeTime = 1, 1, FADE_WALK
 -- What db.enabled was at the last Refresh, which is how the switch is told
 -- apart from the doorway without every caller having to say which it is.
@@ -712,7 +726,7 @@ local ENUM = {
 	channel  = { Ambience = true, SFX = true, Master = true,
 	             Music = true, Dialog = true },
 	timeMode = { off = true, ["local"] = true, offset = true, fixed = true },
-	indoors  = { off = true, dim = true, on = true },
+	indoors  = { off = true, sound = true, dim = true, on = true },
 	cycle    = { showers = true, soak = true, storm = true, custom = true },
 	cyclePace = { slow = true, normal = true, fast = true },
 }
@@ -1184,6 +1198,18 @@ local function GloomColor(g, w, slider)
 	       1 - g * (1 - (t[3] + (d[3] - t[3]) * x))
 end
 
+-- MOD multiplies the frame by this colour, so strength lives in the colour
+-- itself: 1 is untouched, and we lerp towards the tint from there. Its own
+-- function because the shade ease re-runs it every frame while the overlay,
+-- and with it ApplyAlphas' other work, may be hidden.
+local function ApplyGloom()
+	local p = Preset()
+	local g = math.min(GloomAmount(p.gloom, db.gloom) * shadeK * NightEase(), 1.0)
+	baseGloom = g
+	local gr, gg, gb = GloomColor(g, W(), db.gloom)
+	gloom:SetColorTexture(gr, gg, gb, 1)
+end
+
 local function ApplyAlphas()
 	ApplyTextures()
 	local w, p, s = W(), Preset(), db.scale * IndoorFactor()
@@ -1201,12 +1227,7 @@ local function ApplyAlphas()
 	textures.near:SetAlpha(baseAlpha.near)
 	if textures.near2 then textures.near2:SetAlpha(baseAlpha.near2) end
 
-	-- MOD multiplies the frame by this colour, so strength lives in the colour
-	-- itself: 1 is untouched, and we lerp towards the tint from there.
-	local g = math.min(GloomAmount(p.gloom, db.gloom) * IndoorFactor() * NightEase(), 1.0)
-	baseGloom = g
-	local gr, gg, gb = GloomColor(g, w, db.gloom)
-	gloom:SetColorTexture(gr, gg, gb, 1)
+	ApplyGloom()
 
 	-- The whiteout is the opposite move and only a blizzard uses it: a BLEND
 	-- towards sky luminance, which takes contrast out of the frame rather than
@@ -1525,17 +1546,17 @@ end
 
 -- Rain is wanted right now: on, not in a cinematic, and either outdoors or
 -- the player has asked for it indoors too.
--- Indoors has three settings, not two. "off" hides everything, "on" draws it
--- at full strength, and "dim" - the default - keeps it running quietly. The
--- middle one exists because the honest answer to "I went inside and the rain
+-- Indoors has four settings. "off" hides everything, "on" draws it at full
+-- strength, "sound" keeps only the sound, and "dim" - the default - keeps the
+-- sound and a shade of the gloom, with no drops. The middle ones exist because the honest answer to "I went inside and the rain
 -- stopped dead" is that silence is wrong: you can hear rain from indoors.
 --
 -- What CANNOT be fixed: seeing the rain through a window. The overlay is one
 -- full-screen quad and the addon has no depth buffer, no camera matrix and no
 -- way to ask which pixels are sky, so there is nothing to mask it against.
 -- Drawing it only over the window is not a hard problem, it is an unavailable
--- one. "dim" is the closest reachable thing: a faint wash over the whole view
--- that reads as weather outside rather than as rain falling in the tavern.
+-- one. "dim" is the closest reachable thing: no drops, but the room is a little
+-- darker on a stormy day, which is what being indoors in a storm looks like.
 function IndoorMode()
 	local v = db.indoors
 	if v == true then return "on" end
@@ -1549,8 +1570,10 @@ end
 -- outside", it reads as the addon failing to notice there is a ceiling. The ear
 -- has no such problem - muffled rain through a wall is exactly right, and it is
 -- the thing that makes an inn feel like shelter rather than like a loading
--- screen. So "dim" now means heard and not seen, which is also what Blizzard's
--- own weather does.
+-- screen. So the drops are heard and not seen, which is also what Blizzard's
+-- own weather does. The light is a separate question (issue #43): a room that
+-- is a little darker in a storm is not rain on the ceiling, so "dim" keeps
+-- INDOOR_SHADE of the gloom and "sound" is the level with none.
 --
 -- INDOOR_HEAR was 0.35 and that was too quiet to be the point. The bed is a
 -- broadband hiss and the under-layer rides at 0.35 of it again, so indoors the
@@ -1560,16 +1583,20 @@ end
 -- still hear the rain though - its not doing that now", 2026-10-19. The engine
 -- was playing it the whole time; the number was wrong. 0.55 is still a clear
 -- step down from standing in it and it is a step you can hear happen.
-local INDOOR_SEE  = 0.0
-local INDOOR_HEAR = 0.55
+local INDOOR_SEE   = 0.0
+local INDOOR_HEAR  = 0.55
+local INDOOR_SHADE = 0.4
 
--- kind is "hear" for anything that comes out of the speakers, nil for pixels.
+-- kind is "hear" for anything that comes out of the speakers, "shade" for the
+-- gloom that stays when the drops do not, nil for the drops themselves.
 function IndoorFactor(kind)
 	if not indoorsNow then return 1 end
 	local m = IndoorMode()
 	if m == "on" then return 1 end
 	if m == "off" then return 0 end
-	return kind == "hear" and INDOOR_HEAR or INDOOR_SEE
+	if kind == "hear" then return INDOOR_HEAR end
+	if kind == "shade" and m == "dim" then return INDOOR_SHADE end
+	return INDOOR_SEE
 end
 
 -- Deference is on unless it has been explicitly turned off, which is the one
@@ -1583,6 +1610,8 @@ local function ShouldRain()
 	if not db.enabled or cinematic then return false end
 	if yieldNow and YieldMode() then return false end
 	if indoorsNow and IndoorMode() == "off" then return false end
+	-- Not a mode: there is no setting under which rain falls inside a lake.
+	if underwaterNow then return false end
 	return true
 end
 
@@ -1592,6 +1621,11 @@ end
 -- means walking through a door is a 0.7s fade instead of a pop.
 local function ShouldDraw()
 	return ShouldRain() and IndoorFactor() > 0
+end
+
+-- Where shadeK is heading: the gloom's share, or none when nothing is running.
+function ShadeTarget()
+	return ShouldRain() and IndoorFactor("shade") or 0
 end
 
 -- Indoor state has no reliable event of its own, so it is polled.
@@ -1776,6 +1810,41 @@ local function PollWeather()
 	end
 end
 
+-- IsSubmerged() is the head under the surface; IsSwimming() is also true when
+-- paddling on top, and rain hitting a lake you swim across is worth keeping,
+-- so only the former counts (#46). Wrapped because the call is read from the
+-- client binary and not every client this addon loads on is known to have it.
+local function Submerged()
+	if type(IsSubmerged) ~= "function" then return false end
+	local ok, v = pcall(IsSubmerged)
+	return (ok and v) and true or false
+end
+
+-- Asymmetric like the shelter debounce, for the same reason mirrored: going
+-- under is instant and has no debounce, but bobbing at the surface toggles the
+-- flag several times a second, and a flickering sheet is worse than a late one.
+local SURFACE_DELAY = 0.8
+
+local function PollSubmerged()
+	local under = Submerged()
+	if under ~= underwaterNow then
+		if under then
+			underwaterNow, underwaterSince = true, nil
+			WhereLog("submerged")
+			ComfyRain_Refresh()
+		else
+			underwaterSince = underwaterSince or GetTime()
+			if GetTime() - underwaterSince > SURFACE_DELAY then
+				underwaterNow, underwaterSince = false, nil
+				WhereLog("surfaced")
+				ComfyRain_Refresh()
+			end
+		end
+	else
+		underwaterSince = nil
+	end
+end
+
 local function PollIndoors()
 	local inside = Sheltered()
 	if inside ~= indoorsNow then
@@ -1789,6 +1858,17 @@ local function PollIndoors()
 	else
 		indoorsSince = nil
 	end
+end
+
+local function ShadeUpdate(self, elapsed)
+	local target = ShadeTarget()
+	if shadeK ~= target then
+		local step = elapsed / fadeTime
+		shadeK = (shadeK < target) and math.min(target, shadeK + step)
+		                            or math.max(target, shadeK - step)
+		ApplyGloom()
+	end
+	if shadeK <= 0 then self:Hide() end
 end
 
 local function OnUpdate(self, elapsed)
@@ -1970,6 +2050,13 @@ local function BuildOverlay()
 	todLift:SetBlendMode("ADD")
 	todLift:SetAlpha(0)
 
+	-- Under the overlay and outside it; see shadeK.
+	shade = CreateFrame("Frame", "ComfyRainShade", WorldFrame)
+	shade:SetAllPoints(WorldFrame)
+	shade:SetFrameStrata("BACKGROUND")
+	shade:SetFrameLevel(4)
+	shade:EnableMouse(false)
+
 	overlay = CreateFrame("Frame", "ComfyRainOverlay", WorldFrame)
 	overlay:SetAllPoints(WorldFrame)
 	overlay:SetFrameStrata("BACKGROUND")
@@ -1978,8 +2065,8 @@ local function BuildOverlay()
 
 	-- Drawn first and multiplied, so everything behind it dims; the rain and the
 	-- lightning flash are added on top of the already-darkened frame.
-	gloom = overlay:CreateTexture(nil, "BACKGROUND", nil, 0)
-	gloom:SetAllPoints(overlay)
+	gloom = shade:CreateTexture(nil, "BACKGROUND", nil, 0)
+	gloom:SetAllPoints(shade)
 	gloom:SetBlendMode("MOD")
 
 	-- The sheets themselves are chosen by ApplyTextures, which runs below and
@@ -2025,6 +2112,7 @@ local function BuildOverlay()
 	flash:SetAlpha(0)
 
 	overlay:SetScript("OnUpdate", OnUpdate)
+	shade:SetScript("OnUpdate", ShadeUpdate)
 	ApplyAlphas()
 
 	-- Game time moves slowly; a third of a minute is finer than the eye needs.
@@ -2049,6 +2137,7 @@ local function BuildOverlay()
 	-- Off the overlay deliberately; see PollIndoors.
 	indoorTicker = C_Timer.NewTicker(0.3, function()
 		PollIndoors()
+		PollSubmerged()
 		PollWeather()
 	end)
 end
@@ -2060,9 +2149,9 @@ end
 -- There is no looping flag on PlaySoundFile, so a loop is the clip relaunched
 -- BED_OVERLAP seconds before it ends. Two handles are kept so the old copy is
 -- still running while the new one starts; a third would be a stack, not a loop.
-local function SlotStop(slot)
+local function SlotStop(slot, fadeMs)
 	for _, h in ipairs(slot.handles) do
-		if h then StopSound(h) end
+		if h then StopSound(h, fadeMs) end
 	end
 	wipe(slot.handles)
 	if slot.ticker then slot.ticker:Cancel() slot.ticker = nil end
@@ -2313,10 +2402,13 @@ local function StopThunder()
 	SlotStop(thunderSlot)
 end
 
-local function StopBed()
-	SlotStop(bedSlot)
-	SlotStop(underSlot)
-	SlotStop(windSlot)
+-- fadeMs is the client's StopSound fade argument. Whether a fade actually
+-- happens has NOT been observed in game (2026-11-18); nil keeps the old
+-- immediate stop for every caller but the dive.
+local function StopBed(fadeMs)
+	SlotStop(bedSlot, fadeMs)
+	SlotStop(underSlot, fadeMs)
+	SlotStop(windSlot, fadeMs)
 	if underSlot.start then underSlot.start:Cancel() underSlot.start = nil end
 	loopedKey = nil
 	bedIndoor = nil
@@ -2473,7 +2565,7 @@ function ComfyRain_Refresh()
 	if lastEnabled ~= nil and lastEnabled ~= db.enabled then
 		fadeTime = FADE_SWITCH
 	elseif fade == fadeTarget then
-		fadeTime = FADE_WALK
+		fadeTime = underwaterNow and FADE_DIVE or FADE_WALK
 	end
 	lastEnabled = db.enabled
 
@@ -2482,6 +2574,7 @@ function ComfyRain_Refresh()
 		overlay:Show()
 		overlay:SetAlpha(fade)
 	end
+	if ShadeTarget() > 0 then shade:Show() end
 	ApplyAlphas()
 
 	if want and db.sound then
@@ -2498,7 +2591,7 @@ function ComfyRain_Refresh()
 			StartBed()
 		end
 	else
-		StopBed()
+		StopBed(underwaterNow and 250 or nil)
 		StopThunder()
 		-- Turning the weather off has to hand the realm its own loops back, or
 		-- a player who tried ComfyRain once is left with silent rain forever.
@@ -2604,7 +2697,7 @@ local function Help()
 	end
 	print("  |cffffd100/comfy time local|r - make it look like YOUR clock, not the server's")
 	print("  |cffffd100/comfy time +9|r, |cffffd100/comfy time 21|r, |cffffd100/comfy time off|r")
-	print("  |cffffd100/comfy indoors on||off|r - draw it inside buildings too")
+	print("  |cffffd100/comfy indoors on||dim||sound||off|r - what happens inside buildings")
 	print("  |cffffd100/comfy sound on||off|r, |cffffd100/comfy thunder on||off|r (gusts, in snow)")
 	print("  |cffffd100/comfy strike|r - one thunderclap now, instead of waiting for it")
 	print("  |cffffd100/comfy channel Ambience||SFX||Master|r - which volume slider owns it")
@@ -2874,11 +2967,11 @@ local function HandleSlash(input, source)
 			ScheduleLightning()
 		end
 	elseif cmd == "indoors" then
-		if arg == "on" or arg == "off" or arg == "dim" then
+		if arg == "on" or arg == "off" or arg == "dim" or arg == "sound" then
 			db.indoors = arg
 		else
-			msg("usage: /comfy indoors off | dim | on  (dim is the default: " ..
-			    "quiet and faint, the way weather is from inside)")
+			msg("usage: /comfy indoors off | sound | dim | on  (dim is the default: " ..
+			    "quiet and a little darker, the way weather is from inside)")
 			-- Said here rather than in a help list nobody reads, because
 			-- somebody typing /comfy indoors is standing in the room that is
 			-- wrong at the time they type it.

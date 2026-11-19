@@ -4,7 +4,7 @@
 		Bindings.xml from the addon folder on its own, and listing it as a file
 		to load is how you get it parsed twice.
 
-		Neither binding is given a `default`. A default key on a weather addon
+		None of these bindings is given a `default`. A default key on a weather addon
 		is a key taken away from whatever the player had it on, and there is no
 		key that is free on every keyboard.
 
@@ -20,5 +20,11 @@
 	</Binding>
 	<Binding name="COMFYRAIN_STRIKE" category="ADDONS">
 		ComfyRainAPI.Command("strike")
+	</Binding>
+	<Binding name="COMFYRAIN_HEAVIER" category="ADDONS">
+		ComfyRain_Heavier()
+	</Binding>
+	<Binding name="COMFYRAIN_LIGHTER" category="ADDONS">
+		ComfyRain_Lighter()
 	</Binding>
 </Bindings>
