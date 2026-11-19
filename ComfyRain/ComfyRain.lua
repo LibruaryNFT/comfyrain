@@ -2106,7 +2106,9 @@ function shelter.Drip()
 					(1 + (shelter.Rand() * 2 - 1) * BED_VOL_JITTER)) })
 			if called and ok and h then
 				slot.handles[#slot.handles + 1] = h
-				if #slot.handles > 3 then table.remove(slot.handles, 1) end
+				-- Held or stopped, never forgotten (see SlotPlay). A drip this
+				-- old has almost always finished, so the stop is usually a no-op.
+				if #slot.handles > 3 then StopSound(table.remove(slot.handles, 1)) end
 			end
 		end
 	end
