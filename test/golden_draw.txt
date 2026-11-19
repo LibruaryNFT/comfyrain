@@ -254,10 +254,10 @@ curtain.lift = 0.0000
 ### under a roof, dim
 overlay.shown = false
 overlay.alpha = 0.0000
-gloom = 0.9331, 0.9435, 0.9673
-mist = 0.0000  tex 396498  blend BLEND  at 0.1179, 0.9749  tint 0.5800, 0.6400, 0.7400
-far = 0.0000  tex Interface\AddOns\ComfyRain\rain-far.tga  blend BLEND  at 0.7599, 0.5180
-near = 0.0000  tex Interface\AddOns\ComfyRain\rain-near.tga  blend ADD  at 0.6934, 0.5227
+gloom = 0.9327, 0.9432, 0.9671
+mist = 0.0000  tex 396498  blend BLEND  at 0.1172, 0.9747  tint 0.5800, 0.6400, 0.7400
+far = 0.0000  tex Interface\AddOns\ComfyRain\rain-far.tga  blend BLEND  at 0.7387, 0.5070
+near = 0.0000  tex Interface\AddOns\ComfyRain\rain-near.tga  blend ADD  at 0.6716, 0.4999
 whiteout = 0.0000
 flash = 0.0000
 curtain.shown = false
