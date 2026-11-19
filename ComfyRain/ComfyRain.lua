@@ -446,6 +446,8 @@ local lightningTimer
 local appliedTextures
 local drift = 0
 local cinematic, indoorsNow, indoorsSince = false, false, nil
+-- Head under water, polled beside the shelter state. See PollSubmerged.
+local underwaterNow, underwaterSince = false, nil
 -- True while Blizzard's own weather is falling here, so ours can get out of
 -- the way. See PollWeather.
 local yieldNow, yieldSince = false, nil
@@ -476,6 +478,8 @@ local shade, shadeK = nil, 1
 -- and it didnt change quick enough", said of the old Turn It All Off button.
 -- Anything the player switched deliberately gets the short one.
 local FADE_WALK, FADE_SWITCH = 0.7, 0.12
+-- A head going under is instant, so the sheet goes in a quarter second (#46).
+local FADE_DIVE = 0.25
 local fade, fadeTarget, fadeTime = 1, 1, FADE_WALK
 -- What db.enabled was at the last Refresh, which is how the switch is told
 -- apart from the doorway without every caller having to say which it is.
@@ -1354,6 +1358,8 @@ local function ShouldRain()
 	if not db.enabled or cinematic then return false end
 	if yieldNow and YieldMode() then return false end
 	if indoorsNow and IndoorMode() == "off" then return false end
+	-- Not a mode: there is no setting under which rain falls inside a lake.
+	if underwaterNow then return false end
 	return true
 end
 
@@ -1549,6 +1555,41 @@ local function PollWeather()
 		end
 	else
 		yieldSince = nil
+	end
+end
+
+-- IsSubmerged() is the head under the surface; IsSwimming() is also true when
+-- paddling on top, and rain hitting a lake you swim across is worth keeping,
+-- so only the former counts (#46). Wrapped because the call is read from the
+-- client binary and not every client this addon loads on is known to have it.
+local function Submerged()
+	if type(IsSubmerged) ~= "function" then return false end
+	local ok, v = pcall(IsSubmerged)
+	return (ok and v) and true or false
+end
+
+-- Asymmetric like the shelter debounce, for the same reason mirrored: going
+-- under is instant and has no debounce, but bobbing at the surface toggles the
+-- flag several times a second, and a flickering sheet is worse than a late one.
+local SURFACE_DELAY = 0.8
+
+local function PollSubmerged()
+	local under = Submerged()
+	if under ~= underwaterNow then
+		if under then
+			underwaterNow, underwaterSince = true, nil
+			WhereLog("submerged")
+			ComfyRain_Refresh()
+		else
+			underwaterSince = underwaterSince or GetTime()
+			if GetTime() - underwaterSince > SURFACE_DELAY then
+				underwaterNow, underwaterSince = false, nil
+				WhereLog("surfaced")
+				ComfyRain_Refresh()
+			end
+		end
+	else
+		underwaterSince = nil
 	end
 end
 
@@ -1834,6 +1875,7 @@ local function BuildOverlay()
 	-- Off the overlay deliberately; see PollIndoors.
 	indoorTicker = C_Timer.NewTicker(0.3, function()
 		PollIndoors()
+		PollSubmerged()
 		PollWeather()
 	end)
 end
@@ -1845,9 +1887,9 @@ end
 -- There is no looping flag on PlaySoundFile, so a loop is the clip relaunched
 -- BED_OVERLAP seconds before it ends. Two handles are kept so the old copy is
 -- still running while the new one starts; a third would be a stack, not a loop.
-local function SlotStop(slot)
+local function SlotStop(slot, fadeMs)
 	for _, h in ipairs(slot.handles) do
-		if h then StopSound(h) end
+		if h then StopSound(h, fadeMs) end
 	end
 	wipe(slot.handles)
 	if slot.ticker then slot.ticker:Cancel() slot.ticker = nil end
@@ -2093,10 +2135,13 @@ local function StopThunder()
 	SlotStop(thunderSlot)
 end
 
-local function StopBed()
-	SlotStop(bedSlot)
-	SlotStop(underSlot)
-	SlotStop(windSlot)
+-- fadeMs is the client's StopSound fade argument. Whether a fade actually
+-- happens has NOT been observed in game (2026-11-18); nil keeps the old
+-- immediate stop for every caller but the dive.
+local function StopBed(fadeMs)
+	SlotStop(bedSlot, fadeMs)
+	SlotStop(underSlot, fadeMs)
+	SlotStop(windSlot, fadeMs)
 	if underSlot.start then underSlot.start:Cancel() underSlot.start = nil end
 	loopedKey = nil
 	bedIndoor = nil
@@ -2242,7 +2287,7 @@ function ComfyRain_Refresh()
 	if lastEnabled ~= nil and lastEnabled ~= db.enabled then
 		fadeTime = FADE_SWITCH
 	elseif fade == fadeTarget then
-		fadeTime = FADE_WALK
+		fadeTime = underwaterNow and FADE_DIVE or FADE_WALK
 	end
 	lastEnabled = db.enabled
 
@@ -2268,7 +2313,7 @@ function ComfyRain_Refresh()
 			StartBed()
 		end
 	else
-		StopBed()
+		StopBed(underwaterNow and 250 or nil)
 		StopThunder()
 		-- Turning the weather off has to hand the realm its own loops back, or
 		-- a player who tried ComfyRain once is left with silent rain forever.

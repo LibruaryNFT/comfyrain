@@ -338,6 +338,8 @@ function M.reset(opts)
 		-- preset it thinks it is measuring. Specs that care set it themselves.
 		cameraZoom = 9.75,
 		indoors = false,
+		submerged = false,   -- head under water (IsSubmerged)
+		swimming = false,    -- in water at all, surface included (IsSwimming)
 		sheltered = false,   -- under a roof the engine does not call a room
 		zone = "Elwynn Forest",
 		subzone = "Goldshire",
@@ -819,6 +821,7 @@ function M.install(env)
 		return not M.state.indoors
 	end
 	env.IsSubmerged = function() return M.state.submerged and true or false end
+	env.IsSwimming = function() return (M.state.swimming or M.state.submerged) and true or false end
 	env.GetRealZoneText = function() return M.state.zone end
 	env.GetSubZoneText = function() return M.state.subzone end
 	env.GetZoneText = function() return M.state.zone end
