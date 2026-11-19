@@ -66,6 +66,7 @@ PRESENT InCombatLockdown
 PRESENT IsIndoors
 PRESENT IsOutdoors
 PRESENT IsShown
+PRESENT IsSubmerged
 PRESENT MuteSoundFile
 PRESENT PlaySoundFile
 PRESENT PlaySoundWithOptions
