@@ -111,6 +111,13 @@ the rain indoors; needs `/reload` to pick up (no new files, so no client restart
   people are settled in and browsing. Report 2 said 6-8 Nov too. Draft in
   `docs/launch-posts.md`, clip link included.
 
+**First user feedback, 2026-11-18** (r/WowUI comment). Design and order in
+`docs/2026-11-18-reddit-feedback-design.md`. Ahead of the list below:
+- 1.1: #46 stop rain underwater, #45 minimap wheel + keybinds for intensity, #43 "Dim"
+  keeps a shade indoors (and README line 86 is stale: indoors draws nothing today).
+- 1.2: #44 rain that builds, peaks and eases (continuous intensity, shower model).
+- Post the reply drafted in chat 2026-11-18; reply again when 1.1 ships.
+
 **After launch, in this order** (label `after-launch`, none of it in v1.0.0)
 1. #33 Rain soundscapes with Meander
 2. #34 Indoor drips and the inn scene
