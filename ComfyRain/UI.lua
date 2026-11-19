@@ -325,6 +325,43 @@ end
 -- "Weather" is the window talking to itself.
 local RESET_LABEL = { look = "Weather" }
 
+-- The one place intensity is stepped by hand: the panel's selector, the mouse
+-- wheel and both keybinds all land here, and it hands the new value to the
+-- slash command rather than writing db.intensity. That is deliberate. Whatever
+-- hangs off the typed command (the bed restarting, the lightning reschedule,
+-- the window refresh, and anything that wants to know a player took the wheel)
+-- then sees a wheel step and a typed one as the same event.
+--
+-- `wrap` is the panel's: its arrows loop round. A wheel or a keybind clamps,
+-- because a wheel that spins past monsoon and lands on light is a storm
+-- switching itself off under a player who was only scrolling.
+-- Returns the intensity it asked for.
+local function StepIntensity(d, wrap)
+	local db = ComfyRainAPI.DB()
+	local w = ComfyRainAPI.Weather[db.weather] or ComfyRainAPI.Weather.rain
+	local at = 1
+	for i, n in ipairs(w.order) do if n == db.intensity then at = i end end
+	local to
+	if wrap then
+		to = ((at - 1 + d) % #w.order) + 1
+	else
+		to = math.max(1, math.min(#w.order, at + d))
+	end
+	local name = w.order[to]
+	ComfyRainAPI.Command(name)
+	return name
+end
+
+-- "Heavy rain", "Light snow", but just "Monsoon": the top step already names
+-- its weather and "Monsoon rain" reads like a typo.
+local function IntensityLabel()
+	local db = ComfyRainAPI.DB()
+	if db.intensity == "monsoon" or db.intensity == "blizzard" then
+		return Title(db.intensity)
+	end
+	return Title(db.intensity) .. " " .. (db.weather == "snow" and "snow" or "rain")
+end
+
 --------------------------------------------------------------------------------
 -- The control column
 --------------------------------------------------------------------------------
@@ -1126,11 +1163,7 @@ local function Build()
 	end))
 
 	controls.intensity = add(Select(panel, "Intensity", function(d)
-		local db2 = DB()
-		local w = ComfyRainAPI.Weather[db2.weather] or ComfyRainAPI.Weather.rain
-		local at = 1
-		for i, n in ipairs(w.order) do if n == db2.intensity then at = i end end
-		Run(w.order[((at - 1 + d) % #w.order) + 1])
+		StepIntensity(d, true)
 	end))
 
 	-- The default is looked up by db key rather than assumed to match the
@@ -1632,6 +1665,70 @@ local function MinimapPlace()
 	minimap:SetPoint("CENTER", Minimap, "CENTER", r * math.cos(a), r * math.sin(a))
 end
 
+-- One line over the middle of the screen that says what a wheel turn or a
+-- keybind just did, because neither has a window to show it. Built the first
+-- time it is needed and hidden between uses, so a player who never steps by
+-- hand never gets a frame, and nothing is on screen once it has faded.
+local TOAST_HOLD, TOAST_FADE = 1.0, 0.5
+local toast
+
+local function Toast(text)
+	if not toast then
+		local ok, f = pcall(CreateFrame, "Frame", "ComfyRainToast", UIParent)
+		if not ok or not f then return end
+		f:SetSize(400, 30)
+		f:SetPoint("CENTER", UIParent, "CENTER", 0, 200)
+		f:SetFrameStrata("HIGH")
+		f.text = f:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+		f.text:SetPoint("CENTER")
+		f:SetScript("OnUpdate", function(self, elapsed)
+			self.age = self.age + elapsed
+			if self.age >= TOAST_HOLD + TOAST_FADE then
+				self:Hide()
+			elseif self.age > TOAST_HOLD then
+				self:SetAlpha(1 - (self.age - TOAST_HOLD) / TOAST_FADE)
+			end
+		end)
+		toast = f
+	end
+	toast.text:SetText(text)
+	toast.age = 0
+	toast:SetAlpha(1)
+	toast:Show()
+end
+
+-- Stepped by hand, so the answer goes to the toast.
+local function StepAndSay(d)
+	StepIntensity(d)
+	Toast(IntensityLabel())
+end
+
+local function StepVolume(d)
+	if not (ComfyRainAPI.Can and ComfyRainAPI.Can.volume()) then
+		Toast("Volume is set by the game's own slider")
+		return
+	end
+	local v = ComfyRainAPI.DB().volume or 1
+	v = math.max(0, math.min(1, math.floor((v + d * 0.1) * 10 + 0.5) / 10))
+	ComfyRainAPI.Command(string.format("volume %.1f", v))
+	Toast(("Volume %d%%"):format(v * 100 + 0.5))
+end
+
+-- The keybinds in Bindings.xml.
+function ComfyRain_Heavier() StepAndSay(1) end
+function ComfyRain_Lighter() StepAndSay(-1) end
+
+local function MinimapTip(self)
+	GameTooltip:SetOwner(self, "ANCHOR_LEFT")
+	GameTooltip:AddLine("ComfyRain")
+	GameTooltip:AddLine(IntensityLabel(), 0.4, 1, 0.4)
+	GameTooltip:AddLine("Left-click: settings", 1, 1, 1)
+	GameTooltip:AddLine("Right-click: weather on or off", 1, 1, 1)
+	GameTooltip:AddLine("Scroll: lighter or heavier. Shift-scroll: volume", 1, 1, 1)
+	GameTooltip:AddLine("Drag: move around the minimap", 0.6, 0.6, 0.6)
+	GameTooltip:Show()
+end
+
 local function BuildMinimap()
 	if minimap or not Minimap then return end
 	minimap = CreateFrame("Button", "ComfyRainMinimapButton", Minimap)
@@ -1675,13 +1772,16 @@ local function BuildMinimap()
 		MinimapPlace()
 	end)
 
-	minimap:SetScript("OnEnter", function(self)
-		GameTooltip:SetOwner(self, "ANCHOR_LEFT")
-		GameTooltip:AddLine("ComfyRain")
-		GameTooltip:AddLine("Left-click: settings", 1, 1, 1)
-		GameTooltip:AddLine("Right-click: weather on or off", 1, 1, 1)
-		GameTooltip:AddLine("Drag: move around the minimap", 0.6, 0.6, 0.6)
-		GameTooltip:Show()
+	minimap:SetScript("OnEnter", MinimapTip)
+	minimap:EnableMouseWheel(true)
+	minimap:SetScript("OnMouseWheel", function(self, delta)
+		if IsShiftKeyDown() then StepVolume(delta > 0 and 1 or -1)
+		else StepAndSay(delta > 0 and 1 or -1) end
+		-- The tooltip is already on screen, and it names the intensity.
+		if GameTooltip:IsShown() and GameTooltip.owner == self then
+			GameTooltip:ClearLines()
+			MinimapTip(self)
+		end
 	end)
 	minimap:SetScript("OnLeave", function() GameTooltip:Hide() end)
 
@@ -1789,12 +1889,14 @@ function ComfyRain_Settings()
 	return category
 end
 
--- Bindings.xml names these. The binding header and both names are also in
+-- Bindings.xml names these. The binding header and the names are also in
 -- Bindings.xml; this file only has to answer to them.
 BINDING_HEADER_COMFYRAIN = "Comfy Rain"
 BINDING_NAME_COMFYRAIN_TOGGLE = "Weather on or off"
 BINDING_NAME_COMFYRAIN_PANEL = "Open the settings window"
 BINDING_NAME_COMFYRAIN_STRIKE = "One thunderclap, now"
+BINDING_NAME_COMFYRAIN_HEAVIER = "Heavier weather"
+BINDING_NAME_COMFYRAIN_LIGHTER = "Lighter weather"
 
 -- One place that answers "something changed". A typed command has to move the
 -- window too, or the two disagree in front of the player and the window is the

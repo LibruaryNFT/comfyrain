@@ -32,6 +32,7 @@ the way rain should, and where the real thing exists it is simply the better of 
 | **The game's own weather** | When the game is raining or snowing for real, Comfy Rain hides so you never see both, and comes back when it stops. It cannot stop the game's weather; no addon can. `/comfy defer off` keeps yours on top |
 | **Scenes** | `/comfy preset cozy`, `storm`, `snow` or `overcast` sets a whole weather; `dusk` or `night` sets just the time of day. Each leaves the other alone, so night with no rain is `/comfy off` plus `/comfy preset night` |
 | **A settings window** | `/comfyrain`, the minimap button, the addon compartment, or a keybind of your own. Every control shows you the command it ran, so you learn them by using it |
+| **Quick intensity** | Scroll the mouse wheel over the minimap button to step lighter or heavier, Shift and scroll for volume. Key Bindings has Heavier and Lighter under AddOns, with no key set |
 
 ## Getting started
 

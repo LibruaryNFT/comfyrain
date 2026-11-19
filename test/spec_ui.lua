@@ -2156,3 +2156,163 @@ it("says why on a client without them, instead of quietly doing nothing", functi
 	gt(played, 0, "the rain is still heard, through the plain call")
 	eq(#w.mock.errors, 0, "errors")
 end)
+
+--------------------------------------------------------------------------------
+-- Changing intensity without the window (#45)
+--------------------------------------------------------------------------------
+
+local function wheelWorld()
+	local w = H.world()
+	w.env.ComfyRain_Minimap()
+	return w, w.env.ComfyRainMinimapButton
+end
+
+local function toastOf(w) return w.mock.frameNamed("ComfyRainToast") end
+
+it("walks light to monsoon and back with the wheel, and stops at both ends", function()
+	local w, b = wheelWorld()
+	local wheel = b:GetScript("OnMouseWheel")
+	ok(b.mouseWheelEnabled, "the button listens for the wheel")
+	w:slash("light")
+	local seen = {}
+	for _ = 1, 3 do wheel(b, 1) seen[#seen + 1] = w:db().intensity end
+	eq(table.concat(seen, ","), "normal,heavy,monsoon", "up walks the whole scale")
+	wheel(b, 1)
+	eq(w:db().intensity, "monsoon", "and does not wrap past the top")
+	seen = {}
+	for _ = 1, 3 do wheel(b, -1) seen[#seen + 1] = w:db().intensity end
+	eq(table.concat(seen, ","), "heavy,normal,light", "down walks it back")
+	wheel(b, -1)
+	eq(w:db().intensity, "light", "and does not wrap past the bottom")
+	eq(#w.mock.errors, 0, "errors")
+end)
+
+it("steps the snow scale up to a blizzard, and keeps the weather snow", function()
+	local w, b = wheelWorld()
+	w:slash("snow")
+	w:slash("heavy")
+	b:GetScript("OnMouseWheel")(b, 1)
+	eq(w:db().intensity, "blizzard", "the top of snow is blizzard, not monsoon")
+	eq(w:db().weather, "snow", "stepping never changes the weather")
+end)
+
+it("routes a wheel step through the slash command, so anything hung on it sees it", function()
+	local w, b = wheelWorld()
+	local seen = {}
+	local real = w.env.ComfyRainAPI.Command
+	w.env.ComfyRainAPI.Command = function(input) seen[#seen + 1] = input return real(input) end
+	w:slash("normal")
+	b:GetScript("OnMouseWheel")(b, 1)
+	eq(seen[#seen], "heavy", "the wheel ran /comfy heavy, it did not write db.intensity")
+	w.env.ComfyRain_Lighter()
+	eq(seen[#seen], "normal", "and so did the keybind")
+end)
+
+it("turns the weather back on when the wheel steps it", function()
+	local w, b = wheelWorld()
+	w:slash("off")
+	b:GetScript("OnMouseWheel")(b, 1)
+	eq(w:db().enabled, true, "scrolling a switched-off storm switches it on")
+end)
+
+it("changes volume, not intensity, on shift and wheel", function()
+	local w, b = wheelWorld()
+	local wheel = b:GetScript("OnMouseWheel")
+	w:slash("heavy")
+	w:slash("volume 0.5")
+	w.mock.shift = true
+	wheel(b, 1)
+	near(w:db().volume, 0.6, 1e-9, "shift-up raised it a notch")
+	wheel(b, -1) wheel(b, -1)
+	near(w:db().volume, 0.4, 1e-9, "shift-down lowered it")
+	eq(w:db().intensity, "heavy", "and the intensity did not move")
+	for _ = 1, 12 do wheel(b, 1) end
+	near(w:db().volume, 1, 1e-9, "clamped at full")
+	for _ = 1, 12 do wheel(b, -1) end
+	near(w:db().volume, 0, 1e-9, "and at silent")
+	w.mock.shift = false
+	wheel(b, 1)
+	eq(w:db().intensity, "monsoon", "released, the wheel is intensity again")
+end)
+
+it("leaves volume alone on a client that gives addons no volume control", function()
+	local w = classicWorld()
+	w.env.ComfyRain_Minimap()
+	local b = w.env.ComfyRainMinimapButton
+	local vol = w:db().volume
+	w.mock.shift = true
+	b:GetScript("OnMouseWheel")(b, 1)
+	eq(w:db().volume, vol, "nothing is stored that would drive nothing")
+end)
+
+it("steps with the two keybinds, which are in Bindings.xml and named", function()
+	local w = H.world()
+	w:slash("normal")
+	w.env.ComfyRain_Heavier()
+	eq(w:db().intensity, "heavy", "Heavier steps up")
+	w.env.ComfyRain_Heavier() w.env.ComfyRain_Heavier()
+	eq(w:db().intensity, "monsoon", "and clamps")
+	w.env.ComfyRain_Lighter()
+	eq(w:db().intensity, "heavy", "Lighter steps down")
+	for _ = 1, 5 do w.env.ComfyRain_Lighter() end
+	eq(w:db().intensity, "light", "and clamps")
+	eq(w.env.BINDING_NAME_COMFYRAIN_HEAVIER, "Heavier weather", "readable row, not the constant")
+	eq(w.env.BINDING_NAME_COMFYRAIN_LIGHTER, "Lighter weather", "both of them")
+
+	local f = assert(io.open("ComfyRain/Bindings.xml") or io.open("../ComfyRain/Bindings.xml"))
+	local xml = f:read("*a") f:close()
+	contains(xml, 'name="COMFYRAIN_HEAVIER"', "Heavier is a binding")
+	contains(xml, "ComfyRain_Heavier()", "and calls the global")
+	contains(xml, 'name="COMFYRAIN_LIGHTER"', "Lighter is a binding")
+	contains(xml, "ComfyRain_Lighter()", "and calls the global")
+	ok(not xml:find("default=", 1, true), "none has a default key")
+end)
+
+it("agrees with the panel after a wheel or keybind step", function()
+	local w, b = wheelWorld()
+	w:open()
+	w:slash("light")
+	b:GetScript("OnMouseWheel")(b, 1)
+	eq(reads(w, "Intensity"), "Normal", "the open window followed the wheel")
+	w.env.ComfyRain_Heavier()
+	eq(reads(w, "Intensity"), "Heavy", "and the keybind")
+end)
+
+it("keeps the panel's own arrows wrapping, now through the shared step", function()
+	local w = H.world()
+	w:open()
+	w:slash("monsoon")
+	w:select("Intensity").right:Click()
+	eq(w:db().intensity, "light", "the panel still wraps past the top")
+end)
+
+it("says what it did in a toast that fades out and leaves nothing on screen", function()
+	local w, b = wheelWorld()
+	ok(toastOf(w) == nil, "there is no toast frame until there is something to say")
+	w:slash("normal")
+	b:GetScript("OnMouseWheel")(b, 1)
+	local t = toastOf(w)
+	ok(t and t:IsShown(), "a step shows the toast")
+	eq(t.text.text, "Heavy rain", "and it names the result")
+	w.env.ComfyRain_Heavier()
+	eq(t.text.text, "Monsoon", "the top step is not 'Monsoon rain'")
+	w:advance(0.5)
+	eq(t:GetAlpha(), 1, "it holds before it fades")
+	w:advance(0.75)
+	lt(t:GetAlpha(), 1, "then it fades")
+	w:advance(1)
+	eq(t:IsShown(), false, "and is gone by about 1.5 s")
+	w.env.ComfyRain_Lighter()
+	ok(t:IsShown() and t:GetAlpha() == 1, "a later step brings it back at full strength")
+end)
+
+it("keeps the minimap tooltip current while the wheel turns", function()
+	local w, b = wheelWorld()
+	w:slash("light")
+	b:GetScript("OnEnter")(b)
+	local function lines() return table.concat(w.env.GameTooltip.lines, "|") end
+	contains(lines(), "Light rain", "the tooltip names the intensity")
+	b:GetScript("OnMouseWheel")(b, 1)
+	contains(lines(), "Normal rain", "and follows the wheel while it is up")
+	contains(lines(), "Scroll", "and teaches the wheel")
+end)
