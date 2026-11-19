@@ -117,6 +117,11 @@ the rain indoors; needs `/reload` to pick up (no new files, so no client restart
   keeps a shade indoors (and README line 86 is stale: indoors draws nothing today).
 - 1.2: #44 rain that builds, peaks and eases (continuous intensity, shower model).
 - Post the reply drafted in chat 2026-11-18; reply again when 1.1 ships.
+- Alt-tab sound cutout (Justin, 2026-11-18): a burst of refused clips latched the bundled
+  bed and could leave the bed loop with no timer, silent until the next doorway or zone.
+  Fixed on `fix/bed-survives-refusal` (bed always re-arms; latches need the fallback to
+  actually play). **Untested in game**: alt-tab with rain on and listen for 30 s. If ALL
+  game audio drops, not just the rain, it is the GTX 1660 HDMI audio issue instead.
 
 **After launch, in this order** (label `after-launch`, none of it in v1.0.0)
 1. #33 Rain soundscapes with Meander
