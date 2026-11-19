@@ -116,6 +116,9 @@ the rain indoors; needs `/reload` to pick up (no new files, so no client restart
 - Merged to main 2026-11-18: #46 underwater (PR #49), #45 minimap wheel + Heavier/Lighter
   keybinds + toast (PR #50), #43 Dim keeps a 40% shade, new "Sound only" level (PR #51),
   alt-tab bed recovery (PR #48). None tagged or released yet.
+- #34 shelter half merged 2026-11-19 (PR #54): under a roof with rain on and Dim or Sound
+  only, the bed swaps to the light loop and Worgen roof drips play every 3-9 s (kit 40339
+  Forever / 60199 Retail, gain 0.32). Untested in game. #34's inn-scene half stays open.
 - #44 rain cycles: PR #52, green, merged with main, off by default, goldens unchanged.
   387 production lines, over the 300-line standing-authority cap: **Justin approves the
   merge.** All 4 untested in game.
@@ -123,12 +126,13 @@ the rain indoors; needs `/reload` to pick up (no new files, so no client restart
   surfacing); wheel over the minimap button; Key Bindings > AddOns shows Heavier/Lighter;
   Stormwind inn with Dim looks slightly darker, barbershop does not look broken; alt-tab
   with rain on, bed back within 30 s (if ALL game audio drops it is the GTX 1660 HDMI issue).
+  Stand in an inn doorway with Dim: rain goes soft with drips inside, full outside.
 - Release = push a tag (`.github/workflows/release.yml` packages to CurseForge). Then post
   the reply to the commenter (draft in chat 2026-11-18, rewritten to say what shipped).
 
 **After launch, in this order** (label `after-launch`, none of it in v1.0.0)
 1. #33 Rain soundscapes with Meander
-2. #34 Indoor drips and the inn scene
+2. #34 The inn scene (indoor drips shipped in PR #54)
 3. #35 Fog
 4. #36 Leaves, embers and sandstorm as one particle system
 5. #28 Gamma brightening
