@@ -116,6 +116,34 @@ it("waits out a muted game instead of switching to the bundled loop", function()
 	eq(#w.mock.printedMatching("bundled"), 0, "and it never switched")
 end)
 
+it("comes back by itself after the client refuses every clip for a while", function()
+	-- Alt-tab report, 2026-11-18: "sometimes when we alt tab and back sound cuts
+	-- out". With sound switched ON, a client that refuses every clip (a
+	-- backgrounded or restarting sound system) used to latch the bundled bed
+	-- and the dead slider, and when the bundled clip was refused too the loop
+	-- returned without a timer and stayed silent until the next transition.
+	local w = H.world()
+	w:advance(5, 0.25)
+	local away = true
+	w.mock.canPlaySound = function() return not away end
+	w:advance(40, 0.25)
+	local refused = 0
+	for _, s in ipairs(w.mock.sounds) do if s.ok == false then refused = refused + 1 end end
+	gt(refused, 0, "the client did refuse while away")
+
+	away = false
+	local before = #w.mock.sounds
+	w:advance(40, 0.25)
+	local kitBack = false
+	for _, s in ipairs(playsOf(w.mock, before)) do
+		if s.ok and s.kit then kitBack = true end
+	end
+	ok(kitBack, "Blizzard's loop, through its kit, plays again after focus returns")
+	eq(#w.mock.printedMatching("bundled"), 0, "no switch to the bundled loop")
+	eq(w.env.ComfyRainAPI.Can.volume(), true, "and the slider still works")
+	eq(#w.mock.errors, 0, "errors")
+end)
+
 it("stops everything when sound is turned off, and resumes on", function()
 	local w = H.world()
 	w:advance(1)

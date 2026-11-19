@@ -1885,7 +1885,13 @@ local function Play(file, volume)
 		local called, a, b = pcall(opts, {
 			soundKitID = kit, channel = db.channel, volumeOverride = volume })
 		if called and a then return a, b end
-		if not GameSoundOff() then kitsRefused = true end
+		-- Latch only if the same file then plays. A client that refuses the
+		-- file too is refusing everything for now (a backgrounded or restarting
+		-- sound system, 2026-11-18 alt-tab report), which says nothing about
+		-- the kit, and latching on it cost the slider for the whole session.
+		local fok, fh = PlaySoundFile(file, db.channel)
+		if fok and not GameSoundOff() then kitsRefused = true end
+		return fok, fh
 	end
 	return PlaySoundFile(file, db.channel)
 end
@@ -1954,18 +1960,23 @@ end
 local function PlayBedClip()
 	if not ShouldRain() or not db.sound then return end
 	local file, len = CurrentBed()
-	if not SlotPlay(bedSlot, file, BedVolume(1)) then
-		-- Keep the loop's clock running and try again next pass, so the bed
-		-- comes back on its own within one clip length of the sound coming on.
-		if GameSoundOff() then return SlotLoop(bedSlot, len, PlayBedClip) end
-		if not bedFallback then
+	if not SlotPlay(bedSlot, file, BedVolume(1)) and not bedFallback and not GameSoundOff() then
+		-- Switch to the bundled loop only if it actually plays. When it is
+		-- refused as well, the client is refusing every clip for now (alt-tab
+		-- with background sound off, a sound-system restart), Blizzard's loop
+		-- is not missing, and the switch would have lasted until /reload.
+		local fb = W().fallbackBed
+		if SlotPlay(bedSlot, fb.file, BedVolume(1)) then
 			bedFallback = true
+			len = fb.len
 			msg("the client would not play Blizzard's " .. W().label ..
 			    " loop; using the bundled one.")
-			return PlayBedClip()
 		end
-		return
 	end
+	-- Always re-arm. A pass that played nothing keeps the loop's clock running
+	-- and tries again next pass, so the bed comes back on its own within one
+	-- clip length of the client playing sound again. Returning here without a
+	-- timer is what left the rain silent until the next zone or doorway.
 	SlotLoop(bedSlot, len, PlayBedClip)
 end
 
