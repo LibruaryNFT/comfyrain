@@ -163,10 +163,12 @@ function H.world(opts)
 	-- The frames the addon builds, by the names it gives them.
 	function w:overlay() return mock.frameNamed("ComfyRainOverlay") end
 	function w:tod() return mock.frameNamed("ComfyRainTimeOfDay") end
+	function w:shade() return mock.frameNamed("ComfyRainShade") end
 
-	-- The MOD quad under the rain: what the world is multiplied by. One per
-	-- frame, so asking by blend mode is unambiguous.
-	function w:gloom() return mock.texturesOf(self:overlay(), "MOD")[1] end
+	-- The MOD quad under the rain: what the world is multiplied by. It lives on
+	-- the shade frame, not the overlay, so it can outlive the drops (#43). One
+	-- per frame, so asking by blend mode is unambiguous.
+	function w:gloom() return mock.texturesOf(self:shade(), "MOD")[1] end
 	function w:dim() return mock.texturesOf(self:tod(), "MOD")[1] end
 	function w:lift()
 		for _, t in ipairs(mock.texturesOf(self:tod(), "ADD")) do return t end

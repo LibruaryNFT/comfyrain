@@ -28,6 +28,7 @@ local SPECS = {
 	"spec_boot",
 	"spec_timeofday",
 	"spec_visuals",
+	"spec_shade",
 	"spec_math",
 	"spec_sound",
 	"spec_calib",

@@ -399,7 +399,7 @@ local function Invariants(w, where)
 		weather = { rain = true, snow = true },
 		channel = { Ambience = true, SFX = true, Master = true, Music = true, Dialog = true },
 		timeMode = { off = true, ["local"] = true, offset = true, fixed = true },
-		indoors = { off = true, dim = true, on = true },
+		indoors = { off = true, sound = true, dim = true, on = true },
 	}
 	for k, allowed in pairs(ENUM) do
 		ok(allowed[db[k]], where .. ": db." .. k .. " is one of the allowed values, got " ..
