@@ -26,10 +26,12 @@ PRESENT C_Weather.GetCurrentWeather
 PRESENT Cancel
 PRESENT ClearAllPoints
 PRESENT ClearFocus
+PRESENT ClearLines
 PRESENT CreateFontString
 PRESENT CreateFrame
 PRESENT CreateTexture
 PRESENT EnableMouse
+PRESENT EnableMouseWheel
 PRESENT GetAddOnMetadata
 PRESENT GetBuildInfo
 PRESENT GetCVar
@@ -65,6 +67,7 @@ PRESENT HookScript
 PRESENT InCombatLockdown
 PRESENT IsIndoors
 PRESENT IsOutdoors
+PRESENT IsShiftKeyDown
 PRESENT IsShown
 PRESENT IsSubmerged
 PRESENT MuteSoundFile
