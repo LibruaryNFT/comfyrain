@@ -119,6 +119,10 @@ the rain indoors; needs `/reload` to pick up (no new files, so no client restart
 - #34 shelter half merged 2026-11-19 (PR #54): under a roof with rain on and Dim or Sound
   only, the bed swaps to the light loop and Worgen roof drips play every 3-9 s (kit 40339
   Forever / 60199 Retail, gain 0.32). Untested in game. #34's inn-scene half stays open.
+- Zone snow, 2026-11-21 (Justin's idea): rain falls as snow on uiMapID 1452 Winterspring,
+  1426 Dun Morogh, 1416 Alterac Mountains, 1459 Alterac Valley. On by default,
+  `/comfy zonesnow off` to disable. db.weather is never rewritten. IDs from wago.tools
+  UiMap, cross-checked against the live where-log (1453, 1429, 1439 match). Untested in game.
 - #44 rain cycles: PR #52, green, merged with main, off by default, goldens unchanged.
   387 production lines, over the 300-line standing-authority cap: **Justin approves the
   merge.** All 4 untested in game.
@@ -127,6 +131,7 @@ the rain indoors; needs `/reload` to pick up (no new files, so no client restart
   Stormwind inn with Dim looks slightly darker, barbershop does not look broken; alt-tab
   with rain on, bed back within 30 s (if ALL game audio drops it is the GTX 1660 HDMI issue).
   Stand in an inn doorway with Dim: rain goes soft with drips inside, full outside.
+  Ride from Kharanos toward Loch Modan: snow in Dun Morogh, rain once over the border.
 - Release = push a tag (`.github/workflows/release.yml` packages to CurseForge). Then post
   the reply to the commenter (draft in chat 2026-11-18, rewritten to say what shipped).
 

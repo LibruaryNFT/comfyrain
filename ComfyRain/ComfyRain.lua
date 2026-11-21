@@ -367,6 +367,7 @@ local DEFAULTS = {
 	-- Where the real thing exists it is simply the better of the two. See
 	-- RealPrecipHere.
 	defer     = true,
+	zoneSnow  = true,      -- rain falls as snow in Winterspring, Dun Morogh, Alterac
 	thunder   = true,
 	indoors   = "dim",     -- off | sound | dim | on; see IndoorMode
 	channel   = "Ambience",
@@ -496,8 +497,34 @@ local function msg(text)
 	print("|cff7fb8ff" .. ADDON .. "|r: " .. text)
 end
 
+-- Maps where it snows rather than rains. Keyed on uiMapID like SEALED_MAPS and
+-- for the same reason: zone names are localised. The numbers are the Classic
+-- UiMap table's (wago.tools, read 2026-11-21), and the live Forever client
+-- reports that same numbering: its where-log has Stormwind 1453, Elwynn 1429
+-- and Darkshore 1439, all matching the table. Only maps that are snow end to
+-- end: a player in Winterspring asked for weather, and rain there is the bug.
+--
+-- `snow` is set by PollZone, not looked up here, because W() runs every frame.
+local zoneWx = {
+	snow = false,
+	MAPS = {
+		[1452] = true,  -- Winterspring
+		[1426] = true,  -- Dun Morogh
+		[1416] = true,  -- Alterac Mountains
+		[1459] = true,  -- Alterac Valley
+	},
+}
+
+-- The weather actually falling. The player's choice, except that rain falls as
+-- snow on a snowy map while zone weather is on. db.weather is never rewritten,
+-- so walking back out of Winterspring is rain again with nothing to undo.
+function zoneWx.Name()
+	if db.weather == "rain" and zoneWx.snow and db.zoneSnow ~= false then return "snow" end
+	return db.weather
+end
+
 local function W()
-	return WEATHER[db.weather] or WEATHER.rain
+	return WEATHER[zoneWx.Name()] or WEATHER.rain
 end
 
 -- The bottom three intensities are shared; the top one is named for its own
@@ -581,7 +608,7 @@ local ENUM = {
 -- the suite rather than shipping quietly.
 local SECTIONS = {
 	look  = { "enabled", "weather", "intensity", "scale", "speed",
-	          "gloom", "gust", "zoom", "indoors", "defer" },
+	          "gloom", "gust", "zoom", "indoors", "defer", "zoneSnow" },
 	sound = { "sound", "volume", "channel", "thunder", "suppress" },
 	time  = { "timeMode", "timeOffset", "timeFixed", "timeStrength" },
 }
@@ -954,7 +981,7 @@ end
 local function ApplyTextures()
 	if not overlay then return end
 	local w, p = W(), Preset()
-	local key = db.weather .. "/" .. db.intensity
+	local key = zoneWx.Name() .. "/" .. db.intensity
 	if appliedTextures == key then return end
 	appliedTextures = key
 
@@ -1576,6 +1603,16 @@ end
 -- flag several times a second, and a flickering sheet is worse than a late one.
 local SURFACE_DELAY = 0.8
 
+-- No debounce: a map border is not a doorway, nobody stands on one, and the
+-- crossing is already the client's own decision about where the line is.
+function zoneWx.Poll()
+	local id = CurrentMapID()
+	local snow = (id and zoneWx.MAPS[id]) and true or false
+	if snow == zoneWx.snow then return end
+	zoneWx.snow = snow
+	ComfyRain_Refresh()
+end
+
 local function PollSubmerged()
 	local under = Submerged()
 	if under ~= underwaterNow then
@@ -1879,6 +1916,7 @@ local function BuildOverlay()
 	indoorTicker = C_Timer.NewTicker(0.3, function()
 		PollIndoors()
 		PollSubmerged()
+		zoneWx.Poll()
 		PollWeather()
 	end)
 end
@@ -2067,7 +2105,7 @@ function shelter.Rand()
 end
 
 function shelter.Active()
-	if not (db.sound and indoorsNow and db.weather == "rain" and ShouldRain()) then
+	if not (db.sound and indoorsNow and zoneWx.Name() == "rain" and ShouldRain()) then
 		return false
 	end
 	local m = IndoorMode()
@@ -2256,7 +2294,7 @@ local function StartBed()
 
 	if Preset().wind then PlayWindClip() end
 	if shelter.Active() then shelter.Next() end
-	loopedKey = db.weather .. "/" .. db.intensity
+	loopedKey = zoneWx.Name() .. "/" .. db.intensity
 	bedIndoor = IndoorFactor("hear")
 end
 
@@ -2391,7 +2429,7 @@ function ComfyRain_Refresh()
 		-- which is up to 30 seconds for rain and 50 for snow, by which point
 		-- the player has usually walked back out again.
 		if not bedSlot.ticker
-		   or loopedKey ~= db.weather .. "/" .. db.intensity
+		   or loopedKey ~= zoneWx.Name() .. "/" .. db.intensity
 		   or bedIndoor ~= IndoorFactor("hear") then
 			StartBed()
 		end
@@ -2482,6 +2520,7 @@ local function Help()
 	print("  |cffffd100/comfy preset dusk||night|r - just the time of day; the weather stays as it is")
 	print("  |cffffd100/comfy rain||snow|r - which weather to draw")
 	print("  |cffffd100/comfy light||normal||heavy|r - intensity")
+	print("  |cffffd100/comfy zonesnow on||off|r - rain falls as snow in Winterspring, Dun Morogh, Alterac")
 	print("  |cffffd100/comfy monsoon|r, |cffffd100/comfy blizzard|r - the top of each, weather included")
 	print("  |cffffd100/comfy cycle|r - step up through the intensities, for a keybind")
 	if ReadsGameWeather() then
@@ -2694,6 +2733,12 @@ local function HandleSlash(input, source)
 			    "one that stops."
 			or  "drawing over the game's own weather. |cffffd100/comfy defer on|r " ..
 			    "puts it back.")
+	elseif cmd == "zonesnow" then
+		db.zoneSnow = (arg ~= "off")
+		ComfyRain_Refresh()
+		msg(db.zoneSnow
+			and "rain falls as snow in Winterspring, Dun Morogh and Alterac."
+			or  "rain everywhere, snowy zones included. |cffffd100/comfy zonesnow on|r puts the snow back.")
 	elseif cmd == "sound" then
 		db.sound = (arg ~= "off")
 	elseif cmd == "thunder" then
@@ -3058,6 +3103,7 @@ end
 -- parser's existing tests.
 ComfyRainAPI = {
 	Weather      = WEATHER,
+	WeatherName  = function() return zoneWx.Name() end,
 	Command      = function(input) HandleSlash(input, "ui") end,
 	DB           = function() return db end,
 	Status       = function() Status() end,
