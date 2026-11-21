@@ -359,7 +359,7 @@ local function IntensityLabel()
 	if db.intensity == "monsoon" or db.intensity == "blizzard" then
 		return Title(db.intensity)
 	end
-	return Title(db.intensity) .. " " .. (db.weather == "snow" and "snow" or "rain")
+	return Title(db.intensity) .. " " .. (ComfyRainAPI.WeatherName() == "snow" and "snow" or "rain")
 end
 
 --------------------------------------------------------------------------------
@@ -921,7 +921,7 @@ local function Note(db)
 		-- Awnings, cave mouths and most doorways count as indoors.
 		if st.indoors then
 			return st.hearing
-				and ("Under a roof: " .. db.weather .. " heard, not drawn.")
+				and ("Under a roof: " .. ComfyRainAPI.WeatherName() .. " heard, not drawn.")
 				or  "Under a roof: nothing drawn."
 		end
 	end
